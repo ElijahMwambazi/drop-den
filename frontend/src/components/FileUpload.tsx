@@ -1,6 +1,7 @@
 import { ChangeEvent, DragEvent, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
+import { listDevices } from "../api/devices";
 import { uploadTransfer } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { Card } from "./Card";
@@ -19,8 +20,18 @@ export function FileUpload() {
   const queryClient = useQueryClient();
   const device = useDeviceStore((state) => state.device);
 
+  const { data: devices = [] } = useQuery({
+    queryKey: ["devices"],
+    queryFn: listDevices,
+  });
+
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [targetDeviceId, setTargetDeviceId] = useState("");
+
+  const targetDevices = devices.filter(
+    (targetDevice) => targetDevice.id !== device?.id,
+  );
 
   const isUploading = uploads.some(
     (upload) => upload.status === "queued" || upload.status === "uploading",
@@ -50,6 +61,7 @@ export function FileUpload() {
       try {
         await uploadTransfer(uploadItem.file, {
           senderDeviceId: device?.id,
+          targetDeviceId: targetDeviceId || undefined,
           onProgress: (progress) => {
             setUploads((currentUploads) =>
               currentUploads.map((item) =>
@@ -130,6 +142,35 @@ export function FileUpload() {
         <div className="rounded-2xl bg-neutral-100 p-3 text-neutral-700">
           <Upload size={20} />
         </div>
+      </div>
+
+      <div className="mt-4">
+        <label
+          className="text-sm font-medium text-neutral-700"
+          htmlFor="target-device"
+        >
+          Send to
+        </label>
+
+        <select
+          id="target-device"
+          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
+          value={targetDeviceId}
+          onChange={(event) => setTargetDeviceId(event.target.value)}
+          disabled={isUploading}
+        >
+          <option value="">Everyone in the den</option>
+
+          {targetDevices.map((targetDevice) => (
+            <option key={targetDevice.id} value={targetDevice.id}>
+              {targetDevice.name}
+            </option>
+          ))}
+        </select>
+
+        <p className="mt-2 text-xs text-neutral-500">
+          Targeted files are shown to you and the selected device.
+        </p>
       </div>
 
       <label

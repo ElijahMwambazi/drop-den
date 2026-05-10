@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { listDevices } from "../api/devices";
 import {
   deleteTransfer,
   downloadAllTransfersUrl,
   listTransfers,
   transferDownloadUrl,
 } from "../api/transfers";
-import type { Transfer } from "../types";
+import { useDeviceStore } from "../store/deviceStore";
+import type { Device, Transfer } from "../types";
 import { Card } from "./Card";
 
 function formatBytes(bytes: number) {
@@ -19,6 +21,27 @@ function getTransferPreviewType(mimeType: string) {
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
   return "file";
+}
+
+function getDeviceName(devices: Device[], deviceId?: string | null) {
+  if (!deviceId) return null;
+
+  return (
+    devices.find((device) => device.id === deviceId)?.name ?? "Unknown device"
+  );
+}
+
+function isTransferVisibleToDevice(
+  transfer: Transfer,
+  currentDeviceId?: string,
+) {
+  if (!transfer.target_device_id) return true;
+  if (!currentDeviceId) return false;
+
+  return (
+    transfer.target_device_id === currentDeviceId ||
+    transfer.sender_device_id === currentDeviceId
+  );
 }
 
 function TransferPreview({ transfer }: { transfer: Transfer }) {
@@ -66,10 +89,16 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
 
 export function TransferList() {
   const queryClient = useQueryClient();
+  const currentDevice = useDeviceStore((state) => state.device);
 
-  const { data = [] } = useQuery({
+  const { data: transfers = [] } = useQuery({
     queryKey: ["transfers"],
     queryFn: listTransfers,
+  });
+
+  const { data: devices = [] } = useQuery({
+    queryKey: ["devices"],
+    queryFn: listDevices,
   });
 
   const remove = useMutation({
@@ -77,7 +106,11 @@ export function TransferList() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
   });
 
-  const hasTransfers = data.length > 0;
+  const visibleTransfers = transfers.filter((transfer) =>
+    isTransferVisibleToDevice(transfer, currentDevice?.id),
+  );
+
+  const hasTransfers = visibleTransfers.length > 0;
 
   return (
     <Card>
@@ -86,8 +119,10 @@ export function TransferList() {
           <h2 className="text-xl font-semibold">Transfers</h2>
           <p className="mt-1 text-sm text-neutral-500">
             {hasTransfers
-              ? `${data.length} shared ${data.length === 1 ? "file" : "files"}`
-              : "No files have been shared yet."}
+              ? `${visibleTransfers.length} visible ${
+                  visibleTransfers.length === 1 ? "file" : "files"
+                }`
+              : "No files visible for this device."}
           </p>
         </div>
 
@@ -107,46 +142,67 @@ export function TransferList() {
             Upload files to make them available to nearby devices.
           </p>
         ) : (
-          data.map((transfer) => (
-            <div
-              key={transfer.id}
-              className="flex flex-col gap-4 rounded-2xl bg-neutral-50 p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
-                <TransferPreview transfer={transfer} />
+          visibleTransfers.map((transfer) => {
+            const senderName = getDeviceName(
+              devices,
+              transfer.sender_device_id,
+            );
+            const targetName = getDeviceName(
+              devices,
+              transfer.target_device_id,
+            );
 
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{transfer.filename}</p>
+            return (
+              <div
+                key={transfer.id}
+                className="flex flex-col gap-4 rounded-2xl bg-neutral-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+                  <TransferPreview transfer={transfer} />
 
-                  <p className="mt-1 text-sm text-neutral-500">
-                    {formatBytes(transfer.size)} · {transfer.mime_type}
-                  </p>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{transfer.filename}</p>
 
-                  <p className="mt-1 text-xs text-neutral-400">
-                    {new Date(transfer.created_at).toLocaleString()}
-                  </p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      {formatBytes(transfer.size)} · {transfer.mime_type}
+                    </p>
+
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
+                        From {senderName ?? "unknown"}
+                      </span>
+
+                      <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
+                        To {targetName ?? "everyone"}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-xs text-neutral-400">
+                      {new Date(transfer.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 gap-2">
+                  <a
+                    className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                    href={transferDownloadUrl(transfer.id)}
+                  >
+                    Download
+                  </a>
+
+                  <button
+                    className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                    type="button"
+                    onClick={() => remove.mutate(transfer.id)}
+                    disabled={remove.isPending}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
-
-              <div className="flex shrink-0 gap-2">
-                <a
-                  className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-                  href={transferDownloadUrl(transfer.id)}
-                >
-                  Download
-                </a>
-
-                <button
-                  className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
-                  type="button"
-                  onClick={() => remove.mutate(transfer.id)}
-                  disabled={remove.isPending}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </Card>
