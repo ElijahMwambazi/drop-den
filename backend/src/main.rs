@@ -30,7 +30,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/devices",
             get(devices::list_devices).post(devices::register_device),
         )
-        .route("/api/transfers", get(transfers::list_transfers))
+        .route(
+            "/api/transfers",
+            get(transfers::list_transfers).delete(transfers::delete_all_transfers),
+        )
         .route(
             "/api/transfers/upload",
             axum::routing::post(transfers::upload_transfer),

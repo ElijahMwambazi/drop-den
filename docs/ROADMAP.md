@@ -29,7 +29,7 @@
 - [x] File size limit
 - [x] Transfer expiry
 - [x] Auto cleanup job
-- [ ] Delete all transfers
+- [x] Delete all transfers
 - [ ] Safer CORS config
 
 ## Phase 4: Production polish

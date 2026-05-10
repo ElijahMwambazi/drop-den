@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
 import {
   acceptTransfer,
+  deleteAllTransfers,
   deleteTransfer,
   downloadAllTransfersUrl,
   listTransfers,
@@ -105,7 +107,12 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
 
   if (previewType === "image") {
     return (
-      <a href={url} target="_blank" rel="noreferrer" className="block">
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="block w-full shrink-0 sm:w-32"
+      >
         <img
           className="h-40 w-full rounded-2xl object-cover sm:h-24 sm:w-32"
           src={url}
@@ -119,7 +126,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
   if (previewType === "video") {
     return (
       <video
-        className="h-40 w-full rounded-2xl bg-black object-cover sm:h-24 sm:w-32"
+        className="h-40 w-full max-w-full rounded-2xl bg-black object-cover sm:h-24 sm:w-32"
         src={url}
         controls
         preload="metadata"
@@ -129,8 +136,13 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
 
   if (previewType === "audio") {
     return (
-      <div className="w-full rounded-2xl bg-white p-3 sm:w-72">
-        <audio className="w-full" src={url} controls preload="metadata" />
+      <div className="min-w-0 max-w-full rounded-2xl bg-white p-3 sm:w-72">
+        <audio
+          className="w-full max-w-full"
+          src={url}
+          controls
+          preload="metadata"
+        />
       </div>
     );
   }
@@ -157,6 +169,11 @@ export function TransferList() {
     queryFn: listDevices,
   });
 
+  const { data: config } = useQuery({
+    queryKey: ["config", currentDevice?.id],
+    queryFn: () => getConfig(currentDevice?.id),
+  });
+
   const remove = useMutation({
     mutationFn: deleteTransfer,
     onSuccess: () => {
@@ -165,6 +182,17 @@ export function TransferList() {
     },
     onError: () => {
       addToast({ type: "error", message: "Could not delete transfer." });
+    },
+  });
+
+  const removeAll = useMutation({
+    mutationFn: deleteAllTransfers,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+      addToast({ type: "success", message: "All transfers deleted." });
+    },
+    onError: () => {
+      addToast({ type: "error", message: "Could not delete all transfers." });
     },
   });
 
@@ -197,136 +225,161 @@ export function TransferList() {
   const downloadableTransfers = visibleTransfers.filter(isTransferDownloadable);
   const hasTransfers = visibleTransfers.length > 0;
   const hasDownloadableTransfers = downloadableTransfers.length > 0;
+  const canDeleteAllTransfers = Boolean(config?.is_host_device) && hasTransfers;
 
   return (
     <Card>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Transfers</h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            {hasTransfers
-              ? `${visibleTransfers.length} visible ${
-                  visibleTransfers.length === 1 ? "file" : "files"
-                }`
-              : "No files visible for this device."}
-          </p>
+      <div className="min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold">Transfers</h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              {hasTransfers
+                ? `${visibleTransfers.length} visible ${
+                    visibleTransfers.length === 1 ? "file" : "files"
+                  }`
+                : "No files visible for this device."}
+            </p>
+          </div>
+
+          {hasTransfers && (
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              {hasDownloadableTransfers && (
+                <a
+                  className="rounded-xl bg-neutral-900 px-4 py-2 text-center text-sm font-medium text-white"
+                  href={downloadAllTransfersUrl()}
+                >
+                  Download ZIP
+                </a>
+              )}
+
+              {canDeleteAllTransfers && (
+                <button
+                  className="rounded-xl border border-red-200 px-4 py-2 text-center text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Delete all transfers from this den?")) {
+                      removeAll.mutate();
+                    }
+                  }}
+                  disabled={removeAll.isPending}
+                >
+                  {removeAll.isPending ? "Deleting..." : "Delete all"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {hasDownloadableTransfers && (
-          <a
-            className="rounded-xl bg-neutral-900 px-4 py-2 text-center text-sm font-medium text-white"
-            href={downloadAllTransfersUrl()}
-          >
-            Download ZIP
-          </a>
-        )}
-      </div>
+        <div className="mt-4 space-y-3">
+          {!hasTransfers ? (
+            <p className="text-sm text-neutral-500">
+              Upload files to make them available to nearby devices.
+            </p>
+          ) : (
+            visibleTransfers.map((transfer) => {
+              const senderName = getDeviceName(
+                devices,
+                transfer.sender_device_id,
+              );
+              const targetName = getDeviceName(
+                devices,
+                transfer.target_device_id,
+              );
+              const canReview = canCurrentDeviceReviewTransfer(
+                transfer,
+                currentDevice?.id,
+              );
+              const canDownload = isTransferDownloadable(transfer);
 
-      <div className="mt-4 space-y-3">
-        {!hasTransfers ? (
-          <p className="text-sm text-neutral-500">
-            Upload files to make them available to nearby devices.
-          </p>
-        ) : (
-          visibleTransfers.map((transfer) => {
-            const senderName = getDeviceName(
-              devices,
-              transfer.sender_device_id,
-            );
-            const targetName = getDeviceName(
-              devices,
-              transfer.target_device_id,
-            );
-            const canReview = canCurrentDeviceReviewTransfer(
-              transfer,
-              currentDevice?.id,
-            );
-            const canDownload = isTransferDownloadable(transfer);
+              return (
+                <div
+                  key={transfer.id}
+                  className="grid min-w-0 gap-4 overflow-hidden rounded-2xl bg-neutral-50 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                >
+                  <div className="grid min-w-0 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                    <TransferPreview transfer={transfer} />
 
-            return (
-              <div
-                key={transfer.id}
-                className="flex flex-col gap-4 rounded-2xl bg-neutral-50 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
-                  <TransferPreview transfer={transfer} />
+                    <div className="min-w-0 overflow-hidden">
+                      <p className="truncate font-medium">
+                        {transfer.filename}
+                      </p>
 
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{transfer.filename}</p>
+                      <p className="mt-1 truncate text-sm text-neutral-500">
+                        {formatBytes(transfer.size)} · {transfer.mime_type}
+                      </p>
 
-                    <p className="mt-1 text-sm text-neutral-500">
-                      {formatBytes(transfer.size)} · {transfer.mime_type}
-                    </p>
+                      <div className="mt-2 flex min-w-0 flex-wrap gap-2 text-xs">
+                        <span className="max-w-full truncate rounded-full bg-white px-3 py-1 text-neutral-600">
+                          From {senderName ?? "unknown"}
+                        </span>
 
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
-                        From {senderName ?? "unknown"}
-                      </span>
+                        <span className="max-w-full truncate rounded-full bg-white px-3 py-1 text-neutral-600">
+                          To {targetName ?? "everyone"}
+                        </span>
 
-                      <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
-                        To {targetName ?? "everyone"}
-                      </span>
+                        <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
+                          {formatTransferStatus(transfer)}
+                        </span>
+                      </div>
 
-                      <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
-                        {formatTransferStatus(transfer)}
-                      </span>
+                      <p className="mt-2 truncate text-xs text-neutral-400">
+                        Uploaded{" "}
+                        {new Date(transfer.created_at).toLocaleString()}
+                      </p>
+
+                      <p className="mt-1 truncate text-xs text-neutral-400">
+                        Expires {new Date(transfer.expires_at).toLocaleString()}
+                      </p>
                     </div>
+                  </div>
 
-                    <p className="mt-2 text-xs text-neutral-400">
-                      Uploaded {new Date(transfer.created_at).toLocaleString()}
-                    </p>
+                  <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                    {canReview && (
+                      <>
+                        <button
+                          className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                          type="button"
+                          onClick={() => accept.mutate(transfer.id)}
+                          disabled={accept.isPending || reject.isPending}
+                        >
+                          Accept
+                        </button>
 
-                    <p className="mt-1 text-xs text-neutral-400">
-                      Expires {new Date(transfer.expires_at).toLocaleString()}
-                    </p>
+                        <button
+                          className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                          type="button"
+                          onClick={() => reject.mutate(transfer.id)}
+                          disabled={accept.isPending || reject.isPending}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+
+                    {canDownload && (
+                      <a
+                        className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                        href={transferDownloadUrl(transfer.id)}
+                      >
+                        Download
+                      </a>
+                    )}
+
+                    <button
+                      className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                      type="button"
+                      onClick={() => remove.mutate(transfer.id)}
+                      disabled={remove.isPending}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  {canReview && (
-                    <>
-                      <button
-                        className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-                        type="button"
-                        onClick={() => accept.mutate(transfer.id)}
-                        disabled={accept.isPending || reject.isPending}
-                      >
-                        Accept
-                      </button>
-
-                      <button
-                        className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
-                        type="button"
-                        onClick={() => reject.mutate(transfer.id)}
-                        disabled={accept.isPending || reject.isPending}
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
-
-                  {canDownload && (
-                    <a
-                      className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-                      href={transferDownloadUrl(transfer.id)}
-                    >
-                      Download
-                    </a>
-                  )}
-
-                  <button
-                    className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
-                    type="button"
-                    onClick={() => remove.mutate(transfer.id)}
-                    disabled={remove.isPending}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
     </Card>
   );

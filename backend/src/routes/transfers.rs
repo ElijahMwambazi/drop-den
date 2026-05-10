@@ -230,10 +230,7 @@ pub async fn delete_transfer(
     let removed = state.transfers.write().await.remove(&id);
 
     if let Some(transfer) = removed {
-        let path = PathBuf::from(&transfer.stored_path);
-        if let Some(parent) = path.parent() {
-            let _ = tokio::fs::remove_dir_all(parent).await;
-        }
+        remove_transfer_files(&transfer).await;
 
         state.broadcast_json(&WsEvent {
             event_type: "transfer_deleted".to_string(),
@@ -244,6 +241,27 @@ pub async fn delete_transfer(
     } else {
         StatusCode::NOT_FOUND
     }
+}
+
+pub async fn delete_all_transfers(State(state): State<AppState>) -> impl IntoResponse {
+    let removed_transfers = {
+        let mut transfers = state.transfers.write().await;
+        transfers
+            .drain()
+            .map(|(_, transfer)| transfer)
+            .collect::<Vec<_>>()
+    };
+
+    for transfer in removed_transfers {
+        remove_transfer_files(&transfer).await;
+
+        state.broadcast_json(&WsEvent {
+            event_type: "transfer_deleted".to_string(),
+            payload: transfer,
+        });
+    }
+
+    StatusCode::NO_CONTENT
 }
 
 async fn update_transfer_status(
@@ -298,4 +316,12 @@ fn zip_filename(index: usize, filename: &str) -> String {
     }
 
     format!("{:03}-{}", index + 1, sanitized)
+}
+
+async fn remove_transfer_files(transfer: &Transfer) {
+    let path = PathBuf::from(&transfer.stored_path);
+
+    if let Some(parent) = path.parent() {
+        let _ = tokio::fs::remove_dir_all(parent).await;
+    }
 }

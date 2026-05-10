@@ -69,6 +69,10 @@ export function deleteTransfer(id: string) {
   return deleteRequest(`/api/transfers/${id}`);
 }
 
+export function deleteAllTransfers() {
+  return deleteRequest("/api/transfers");
+}
+
 export function transferDownloadUrl(id: string) {
   return `/api/transfers/${id}/download`;
 }
