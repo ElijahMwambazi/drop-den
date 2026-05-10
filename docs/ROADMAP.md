@@ -30,7 +30,7 @@
 - [x] Transfer expiry
 - [x] Auto cleanup job
 - [x] Delete all transfers
-- [ ] Safer CORS config
+- [x] Safer CORS config
 
 ## Phase 4: Production polish
 

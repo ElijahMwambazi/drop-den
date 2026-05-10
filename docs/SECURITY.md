@@ -10,6 +10,7 @@ Drop Den is designed to be local-only.
 - Add file size limits before using it heavily.
 - Add a join PIN before trusting it on shared Wi-Fi.
 - Add automatic cleanup for old transfers.
+- Restrict CORS to local development origins instead of using permissive CORS.
 
 ## Recommended future features
 
