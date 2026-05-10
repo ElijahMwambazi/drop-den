@@ -28,7 +28,7 @@
 - [x] Join PIN
 - [x] File size limit
 - [x] Transfer expiry
-- [ ] Auto cleanup job
+- [x] Auto cleanup job
 - [ ] Delete all transfers
 - [ ] Safer CORS config
 

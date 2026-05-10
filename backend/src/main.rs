@@ -1,3 +1,4 @@
+mod cleanup;
 mod models;
 mod routes;
 mod state;
@@ -19,6 +20,8 @@ async fn main() -> anyhow::Result<()> {
     tokio::fs::create_dir_all(&storage_dir).await?;
 
     let state = AppState::new(storage_dir);
+
+    cleanup::spawn_expired_transfer_cleanup(state.clone());
 
     let app = Router::new()
         .route("/api/health", get(health::health))
