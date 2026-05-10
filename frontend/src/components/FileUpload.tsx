@@ -1,44 +1,94 @@
 import { ChangeEvent, DragEvent, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { uploadTransfer } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { Card } from "./Card";
 
+type UploadStatus = "queued" | "uploading" | "success" | "error";
+
+type UploadItem = {
+  id: string;
+  file: File;
+  progress: number;
+  status: UploadStatus;
+  error?: string;
+};
+
 export function FileUpload() {
   const queryClient = useQueryClient();
   const device = useDeviceStore((state) => state.device);
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  const mutation = useMutation({
-    mutationFn: (file: File) =>
-      uploadTransfer(file, {
-        senderDeviceId: device?.id,
-        onProgress: setUploadProgress,
-      }),
-    onSuccess: () => {
-      setUploadProgress(100);
-      setSelectedFile(null);
-      queryClient.invalidateQueries({ queryKey: ["transfers"] });
-    },
-  });
+  const isUploading = uploads.some(
+    (upload) => upload.status === "queued" || upload.status === "uploading",
+  );
 
-  function uploadFile(file: File) {
-    setSelectedFile(file);
-    setUploadProgress(0);
-    mutation.reset();
-    mutation.mutate(file);
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0) return;
+
+    const uploadItems: UploadItem[] = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      progress: 0,
+      status: "queued",
+    }));
+
+    setUploads(uploadItems);
+
+    for (const uploadItem of uploadItems) {
+      setUploads((currentUploads) =>
+        currentUploads.map((item) =>
+          item.id === uploadItem.id
+            ? { ...item, status: "uploading", progress: 0 }
+            : item,
+        ),
+      );
+
+      try {
+        await uploadTransfer(uploadItem.file, {
+          senderDeviceId: device?.id,
+          onProgress: (progress) => {
+            setUploads((currentUploads) =>
+              currentUploads.map((item) =>
+                item.id === uploadItem.id ? { ...item, progress } : item,
+              ),
+            );
+          },
+        });
+
+        setUploads((currentUploads) =>
+          currentUploads.map((item) =>
+            item.id === uploadItem.id
+              ? { ...item, status: "success", progress: 100 }
+              : item,
+          ),
+        );
+      } catch (error) {
+        setUploads((currentUploads) =>
+          currentUploads.map((item) =>
+            item.id === uploadItem.id
+              ? {
+                  ...item,
+                  status: "error",
+                  error:
+                    error instanceof Error ? error.message : "Upload failed.",
+                }
+              : item,
+          ),
+        );
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["transfers"] });
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
 
-    if (file) {
-      uploadFile(file);
-    }
+    uploadFiles(files);
 
     event.target.value = "";
   }
@@ -56,22 +106,24 @@ export function FileUpload() {
     event.preventDefault();
     setIsDragging(false);
 
-    const file = event.dataTransfer.files?.[0];
+    const files = Array.from(event.dataTransfer.files ?? []);
 
-    if (file) {
-      uploadFile(file);
-    }
+    uploadFiles(files);
   }
 
-  const isUploading = mutation.isPending;
+  function clearCompletedUploads() {
+    setUploads((currentUploads) =>
+      currentUploads.filter((upload) => upload.status !== "success"),
+    );
+  }
 
   return (
     <Card>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">Send a file</h2>
+          <h2 className="text-xl font-semibold">Send files</h2>
           <p className="mt-2 text-sm text-neutral-600">
-            Upload media, documents, archives, or any local file to this den.
+            Upload media, documents, archives, or any local files to this den.
           </p>
         </div>
 
@@ -93,57 +145,81 @@ export function FileUpload() {
         ].join(" ")}
       >
         <span className="font-medium">
-          {isDragging ? "Drop file here" : "Choose or drop file"}
+          {isDragging ? "Drop files here" : "Choose or drop files"}
         </span>
 
         <span className="mt-1 text-sm text-neutral-500">
-          MVP supports one file at a time.
+          Multiple files are uploaded one after another.
         </span>
 
         <input
           className="hidden"
           type="file"
+          multiple
           onChange={onFileChange}
           disabled={isUploading}
         />
       </label>
 
-      {selectedFile && (
-        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-neutral-900">
-                {selectedFile.name}
-              </p>
-              <p className="mt-1 text-xs text-neutral-500">
-                {formatBytes(selectedFile.size)}
-              </p>
-            </div>
+      {uploads.length > 0 && (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-neutral-700">Upload queue</p>
 
-            <p className="text-sm font-medium text-neutral-700">
-              {uploadProgress}%
-            </p>
+            {uploads.some((upload) => upload.status === "success") && (
+              <button
+                className="text-sm font-medium text-neutral-500 hover:text-neutral-900"
+                type="button"
+                onClick={clearCompletedUploads}
+                disabled={isUploading}
+              >
+                Clear completed
+              </button>
+            )}
           </div>
 
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-100">
+          {uploads.map((upload) => (
             <div
-              className="h-full rounded-full bg-neutral-900 transition-all"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          </div>
+              key={upload.id}
+              className="rounded-2xl border border-neutral-200 bg-white p-4"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-neutral-900">
+                    {upload.file.name}
+                  </p>
+
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {formatBytes(upload.file.size)} ·{" "}
+                    {formatUploadStatus(upload.status)}
+                  </p>
+                </div>
+
+                <p className="text-sm font-medium text-neutral-700">
+                  {upload.progress}%
+                </p>
+              </div>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-100">
+                <div
+                  className={[
+                    "h-full rounded-full transition-all",
+                    upload.status === "error"
+                      ? "bg-red-600"
+                      : upload.status === "success"
+                        ? "bg-green-700"
+                        : "bg-neutral-900",
+                  ].join(" ")}
+                  style={{ width: `${upload.progress}%` }}
+                />
+              </div>
+
+              {upload.error && (
+                <p className="mt-2 text-sm text-red-600">{upload.error}</p>
+              )}
+            </div>
+          ))}
         </div>
-      )}
-
-      {mutation.isSuccess && (
-        <p className="mt-3 text-sm text-green-700">Upload complete.</p>
-      )}
-
-      {mutation.isError && (
-        <p className="mt-3 text-sm text-red-600">
-          {mutation.error instanceof Error
-            ? mutation.error.message
-            : "Upload failed."}
-        </p>
       )}
     </Card>
   );
@@ -161,4 +237,17 @@ function formatBytes(bytes: number) {
   const value = bytes / 1024 ** unitIndex;
 
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatUploadStatus(status: UploadStatus) {
+  switch (status) {
+    case "queued":
+      return "Queued";
+    case "uploading":
+      return "Uploading";
+    case "success":
+      return "Uploaded";
+    case "error":
+      return "Failed";
+  }
 }
