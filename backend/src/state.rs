@@ -6,6 +6,7 @@ use tokio::sync::{broadcast, RwLock};
 pub struct AppState {
     pub storage_dir: PathBuf,
     pub join_pin: String,
+    pub host_device_id: Arc<RwLock<Option<String>>>,
     pub devices: Arc<RwLock<HashMap<String, Device>>>,
     pub transfers: Arc<RwLock<HashMap<String, Transfer>>>,
     pub messages: Arc<RwLock<Vec<Message>>>,
@@ -19,6 +20,7 @@ impl AppState {
         Self {
             storage_dir,
             join_pin: generate_join_pin(),
+            host_device_id: Arc::new(RwLock::new(None)),
             devices: Arc::new(RwLock::new(HashMap::new())),
             transfers: Arc::new(RwLock::new(HashMap::new())),
             messages: Arc::new(RwLock::new(Vec::new())),

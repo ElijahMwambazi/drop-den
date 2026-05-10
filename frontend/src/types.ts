@@ -8,7 +8,9 @@ export type AppConfig = {
   app_name: string;
   port: number;
   local_only: boolean;
-  join_pin: string;
+  has_host_device: boolean;
+  is_host_device: boolean;
+  join_pin?: string | null;
 };
 
 export type TransferStatus = "available" | "pending" | "accepted" | "rejected";

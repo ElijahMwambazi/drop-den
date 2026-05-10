@@ -3,7 +3,7 @@ import type { Device } from "../types";
 
 type RegisterDeviceInput = {
   name: string;
-  joinPin: string;
+  joinPin?: string;
 };
 
 export function listDevices() {
@@ -11,7 +11,7 @@ export function listDevices() {
 }
 
 export function registerDevice(input: RegisterDeviceInput) {
-  return postJson<Device, { name: string; join_pin: string }>("/api/devices", {
+  return postJson<Device, { name: string; join_pin?: string }>("/api/devices", {
     name: input.name,
     join_pin: input.joinPin,
   });
