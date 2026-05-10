@@ -38,7 +38,7 @@ export function MessagePanel() {
   }, [devices]);
 
   const mutation = useMutation({
-    mutationFn: (messageBody: string) => createMessage(messageBody, device?.id),
+    mutationFn: (messageBody: string) => createMessage(messageBody),
     onSuccess: () => {
       setBody("");
       queryClient.invalidateQueries({ queryKey: ["messages"] });

@@ -5,9 +5,8 @@ export function listMessages() {
   return getJson<LocalMessage[]>("/api/messages");
 }
 
-export function createMessage(body: string, senderDeviceId?: string) {
-  return postJson<LocalMessage, { body: string; sender_device_id?: string }>("/api/messages", {
+export function createMessage(body: string) {
+  return postJson<LocalMessage, { body: string }>("/api/messages", {
     body,
-    sender_device_id: senderDeviceId,
   });
 }

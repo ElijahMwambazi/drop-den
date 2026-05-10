@@ -1,11 +1,12 @@
 use crate::{
+    auth::{require_registered_device, require_registered_device_id},
     models::{Transfer, TransferStatus, WsEvent},
     state::AppState,
 };
 use axum::{
     body::Body,
-    extract::{Multipart, Path, State},
-    http::{header, StatusCode},
+    extract::{Multipart, Path, Query, State},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -21,15 +22,27 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
 const DEFAULT_TRANSFER_TTL_SECONDS: i64 = 24 * 60 * 60;
 
-pub async fn list_transfers(State(state): State<AppState>) -> Json<Vec<Transfer>> {
+#[derive(Debug, serde::Deserialize)]
+pub struct DeviceQuery {
+    pub device_id: Option<String>,
+}
+
+pub async fn list_transfers(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Transfer>>, StatusCode> {
+    require_registered_device(&state, &headers).await?;
+
     let transfers = state.transfers.read().await;
-    Json(transfers.values().cloned().collect())
+    Ok(Json(transfers.values().cloned().collect()))
 }
 
 pub async fn upload_transfer(
     State(state): State<AppState>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<Transfer>, StatusCode> {
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
     let transfer_id = Uuid::new_v4().to_string();
     let transfer_dir = state.storage_dir.join(&transfer_id);
     tokio::fs::create_dir_all(&transfer_dir)
@@ -85,6 +98,8 @@ pub async fn upload_transfer(
                         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 }
 
+                sender_device_id = Some(requesting_device_id.clone());
+
                 let status = if target_device_id.is_some() {
                     TransferStatus::Pending
                 } else {
@@ -129,7 +144,9 @@ pub async fn upload_transfer(
 pub async fn download_transfer(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    Query(query): Query<DeviceQuery>,
 ) -> Result<Response, StatusCode> {
+    require_registered_device_id(&state, query.device_id.as_deref()).await?;
     let transfer = {
         let transfers = state.transfers.read().await;
         transfers.get(&id).cloned()
@@ -160,7 +177,12 @@ pub async fn download_transfer(
     Ok(response)
 }
 
-pub async fn download_all_transfers(State(state): State<AppState>) -> Result<Response, StatusCode> {
+pub async fn download_all_transfers(
+    State(state): State<AppState>,
+    Query(query): Query<DeviceQuery>,
+) -> Result<Response, StatusCode> {
+    require_registered_device_id(&state, query.device_id.as_deref()).await?;
+
     let mut transfers = {
         let transfers = state.transfers.read().await;
         transfers
@@ -211,22 +233,28 @@ pub async fn download_all_transfers(State(state): State<AppState>) -> Result<Res
 
 pub async fn accept_transfer(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Transfer>, StatusCode> {
+    require_registered_device(&state, &headers).await?;
     update_transfer_status(state, id, TransferStatus::Accepted).await
 }
 
 pub async fn reject_transfer(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Transfer>, StatusCode> {
+    require_registered_device(&state, &headers).await?;
     update_transfer_status(state, id, TransferStatus::Rejected).await
 }
 
 pub async fn delete_transfer(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, StatusCode> {
+    require_registered_device(&state, &headers).await?;
     let removed = state.transfers.write().await.remove(&id);
 
     if let Some(transfer) = removed {
@@ -237,13 +265,18 @@ pub async fn delete_transfer(
             payload: transfer,
         });
 
-        StatusCode::NO_CONTENT
+        Ok(StatusCode::NO_CONTENT)
     } else {
-        StatusCode::NOT_FOUND
+        Err(StatusCode::NOT_FOUND)
     }
 }
 
-pub async fn delete_all_transfers(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn delete_all_transfers(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    require_registered_device(&state, &headers).await?;
+
     let removed_transfers = {
         let mut transfers = state.transfers.write().await;
         transfers
@@ -261,7 +294,7 @@ pub async fn delete_all_transfers(State(state): State<AppState>) -> impl IntoRes
         });
     }
 
-    StatusCode::NO_CONTENT
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn update_transfer_status(

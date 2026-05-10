@@ -1,3 +1,4 @@
+mod auth;
 mod cleanup;
 mod models;
 mod routes;
@@ -105,6 +106,7 @@ fn local_cors_layer() -> CorsLayer {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
             axum::http::header::AUTHORIZATION,
+            axum::http::HeaderName::from_static(auth::DEVICE_ID_HEADER),
         ])
 }
 

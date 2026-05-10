@@ -1,24 +1,24 @@
 use crate::{
+    auth::require_registered_device,
     models::{Device, RegisterDeviceRequest, WsEvent},
     state::AppState,
 };
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use chrono::Utc;
-use serde::Deserialize;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize)]
-pub struct RemoveDeviceQuery {
-    pub requesting_device_id: String,
-}
+pub async fn list_devices(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Device>>, StatusCode> {
+    require_registered_device(&state, &headers).await?;
 
-pub async fn list_devices(State(state): State<AppState>) -> Json<Vec<Device>> {
     let devices = state.devices.read().await;
-    Json(devices.values().cloned().collect())
+    Ok(Json(devices.values().cloned().collect()))
 }
 
 pub async fn register_device(
@@ -70,12 +70,13 @@ pub async fn register_device(
 
 pub async fn remove_device(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(device_id): Path<String>,
-    Query(query): Query<RemoveDeviceQuery>,
 ) -> Result<StatusCode, StatusCode> {
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
     let host_device_id = state.host_device_id.read().await.clone();
 
-    if host_device_id.as_deref() != Some(query.requesting_device_id.as_str()) {
+    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
         return Err(StatusCode::FORBIDDEN);
     }
 

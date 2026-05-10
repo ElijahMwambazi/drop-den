@@ -17,10 +17,6 @@ export function registerDevice(input: RegisterDeviceInput) {
   });
 }
 
-export function removeDevice(deviceId: string, requestingDeviceId: string) {
-  return deleteRequest(
-    `/api/devices/${deviceId}?requesting_device_id=${encodeURIComponent(
-      requestingDeviceId,
-    )}`,
-  );
+export function removeDevice(deviceId: string) {
+  return deleteRequest(`/api/devices/${deviceId}`);
 }

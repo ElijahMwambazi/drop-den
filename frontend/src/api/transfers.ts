@@ -1,4 +1,11 @@
-import { deleteRequest, getJson } from "./client";
+import {
+  DEVICE_ID_HEADER,
+  currentDeviceQuery,
+  deleteRequest,
+  getJson,
+  patchJson,
+} from "./client";
+import { useDeviceStore } from "../store/deviceStore";
 import type { Transfer } from "../types";
 
 type UploadTransferOptions = {
@@ -17,8 +24,11 @@ export function uploadTransfer(
 ) {
   const formData = new FormData();
 
-  if (options.senderDeviceId) {
-    formData.append("sender_device_id", options.senderDeviceId);
+  const senderDeviceId =
+    useDeviceStore.getState().device?.id ?? options.senderDeviceId;
+
+  if (senderDeviceId) {
+    formData.append("sender_device_id", senderDeviceId);
   }
 
   if (options.targetDeviceId) {
@@ -31,6 +41,10 @@ export function uploadTransfer(
     const request = new XMLHttpRequest();
 
     request.open("POST", "/api/transfers/upload");
+
+    if (senderDeviceId) {
+      request.setRequestHeader(DEVICE_ID_HEADER, senderDeviceId);
+    }
 
     request.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
@@ -58,11 +72,11 @@ export function uploadTransfer(
 }
 
 export function acceptTransfer(id: string) {
-  return updateTransferStatus(id, "accept");
+  return patchJson<Transfer>(`/api/transfers/${id}/accept`);
 }
 
 export function rejectTransfer(id: string) {
-  return updateTransferStatus(id, "reject");
+  return patchJson<Transfer>(`/api/transfers/${id}/reject`);
 }
 
 export function deleteTransfer(id: string) {
@@ -74,21 +88,17 @@ export function deleteAllTransfers() {
 }
 
 export function transferDownloadUrl(id: string) {
-  return `/api/transfers/${id}/download`;
+  const query = currentDeviceQuery();
+
+  return query
+    ? `/api/transfers/${id}/download?${query}`
+    : `/api/transfers/${id}/download`;
 }
 
 export function downloadAllTransfersUrl() {
-  return "/api/transfers/download-all";
-}
+  const query = currentDeviceQuery();
 
-async function updateTransferStatus(id: string, action: "accept" | "reject") {
-  const response = await fetch(`/api/transfers/${id}/${action}`, {
-    method: "PATCH",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Could not ${action} transfer: ${response.status}`);
-  }
-
-  return response.json() as Promise<Transfer>;
+  return query
+    ? `/api/transfers/download-all?${query}`
+    : "/api/transfers/download-all";
 }

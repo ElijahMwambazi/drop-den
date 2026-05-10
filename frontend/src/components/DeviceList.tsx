@@ -26,7 +26,7 @@ export function DeviceList() {
         throw new Error("No current device identity.");
       }
 
-      return removeDevice(deviceId, currentDevice.id);
+      return removeDevice(deviceId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
