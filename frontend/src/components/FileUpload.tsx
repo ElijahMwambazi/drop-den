@@ -59,6 +59,7 @@ async function uploadFiles(files: File[]) {
 
     const uploadItems: UploadItem[] = files.map((file) => ({
       id: createUploadId(),
+      id: createUploadId(),
       file,
       progress: 0,
       status: "queued",
@@ -223,6 +224,10 @@ async function uploadFiles(files: File[]) {
         <p className="mt-3 text-xs text-neutral-500">{uploadDebugMessage}</p>
       )}
 
+      {uploadDebugMessage && (
+        <p className="mt-3 text-xs text-neutral-500">{uploadDebugMessage}</p>
+      )}
+
       {uploads.length > 0 && (
         <div className="mt-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -312,6 +317,14 @@ function formatUploadStatus(status: UploadStatus) {
     case "error":
       return "Failed";
   }
+}
+
+function createUploadId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function createUploadId() {
