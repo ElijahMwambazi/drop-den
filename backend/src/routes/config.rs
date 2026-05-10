@@ -6,6 +6,7 @@ use axum::{
 use serde::Deserialize;
 
 const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
+const DEFAULT_TRANSFER_TTL_SECONDS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigQuery {
@@ -34,5 +35,6 @@ pub async fn config(
             None
         },
         max_upload_size_bytes: MAX_UPLOAD_SIZE_BYTES,
+        default_transfer_ttl_seconds: DEFAULT_TRANSFER_TTL_SECONDS,
     })
 }

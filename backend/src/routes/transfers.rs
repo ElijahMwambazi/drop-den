@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use std::{
     io::{Cursor, Write},
     path::PathBuf,
@@ -19,6 +19,7 @@ use uuid::Uuid;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
+const DEFAULT_TRANSFER_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 pub async fn list_transfers(State(state): State<AppState>) -> Json<Vec<Transfer>> {
     let transfers = state.transfers.read().await;
@@ -90,6 +91,9 @@ pub async fn upload_transfer(
                     TransferStatus::Available
                 };
 
+                let created_at = Utc::now();
+                let expires_at = created_at + Duration::seconds(DEFAULT_TRANSFER_TTL_SECONDS);
+
                 saved_transfer = Some(Transfer {
                     id: transfer_id.clone(),
                     filename,
@@ -99,7 +103,8 @@ pub async fn upload_transfer(
                     target_device_id: target_device_id.clone(),
                     status,
                     stored_path: file_path.to_string_lossy().to_string(),
-                    created_at: Utc::now(),
+                    created_at,
+                    expires_at,
                 });
             }
             _ => {}
@@ -130,6 +135,10 @@ pub async fn download_transfer(
         transfers.get(&id).cloned()
     }
     .ok_or(StatusCode::NOT_FOUND)?;
+
+    if is_expired(&transfer) {
+        return Err(StatusCode::GONE);
+    }
 
     if !is_downloadable(&transfer) {
         return Err(StatusCode::FORBIDDEN);
@@ -246,6 +255,10 @@ async fn update_transfer_status(
         let mut transfers = state.transfers.write().await;
         let transfer = transfers.get_mut(&id).ok_or(StatusCode::NOT_FOUND)?;
 
+        if is_expired(transfer) {
+            return Err(StatusCode::GONE);
+        }
+
         transfer.status = status;
         transfer.clone()
     };
@@ -259,10 +272,15 @@ async fn update_transfer_status(
 }
 
 fn is_downloadable(transfer: &Transfer) -> bool {
-    matches!(
-        transfer.status,
-        TransferStatus::Available | TransferStatus::Accepted
-    )
+    !is_expired(transfer)
+        && matches!(
+            transfer.status,
+            TransferStatus::Available | TransferStatus::Accepted
+        )
+}
+
+fn is_expired(transfer: &Transfer) -> bool {
+    Utc::now() >= transfer.expires_at
 }
 
 fn sanitize_filename(input: &str) -> String {

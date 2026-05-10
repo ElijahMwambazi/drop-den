@@ -12,6 +12,7 @@ export type AppConfig = {
   is_host_device: boolean;
   join_pin?: string | null;
   max_upload_size_bytes: number;
+  default_transfer_ttl_seconds: number;
 };
 
 export type TransferStatus = "available" | "pending" | "accepted" | "rejected";
@@ -26,6 +27,7 @@ export type Transfer = {
   status: TransferStatus;
   stored_path: string;
   created_at: string;
+  expires_at: string;
 };
 
 export type LocalMessage = {

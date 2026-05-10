@@ -34,6 +34,7 @@ pub struct Transfer {
     pub status: TransferStatus,
     pub stored_path: String,
     pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +60,7 @@ pub struct AppConfig {
     pub is_host_device: bool,
     pub join_pin: Option<String>,
     pub max_upload_size_bytes: u64,
+    pub default_transfer_ttl_seconds: u64,
 }
 
 #[derive(Debug, Serialize)]

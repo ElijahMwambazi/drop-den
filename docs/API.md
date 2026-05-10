@@ -65,7 +65,10 @@ Example response:
 ```txt
 GET /api/transfers
 POST /api/transfers/upload
+GET /api/transfers/download-all
 GET /api/transfers/:id/download
+PATCH /api/transfers/:id/accept
+PATCH /api/transfers/:id/reject
 DELETE /api/transfers/:id
 ```
 
@@ -76,6 +79,8 @@ file=<binary>
 sender_device_id=<uuid>
 target_device_id=<optional uuid>
 ```
+
+Transfers include an expires_at timestamp. Expired transfers are not downloadable and are excluded from ZIP downloads.
 
 ## Messages
 

@@ -47,8 +47,15 @@ function isTransferVisibleToDevice(
   );
 }
 
+function isTransferExpired(transfer: Transfer) {
+  return Date.now() >= new Date(transfer.expires_at).getTime();
+}
+
 function isTransferDownloadable(transfer: Transfer) {
-  return transfer.status === "available" || transfer.status === "accepted";
+  return (
+    !isTransferExpired(transfer) &&
+    (transfer.status === "available" || transfer.status === "accepted")
+  );
 }
 
 function canCurrentDeviceReviewTransfer(
@@ -56,13 +63,20 @@ function canCurrentDeviceReviewTransfer(
   currentDeviceId?: string,
 ) {
   return (
+    !isTransferExpired(transfer) &&
     transfer.status === "pending" &&
     Boolean(currentDeviceId) &&
     transfer.target_device_id === currentDeviceId
   );
 }
 
-function formatTransferStatus(status: TransferStatus) {
+function formatTransferStatus(transfer: Transfer) {
+  if (isTransferExpired(transfer)) return "Expired";
+
+  return formatStatusLabel(transfer.status);
+}
+
+function formatStatusLabel(status: TransferStatus) {
   switch (status) {
     case "available":
       return "Available";
@@ -81,7 +95,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
   if (!canPreview) {
     return (
       <div className="flex h-24 w-full items-center justify-center rounded-2xl bg-white text-sm font-medium text-neutral-500 sm:w-32">
-        {formatTransferStatus(transfer.status)}
+        {formatTransferStatus(transfer)}
       </div>
     );
   }
@@ -147,17 +161,10 @@ export function TransferList() {
     mutationFn: deleteTransfer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transfers"] });
-
-      addToast({
-        type: "success",
-        message: "Transfer deleted.",
-      });
+      addToast({ type: "success", message: "Transfer deleted." });
     },
     onError: () => {
-      addToast({
-        type: "error",
-        message: "Could not delete transfer.",
-      });
+      addToast({ type: "error", message: "Could not delete transfer." });
     },
   });
 
@@ -165,17 +172,10 @@ export function TransferList() {
     mutationFn: acceptTransfer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transfers"] });
-
-      addToast({
-        type: "success",
-        message: "Transfer accepted.",
-      });
+      addToast({ type: "success", message: "Transfer accepted." });
     },
     onError: () => {
-      addToast({
-        type: "error",
-        message: "Could not accept transfer.",
-      });
+      addToast({ type: "error", message: "Could not accept transfer." });
     },
   });
 
@@ -183,17 +183,10 @@ export function TransferList() {
     mutationFn: rejectTransfer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transfers"] });
-
-      addToast({
-        type: "info",
-        message: "Transfer rejected.",
-      });
+      addToast({ type: "info", message: "Transfer rejected." });
     },
     onError: () => {
-      addToast({
-        type: "error",
-        message: "Could not reject transfer.",
-      });
+      addToast({ type: "error", message: "Could not reject transfer." });
     },
   });
 
@@ -275,12 +268,16 @@ export function TransferList() {
                       </span>
 
                       <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
-                        {formatTransferStatus(transfer.status)}
+                        {formatTransferStatus(transfer)}
                       </span>
                     </div>
 
                     <p className="mt-2 text-xs text-neutral-400">
-                      {new Date(transfer.created_at).toLocaleString()}
+                      Uploaded {new Date(transfer.created_at).toLocaleString()}
+                    </p>
+
+                    <p className="mt-1 text-xs text-neutral-400">
+                      Expires {new Date(transfer.expires_at).toLocaleString()}
                     </p>
                   </div>
                 </div>

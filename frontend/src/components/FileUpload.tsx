@@ -1,9 +1,9 @@
 import { ChangeEvent, DragEvent, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
+import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
 import { uploadTransfer } from "../api/transfers";
-import { getConfig } from "../api/config";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
@@ -39,6 +39,8 @@ export function FileUpload() {
   const [uploadDebugMessage, setUploadDebugMessage] = useState("");
 
   const maxUploadSizeBytes = config?.max_upload_size_bytes ?? 250 * 1024 * 1024;
+  const transferTtlSeconds =
+    config?.default_transfer_ttl_seconds ?? 24 * 60 * 60;
 
   const targetDevices = devices.filter(
     (targetDevice) => targetDevice.id !== device?.id,
@@ -146,9 +148,7 @@ export function FileUpload() {
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
-
     uploadFiles(files);
-
     event.target.value = "";
   }
 
@@ -166,7 +166,6 @@ export function FileUpload() {
     setIsDragging(false);
 
     const files = Array.from(event.dataTransfer.files ?? []);
-
     uploadFiles(files);
   }
 
@@ -216,7 +215,8 @@ export function FileUpload() {
         </select>
 
         <p className="mt-2 text-xs text-neutral-500">
-          Targeted files are shown to you and the selected device.
+          Targeted files are shown to you and the selected device. Transfers
+          expire after {formatDuration(transferTtlSeconds)}.
         </p>
       </div>
 
@@ -330,6 +330,17 @@ function formatBytes(bytes: number) {
   const value = bytes / 1024 ** unitIndex;
 
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDuration(seconds: number) {
+  const hours = Math.round(seconds / 60 / 60);
+
+  if (hours < 24) {
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
 function formatUploadStatus(status: UploadStatus) {
