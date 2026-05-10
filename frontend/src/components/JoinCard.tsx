@@ -1,12 +1,19 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Check, Copy } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+import { getConfig } from "../api/config";
 import { Card } from "./Card";
 
 export function JoinCard() {
   const [copied, setCopied] = useState(false);
 
   const joinUrl = useMemo(() => window.location.origin, []);
+
+  const { data: config } = useQuery({
+    queryKey: ["config"],
+    queryFn: getConfig,
+  });
 
   async function copyJoinUrl() {
     await navigator.clipboard.writeText(joinUrl);
@@ -31,7 +38,7 @@ export function JoinCard() {
 
           <p className="mt-2 max-w-xl text-sm text-neutral-600">
             Use the same Wi-Fi or local network. Scan the QR code or open this
-            address in another browser.
+            address in another browser, then enter the join PIN.
           </p>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -55,6 +62,15 @@ export function JoinCard() {
               Drop Den using your computer&apos;s LAN IP address instead.
             </p>
           )}
+
+          <div className="mt-4 w-fit rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+              Join PIN
+            </p>
+            <p className="mt-1 font-mono text-3xl font-semibold tracking-[0.25em] text-neutral-900">
+              {config?.join_pin ?? "------"}
+            </p>
+          </div>
         </div>
 
         <div className="w-fit rounded-3xl border border-neutral-200 bg-white p-3">

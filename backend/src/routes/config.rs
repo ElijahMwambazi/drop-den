@@ -1,11 +1,11 @@
-use axum::Json;
-use serde_json::{json, Value};
+use crate::{models::AppConfig, state::AppState};
+use axum::{extract::State, Json};
 
-pub async fn config() -> Json<Value> {
-    Json(json!({
-        "app_name": "Drop Den",
-        "port": 8080,
-        "local_only": true,
-        "join_url_note": "Use the host machine LAN IP, for example http://192.168.1.25:8080"
-    }))
+pub async fn config(State(state): State<AppState>) -> Json<AppConfig> {
+    Json(AppConfig {
+        app_name: "Drop Den".to_string(),
+        port: 8080,
+        local_only: true,
+        join_pin: state.join_pin.clone(),
+    })
 }

@@ -11,6 +11,7 @@ pub struct Device {
 #[derive(Debug, Deserialize)]
 pub struct RegisterDeviceRequest {
     pub name: String,
+    pub join_pin: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -47,6 +48,14 @@ pub struct Message {
 pub struct CreateMessageRequest {
     pub sender_device_id: Option<String>,
     pub body: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AppConfig {
+    pub app_name: String,
+    pub port: u16,
+    pub local_only: bool,
+    pub join_pin: String,
 }
 
 #[derive(Debug, Serialize)]

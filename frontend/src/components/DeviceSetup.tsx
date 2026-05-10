@@ -11,11 +11,13 @@ export function DeviceSetup() {
   const [name, setName] = useState(
     () => device?.name ?? localStorage.getItem("drop-den-device-name") ?? "",
   );
+  const [joinPin, setJoinPin] = useState("");
 
   const mutation = useMutation({
     mutationFn: registerDevice,
     onSuccess: (newDevice) => {
       setDevice(newDevice);
+      setJoinPin("");
       queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
   });
@@ -23,18 +25,23 @@ export function DeviceSetup() {
   function onSubmit(event: FormEvent) {
     event.preventDefault();
 
-    const trimmed = name.trim();
+    const trimmedName = name.trim();
+    const trimmedJoinPin = joinPin.trim();
 
-    if (!trimmed) {
+    if (!trimmedName || !trimmedJoinPin) {
       return;
     }
 
-    mutation.mutate(trimmed);
+    mutation.mutate({
+      name: trimmedName,
+      joinPin: trimmedJoinPin,
+    });
   }
 
   function onSwitchDevice() {
     clearDevice();
     setName("");
+    setJoinPin("");
   }
 
   return (
@@ -57,7 +64,7 @@ export function DeviceSetup() {
             </div>
           ) : (
             <p className="mt-2 text-sm text-neutral-600">
-              Name this device so other nearby devices can recognize it.
+              Name this device and enter the host join PIN.
             </p>
           )}
         </div>
@@ -75,20 +82,31 @@ export function DeviceSetup() {
 
       {!device && (
         <form
-          className="mt-4 flex flex-col gap-3 sm:flex-row"
+          className="mt-4 grid gap-3 sm:grid-cols-[1fr_180px_auto]"
           onSubmit={onSubmit}
         >
           <input
-            className="min-w-0 flex-1 rounded-2xl border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
+            className="min-w-0 rounded-2xl border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
             placeholder="e.g. Elijah's phone"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
 
+          <input
+            className="min-w-0 rounded-2xl border border-neutral-300 px-4 py-3 font-mono tracking-[0.2em] outline-none focus:border-neutral-900"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="PIN"
+            value={joinPin}
+            onChange={(event) =>
+              setJoinPin(event.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+          />
+
           <button
             className="rounded-2xl bg-neutral-900 px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !name.trim() || !joinPin.trim()}
           >
             {mutation.isPending ? "Joining..." : "Join"}
           </button>

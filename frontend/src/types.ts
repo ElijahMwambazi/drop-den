@@ -4,6 +4,13 @@ export type Device = {
   connected_at: string;
 };
 
+export type AppConfig = {
+  app_name: string;
+  port: number;
+  local_only: boolean;
+  join_pin: string;
+};
+
 export type TransferStatus = "available" | "pending" | "accepted" | "rejected";
 
 export type Transfer = {

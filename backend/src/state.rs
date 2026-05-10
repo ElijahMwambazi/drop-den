@@ -5,6 +5,7 @@ use tokio::sync::{broadcast, RwLock};
 #[derive(Clone)]
 pub struct AppState {
     pub storage_dir: PathBuf,
+    pub join_pin: String,
     pub devices: Arc<RwLock<HashMap<String, Device>>>,
     pub transfers: Arc<RwLock<HashMap<String, Transfer>>>,
     pub messages: Arc<RwLock<Vec<Message>>>,
@@ -17,6 +18,7 @@ impl AppState {
 
         Self {
             storage_dir,
+            join_pin: generate_join_pin(),
             devices: Arc::new(RwLock::new(HashMap::new())),
             transfers: Arc::new(RwLock::new(HashMap::new())),
             messages: Arc::new(RwLock::new(Vec::new())),
@@ -29,4 +31,9 @@ impl AppState {
             let _ = self.events.send(payload);
         }
     }
+}
+
+fn generate_join_pin() -> String {
+    let value = uuid::Uuid::new_v4().as_u128() % 1_000_000;
+    format!("{value:06}")
 }

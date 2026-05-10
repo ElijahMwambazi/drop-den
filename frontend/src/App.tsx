@@ -32,11 +32,13 @@ export function App() {
           <DeviceSetup />
           <FileUpload />
           <TransferList />
-          <ToastViewport />
           <MessagePanel />
         </div>
+
         <DeviceList />
       </div>
+
+      <ToastViewport />
     </main>
   );
 }
