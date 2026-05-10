@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listDevices } from "../api/devices";
 import {
+  acceptTransfer,
   deleteTransfer,
   downloadAllTransfersUrl,
   listTransfers,
+  rejectTransfer,
   transferDownloadUrl,
 } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
-import type { Device, Transfer } from "../types";
+import type { Device, Transfer, TransferStatus } from "../types";
 import { Card } from "./Card";
 
 function formatBytes(bytes: number) {
@@ -44,7 +46,45 @@ function isTransferVisibleToDevice(
   );
 }
 
+function isTransferDownloadable(transfer: Transfer) {
+  return transfer.status === "available" || transfer.status === "accepted";
+}
+
+function canCurrentDeviceReviewTransfer(
+  transfer: Transfer,
+  currentDeviceId?: string,
+) {
+  return (
+    transfer.status === "pending" &&
+    Boolean(currentDeviceId) &&
+    transfer.target_device_id === currentDeviceId
+  );
+}
+
+function formatTransferStatus(status: TransferStatus) {
+  switch (status) {
+    case "available":
+      return "Available";
+    case "pending":
+      return "Pending";
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Rejected";
+  }
+}
+
 function TransferPreview({ transfer }: { transfer: Transfer }) {
+  const canPreview = isTransferDownloadable(transfer);
+
+  if (!canPreview) {
+    return (
+      <div className="flex h-24 w-full items-center justify-center rounded-2xl bg-white text-sm font-medium text-neutral-500 sm:w-32">
+        {formatTransferStatus(transfer.status)}
+      </div>
+    );
+  }
+
   const previewType = getTransferPreviewType(transfer.mime_type);
   const url = transferDownloadUrl(transfer.id);
 
@@ -106,11 +146,23 @@ export function TransferList() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
   });
 
+  const accept = useMutation({
+    mutationFn: acceptTransfer,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
+  });
+
+  const reject = useMutation({
+    mutationFn: rejectTransfer,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
+  });
+
   const visibleTransfers = transfers.filter((transfer) =>
     isTransferVisibleToDevice(transfer, currentDevice?.id),
   );
 
+  const downloadableTransfers = visibleTransfers.filter(isTransferDownloadable);
   const hasTransfers = visibleTransfers.length > 0;
+  const hasDownloadableTransfers = downloadableTransfers.length > 0;
 
   return (
     <Card>
@@ -126,7 +178,7 @@ export function TransferList() {
           </p>
         </div>
 
-        {hasTransfers && (
+        {hasDownloadableTransfers && (
           <a
             className="rounded-xl bg-neutral-900 px-4 py-2 text-center text-sm font-medium text-white"
             href={downloadAllTransfersUrl()}
@@ -151,6 +203,11 @@ export function TransferList() {
               devices,
               transfer.target_device_id,
             );
+            const canReview = canCurrentDeviceReviewTransfer(
+              transfer,
+              currentDevice?.id,
+            );
+            const canDownload = isTransferDownloadable(transfer);
 
             return (
               <div
@@ -175,6 +232,10 @@ export function TransferList() {
                       <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
                         To {targetName ?? "everyone"}
                       </span>
+
+                      <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
+                        {formatTransferStatus(transfer.status)}
+                      </span>
                     </div>
 
                     <p className="mt-2 text-xs text-neutral-400">
@@ -183,13 +244,37 @@ export function TransferList() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 gap-2">
-                  <a
-                    className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
-                    href={transferDownloadUrl(transfer.id)}
-                  >
-                    Download
-                  </a>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {canReview && (
+                    <>
+                      <button
+                        className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                        type="button"
+                        onClick={() => accept.mutate(transfer.id)}
+                        disabled={accept.isPending || reject.isPending}
+                      >
+                        Accept
+                      </button>
+
+                      <button
+                        className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                        type="button"
+                        onClick={() => reject.mutate(transfer.id)}
+                        disabled={accept.isPending || reject.isPending}
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {canDownload && (
+                    <a
+                      className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                      href={transferDownloadUrl(transfer.id)}
+                    >
+                      Download
+                    </a>
+                  )}
 
                   <button
                     className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"

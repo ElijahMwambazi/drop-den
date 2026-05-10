@@ -1,5 +1,5 @@
 use crate::{
-    models::{Transfer, WsEvent},
+    models::{Transfer, TransferStatus, WsEvent},
     state::AppState,
 };
 use axum::{
@@ -75,6 +75,12 @@ pub async fn upload_transfer(
                         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 }
 
+                let status = if target_device_id.is_some() {
+                    TransferStatus::Pending
+                } else {
+                    TransferStatus::Available
+                };
+
                 saved_transfer = Some(Transfer {
                     id: transfer_id.clone(),
                     filename,
@@ -82,6 +88,7 @@ pub async fn upload_transfer(
                     size,
                     sender_device_id: sender_device_id.clone(),
                     target_device_id: target_device_id.clone(),
+                    status,
                     stored_path: file_path.to_string_lossy().to_string(),
                     created_at: Utc::now(),
                 });
@@ -115,6 +122,10 @@ pub async fn download_transfer(
     }
     .ok_or(StatusCode::NOT_FOUND)?;
 
+    if !is_downloadable(&transfer) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     let bytes = tokio::fs::read(&transfer.stored_path)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -134,7 +145,11 @@ pub async fn download_transfer(
 pub async fn download_all_transfers(State(state): State<AppState>) -> Result<Response, StatusCode> {
     let mut transfers = {
         let transfers = state.transfers.read().await;
-        transfers.values().cloned().collect::<Vec<_>>()
+        transfers
+            .values()
+            .filter(|transfer| is_downloadable(transfer))
+            .cloned()
+            .collect::<Vec<_>>()
     };
 
     transfers.sort_by_key(|transfer| transfer.created_at);
@@ -176,6 +191,20 @@ pub async fn download_all_transfers(State(state): State<AppState>) -> Result<Res
     Ok(response)
 }
 
+pub async fn accept_transfer(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Transfer>, StatusCode> {
+    update_transfer_status(state, id, TransferStatus::Accepted).await
+}
+
+pub async fn reject_transfer(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Transfer>, StatusCode> {
+    update_transfer_status(state, id, TransferStatus::Rejected).await
+}
+
 pub async fn delete_transfer(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -197,6 +226,34 @@ pub async fn delete_transfer(
     } else {
         StatusCode::NOT_FOUND
     }
+}
+
+async fn update_transfer_status(
+    state: AppState,
+    id: String,
+    status: TransferStatus,
+) -> Result<Json<Transfer>, StatusCode> {
+    let transfer = {
+        let mut transfers = state.transfers.write().await;
+        let transfer = transfers.get_mut(&id).ok_or(StatusCode::NOT_FOUND)?;
+
+        transfer.status = status;
+        transfer.clone()
+    };
+
+    state.broadcast_json(&WsEvent {
+        event_type: "transfer_updated".to_string(),
+        payload: transfer.clone(),
+    });
+
+    Ok(Json(transfer))
+}
+
+fn is_downloadable(transfer: &Transfer) -> bool {
+    matches!(
+        transfer.status,
+        TransferStatus::Available | TransferStatus::Accepted
+    )
 }
 
 fn sanitize_filename(input: &str) -> String {

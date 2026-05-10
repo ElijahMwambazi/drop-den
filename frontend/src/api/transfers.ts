@@ -57,6 +57,14 @@ export function uploadTransfer(
   });
 }
 
+export function acceptTransfer(id: string) {
+  return updateTransferStatus(id, "accept");
+}
+
+export function rejectTransfer(id: string) {
+  return updateTransferStatus(id, "reject");
+}
+
 export function deleteTransfer(id: string) {
   return deleteRequest(`/api/transfers/${id}`);
 }
@@ -67,4 +75,16 @@ export function transferDownloadUrl(id: string) {
 
 export function downloadAllTransfersUrl() {
   return "/api/transfers/download-all";
+}
+
+async function updateTransferStatus(id: string, action: "accept" | "reject") {
+  const response = await fetch(`/api/transfers/${id}/${action}`, {
+    method: "PATCH",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not ${action} transfer: ${response.status}`);
+  }
+
+  return response.json() as Promise<Transfer>;
 }

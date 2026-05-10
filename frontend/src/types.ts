@@ -4,6 +4,8 @@ export type Device = {
   connected_at: string;
 };
 
+export type TransferStatus = "available" | "pending" | "accepted" | "rejected";
+
 export type Transfer = {
   id: string;
   filename: string;
@@ -11,6 +13,7 @@ export type Transfer = {
   size: number;
   sender_device_id?: string | null;
   target_device_id?: string | null;
+  status: TransferStatus;
   stored_path: string;
   created_at: string;
 };

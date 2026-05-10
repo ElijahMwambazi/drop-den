@@ -13,6 +13,15 @@ pub struct RegisterDeviceRequest {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferStatus {
+    Available,
+    Pending,
+    Accepted,
+    Rejected,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transfer {
     pub id: String,
@@ -21,6 +30,7 @@ pub struct Transfer {
     pub size: u64,
     pub sender_device_id: Option<String>,
     pub target_device_id: Option<String>,
+    pub status: TransferStatus,
     pub stored_path: String,
     pub created_at: DateTime<Utc>,
 }

@@ -41,6 +41,14 @@ async fn main() -> anyhow::Result<()> {
             get(transfers::download_transfer),
         )
         .route(
+            "/api/transfers/:id/accept",
+            axum::routing::patch(transfers::accept_transfer),
+        )
+        .route(
+            "/api/transfers/:id/reject",
+            axum::routing::patch(transfers::reject_transfer),
+        )
+        .route(
             "/api/transfers/:id",
             axum::routing::delete(transfers::delete_transfer),
         )
