@@ -17,8 +17,6 @@ export function uploadTransfer(
 ) {
   const formData = new FormData();
 
-  formData.append("file", file);
-
   if (options.senderDeviceId) {
     formData.append("sender_device_id", options.senderDeviceId);
   }
@@ -26,6 +24,8 @@ export function uploadTransfer(
   if (options.targetDeviceId) {
     formData.append("target_device_id", options.targetDeviceId);
   }
+
+  formData.append("file", file);
 
   return new Promise<Transfer>((resolve, reject) => {
     const request = new XMLHttpRequest();
