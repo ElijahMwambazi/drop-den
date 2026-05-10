@@ -1,4 +1,7 @@
-use crate::{models::{Transfer, WsEvent}, state::AppState};
+use crate::{
+    models::{Transfer, WsEvent},
+    state::AppState,
+};
 use axum::{
     body::Body,
     extract::{Multipart, Path, State},
@@ -7,9 +10,13 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use std::path::PathBuf;
+use std::{
+    io::{Cursor, Write},
+    path::PathBuf,
+};
 use tokio::{fs::File, io::AsyncWriteExt};
 use uuid::Uuid;
+use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 pub async fn list_transfers(State(state): State<AppState>) -> Json<Vec<Transfer>> {
     let transfers = state.transfers.read().await;
@@ -30,7 +37,11 @@ pub async fn upload_transfer(
     let mut target_device_id: Option<String> = None;
     let mut saved_transfer: Option<Transfer> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
         let name = field.name().unwrap_or_default().to_string();
 
         match name.as_str() {
@@ -80,7 +91,11 @@ pub async fn upload_transfer(
     }
 
     let transfer = saved_transfer.ok_or(StatusCode::BAD_REQUEST)?;
-    state.transfers.write().await.insert(transfer.id.clone(), transfer.clone());
+    state
+        .transfers
+        .write()
+        .await
+        .insert(transfer.id.clone(), transfer.clone());
 
     state.broadcast_json(&WsEvent {
         event_type: "transfer_created".to_string(),
@@ -116,6 +131,51 @@ pub async fn download_transfer(
     Ok(response)
 }
 
+pub async fn download_all_transfers(State(state): State<AppState>) -> Result<Response, StatusCode> {
+    let mut transfers = {
+        let transfers = state.transfers.read().await;
+        transfers.values().cloned().collect::<Vec<_>>()
+    };
+
+    transfers.sort_by_key(|transfer| transfer.created_at);
+
+    let cursor = Cursor::new(Vec::<u8>::new());
+    let mut zip = ZipWriter::new(cursor);
+
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+
+    for (index, transfer) in transfers.iter().enumerate() {
+        let bytes = tokio::fs::read(&transfer.stored_path)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
+
+        let filename = zip_filename(index, &transfer.filename);
+
+        zip.start_file(filename, options)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        zip.write_all(&bytes)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    let cursor = zip
+        .finish()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let bytes = cursor.into_inner();
+
+    let response = Response::builder()
+        .header(header::CONTENT_TYPE, "application/zip")
+        .header(
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"drop-den-transfers.zip\"",
+        )
+        .body(Body::from(bytes))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(response)
+}
+
 pub async fn delete_transfer(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -144,4 +204,14 @@ fn sanitize_filename(input: &str) -> String {
         .chars()
         .filter(|c| c.is_alphanumeric() || matches!(c, '.' | '-' | '_'))
         .collect::<String>()
+}
+
+fn zip_filename(index: usize, filename: &str) -> String {
+    let sanitized = sanitize_filename(filename);
+
+    if sanitized.is_empty() {
+        return format!("{:03}-file", index + 1);
+    }
+
+    format!("{:03}-{}", index + 1, sanitized)
 }

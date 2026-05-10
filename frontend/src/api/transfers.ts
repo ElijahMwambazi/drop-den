@@ -64,3 +64,7 @@ export function deleteTransfer(id: string) {
 export function transferDownloadUrl(id: string) {
   return `/api/transfers/${id}/download`;
 }
+
+export function downloadAllTransfersUrl() {
+  return "/api/transfers/download-all";
+}

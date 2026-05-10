@@ -16,3 +16,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mime_guess = "2"
 anyhow = "1"
+zip = "2"

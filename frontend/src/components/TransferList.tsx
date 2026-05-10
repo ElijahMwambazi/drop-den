@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteTransfer,
+  downloadAllTransfersUrl,
   listTransfers,
   transferDownloadUrl,
 } from "../api/transfers";
@@ -76,14 +77,34 @@ export function TransferList() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
   });
 
+  const hasTransfers = data.length > 0;
+
   return (
     <Card>
-      <h2 className="text-xl font-semibold">Transfers</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Transfers</h2>
+          <p className="mt-1 text-sm text-neutral-500">
+            {hasTransfers
+              ? `${data.length} shared ${data.length === 1 ? "file" : "files"}`
+              : "No files have been shared yet."}
+          </p>
+        </div>
+
+        {hasTransfers && (
+          <a
+            className="rounded-xl bg-neutral-900 px-4 py-2 text-center text-sm font-medium text-white"
+            href={downloadAllTransfersUrl()}
+          >
+            Download ZIP
+          </a>
+        )}
+      </div>
 
       <div className="mt-4 space-y-3">
-        {data.length === 0 ? (
+        {!hasTransfers ? (
           <p className="text-sm text-neutral-500">
-            No files have been shared yet.
+            Upload files to make them available to nearby devices.
           </p>
         ) : (
           data.map((transfer) => (
