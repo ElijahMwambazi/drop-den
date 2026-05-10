@@ -4,6 +4,7 @@ import { FileUpload } from "./components/FileUpload";
 import { JoinCard } from "./components/JoinCard";
 import { MessagePanel } from "./components/MessagePanel";
 import { TransferList } from "./components/TransferList";
+import { ToastViewport } from "./components/ToastViewport";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 
 export function App() {
@@ -11,11 +12,16 @@ export function App() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8">
-      <header className="rounded-[2rem] bg-neutral-950 p-6 text-white shadow-sm md:p-8">
-        <p className="text-sm font-medium uppercase tracking-[0.3em] text-neutral-400">Local-only transfer hub</p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-6xl">Drop Den</h1>
+      <header className="rounded-4xl bg-neutral-950 p-6 text-white shadow-sm md:p-8">
+        <p className="text-sm font-medium uppercase tracking-[0.3em] text-neutral-400">
+          Local-only transfer hub
+        </p>
+        <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-6xl">
+          Drop Den
+        </h1>
         <p className="mt-4 max-w-2xl text-neutral-300">
-          Move files, media, and text messages between nearby devices through one host machine. No cloud. No accounts. Just the local network.
+          Move files, media, and text messages between nearby devices through
+          one host machine. No cloud. No accounts. Just the local network.
         </p>
       </header>
 
@@ -26,6 +32,7 @@ export function App() {
           <DeviceSetup />
           <FileUpload />
           <TransferList />
+          <ToastViewport />
           <MessagePanel />
         </div>
         <DeviceList />

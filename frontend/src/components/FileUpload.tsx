@@ -4,6 +4,7 @@ import { Upload } from "lucide-react";
 import { listDevices } from "../api/devices";
 import { uploadTransfer } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
+import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
 
 type UploadStatus = "queued" | "uploading" | "success" | "error";
@@ -16,35 +17,20 @@ type UploadItem = {
   error?: string;
 };
 
-async function uploadFiles(files: File[]) {
-  const [uploads, setUploads] = useState<UploadItem[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [targetDeviceId, setTargetDeviceId] = useState("");
-  const [uploadDebugMessage, setUploadDebugMessage] = useState("");
-
-  setUploadDebugMessage(`Selected ${files.length} file(s).`);
-
-  if (files.length === 0) {
-    setUploadDebugMessage("No files were selected by the browser.");
-    return;
-  }
-
-  const uploadItems: UploadItem[] = files.map((file) => ({
-    id: createUploadId(),
-    file,
-    progress: 0,
-    status: "queued",
-  }));
-
-  setUploads(uploadItems);
-
+export function FileUpload() {
   const queryClient = useQueryClient();
   const device = useDeviceStore((state) => state.device);
+  const addToast = useToastStore((state) => state.addToast);
 
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
     queryFn: listDevices,
   });
+
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [targetDeviceId, setTargetDeviceId] = useState("");
+  const [uploadDebugMessage, setUploadDebugMessage] = useState("");
 
   const targetDevices = devices.filter(
     (targetDevice) => targetDevice.id !== device?.id,
@@ -55,10 +41,14 @@ async function uploadFiles(files: File[]) {
   );
 
   async function uploadFiles(files: File[]) {
-    if (files.length === 0) return;
+    setUploadDebugMessage(`Selected ${files.length} file(s).`);
+
+    if (files.length === 0) {
+      setUploadDebugMessage("No files were selected by the browser.");
+      return;
+    }
 
     const uploadItems: UploadItem[] = files.map((file) => ({
-      id: createUploadId(),
       id: createUploadId(),
       file,
       progress: 0,
@@ -96,19 +86,31 @@ async function uploadFiles(files: File[]) {
               : item,
           ),
         );
+
+        addToast({
+          type: "success",
+          message: `${uploadItem.file.name} uploaded.`,
+        });
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Upload failed.";
+
         setUploads((currentUploads) =>
           currentUploads.map((item) =>
             item.id === uploadItem.id
               ? {
                   ...item,
                   status: "error",
-                  error:
-                    error instanceof Error ? error.message : "Upload failed.",
+                  error: errorMessage,
                 }
               : item,
           ),
         );
+
+        addToast({
+          type: "error",
+          message: errorMessage,
+        });
       }
     }
 
@@ -224,10 +226,6 @@ async function uploadFiles(files: File[]) {
         <p className="mt-3 text-xs text-neutral-500">{uploadDebugMessage}</p>
       )}
 
-      {uploadDebugMessage && (
-        <p className="mt-3 text-xs text-neutral-500">{uploadDebugMessage}</p>
-      )}
-
       {uploads.length > 0 && (
         <div className="mt-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -235,7 +233,7 @@ async function uploadFiles(files: File[]) {
 
             {uploads.some((upload) => upload.status === "success") && (
               <button
-                className="text-sm font-medium text-neutral-500 hover:text-neutral-900"
+                className="text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 onClick={clearCompletedUploads}
                 disabled={isUploading}
@@ -317,14 +315,6 @@ function formatUploadStatus(status: UploadStatus) {
     case "error":
       return "Failed";
   }
-}
-
-function createUploadId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function createUploadId() {

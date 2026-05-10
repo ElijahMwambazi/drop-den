@@ -9,6 +9,7 @@ import {
   transferDownloadUrl,
 } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
+import { useToastStore } from "../store/toastStore";
 import type { Device, Transfer, TransferStatus } from "../types";
 import { Card } from "./Card";
 
@@ -130,6 +131,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
 export function TransferList() {
   const queryClient = useQueryClient();
   const currentDevice = useDeviceStore((state) => state.device);
+  const addToast = useToastStore((state) => state.addToast);
 
   const { data: transfers = [] } = useQuery({
     queryKey: ["transfers"],
@@ -143,17 +145,56 @@ export function TransferList() {
 
   const remove = useMutation({
     mutationFn: deleteTransfer,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+
+      addToast({
+        type: "success",
+        message: "Transfer deleted.",
+      });
+    },
+    onError: () => {
+      addToast({
+        type: "error",
+        message: "Could not delete transfer.",
+      });
+    },
   });
 
   const accept = useMutation({
     mutationFn: acceptTransfer,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+
+      addToast({
+        type: "success",
+        message: "Transfer accepted.",
+      });
+    },
+    onError: () => {
+      addToast({
+        type: "error",
+        message: "Could not accept transfer.",
+      });
+    },
   });
 
   const reject = useMutation({
     mutationFn: rejectTransfer,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transfers"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+
+      addToast({
+        type: "info",
+        message: "Transfer rejected.",
+      });
+    },
+    onError: () => {
+      addToast({
+        type: "error",
+        message: "Could not reject transfer.",
+      });
+    },
   });
 
   const visibleTransfers = transfers.filter((transfer) =>
