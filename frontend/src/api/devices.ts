@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./client";
+import { deleteRequest, getJson, postJson } from "./client";
 import type { Device } from "../types";
 
 type RegisterDeviceInput = {
@@ -15,4 +15,12 @@ export function registerDevice(input: RegisterDeviceInput) {
     name: input.name,
     join_pin: input.joinPin,
   });
+}
+
+export function removeDevice(deviceId: string, requestingDeviceId: string) {
+  return deleteRequest(
+    `/api/devices/${deviceId}?requesting_device_id=${encodeURIComponent(
+      requestingDeviceId,
+    )}`,
+  );
 }

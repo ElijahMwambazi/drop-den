@@ -2,12 +2,13 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
-import type { Transfer, WsEvent } from "../types";
+import type { Device, Transfer, WsEvent } from "../types";
 
 export function useWebSocketRefresh() {
   const queryClient = useQueryClient();
   const addToast = useToastStore((state) => state.addToast);
   const currentDevice = useDeviceStore((state) => state.device);
+  const clearDevice = useDeviceStore((state) => state.clearDevice);
 
   useEffect(() => {
     let shouldShowDisconnectToast = true;
@@ -22,12 +23,13 @@ export function useWebSocketRefresh() {
       const wsEvent = parseWsEvent(event.data);
 
       queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: ["config"] });
       queryClient.invalidateQueries({ queryKey: ["transfers"] });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
 
       if (!wsEvent) return;
 
-      handleWebSocketToast(wsEvent, currentDevice?.id, addToast);
+      handleWebSocketToast(wsEvent, currentDevice?.id, addToast, clearDevice);
     };
 
     socket.onerror = () => {
@@ -48,28 +50,16 @@ export function useWebSocketRefresh() {
       shouldShowDisconnectToast = false;
       socket.close();
     };
-  }, [addToast, currentDevice?.id, queryClient]);
+  }, [addToast, clearDevice, currentDevice?.id, queryClient]);
 }
 
 function getWebSocketUrl() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
 
-  /*
-    Dev mode:
-    Frontend is usually http://<lan-ip>:5173
-    Backend is usually http://<lan-ip>:8080
-
-    Using /ws through Vite can be flaky across devices, so connect directly
-    to the backend websocket port during frontend dev.
-  */
   if (window.location.port === "5173") {
     return `${protocol}://${window.location.hostname}:8080/ws`;
   }
 
-  /*
-    Production mode:
-    Rust serves the frontend and websocket from the same origin.
-  */
   return `${protocol}://${window.location.host}/ws`;
 }
 
@@ -80,11 +70,40 @@ function handleWebSocketToast(
     type: "success" | "error" | "info";
     message: string;
   }) => void,
+  clearDevice: () => void,
 ) {
   if (wsEvent.event_type === "device_registered") {
+    const device = wsEvent.payload as Device;
+
+    if (device.id === currentDeviceId) {
+      return;
+    }
+
     addToast({
       type: "info",
-      message: "A device joined the den.",
+      message: `${device.name} joined the den.`,
+    });
+
+    return;
+  }
+
+  if (wsEvent.event_type === "device_removed") {
+    const device = wsEvent.payload as Device;
+
+    if (device.id === currentDeviceId) {
+      clearDevice();
+
+      addToast({
+        type: "error",
+        message: "This device was removed from the den.",
+      });
+
+      return;
+    }
+
+    addToast({
+      type: "info",
+      message: `${device.name} was removed from the den.`,
     });
 
     return;

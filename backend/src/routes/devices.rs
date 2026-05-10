@@ -2,9 +2,19 @@ use crate::{
     models::{Device, RegisterDeviceRequest, WsEvent},
     state::AppState,
 };
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    Json,
+};
 use chrono::Utc;
+use serde::Deserialize;
 use uuid::Uuid;
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveDeviceQuery {
+    pub requesting_device_id: String,
+}
 
 pub async fn list_devices(State(state): State<AppState>) -> Json<Vec<Device>> {
     let devices = state.devices.read().await;
@@ -56,4 +66,33 @@ pub async fn register_device(
     });
 
     Ok(Json(device))
+}
+
+pub async fn remove_device(
+    State(state): State<AppState>,
+    Path(device_id): Path<String>,
+    Query(query): Query<RemoveDeviceQuery>,
+) -> Result<StatusCode, StatusCode> {
+    let host_device_id = state.host_device_id.read().await.clone();
+
+    if host_device_id.as_deref() != Some(query.requesting_device_id.as_str()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    if host_device_id.as_deref() == Some(device_id.as_str()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let removed = state.devices.write().await.remove(&device_id);
+
+    if let Some(device) = removed {
+        state.broadcast_json(&WsEvent {
+            event_type: "device_removed".to_string(),
+            payload: device,
+        });
+
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
 }
