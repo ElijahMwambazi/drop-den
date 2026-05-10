@@ -16,7 +16,29 @@ type UploadItem = {
   error?: string;
 };
 
-export function FileUpload() {
+async function uploadFiles(files: File[]) {
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [targetDeviceId, setTargetDeviceId] = useState("");
+  const [uploadDebugMessage, setUploadDebugMessage] = useState("");
+
+  setUploadDebugMessage(`Selected ${files.length} file(s).`);
+
+  if (files.length === 0) {
+    setUploadDebugMessage("No files were selected by the browser.");
+    return;
+  }
+
+  const uploadItems: UploadItem[] = files.map((file) => ({
+    id: createUploadId(),
+    file,
+    progress: 0,
+    status: "queued",
+  }));
+
+  setUploads(uploadItems);
+
+  // keep the rest of the function as-is
   const queryClient = useQueryClient();
   const device = useDeviceStore((state) => state.device);
 
@@ -24,10 +46,6 @@ export function FileUpload() {
     queryKey: ["devices"],
     queryFn: listDevices,
   });
-
-  const [uploads, setUploads] = useState<UploadItem[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [targetDeviceId, setTargetDeviceId] = useState("");
 
   const targetDevices = devices.filter(
     (targetDevice) => targetDevice.id !== device?.id,
@@ -41,7 +59,7 @@ export function FileUpload() {
     if (files.length === 0) return;
 
     const uploadItems: UploadItem[] = files.map((file) => ({
-      id: crypto.randomUUID(),
+      id: createUploadId(),
       file,
       progress: 0,
       status: "queued",
@@ -202,6 +220,10 @@ export function FileUpload() {
         />
       </label>
 
+      {uploadDebugMessage && (
+        <p className="mt-3 text-xs text-neutral-500">{uploadDebugMessage}</p>
+      )}
+
       {uploads.length > 0 && (
         <div className="mt-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -291,4 +313,12 @@ function formatUploadStatus(status: UploadStatus) {
     case "error":
       return "Failed";
   }
+}
+
+function createUploadId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
