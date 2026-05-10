@@ -26,8 +26,8 @@
 ## Phase 3: Local security
 
 - [x] Join PIN
-- [ ] File size limit
-- [ ] Transfer expiry
+- [x] File size limit
+- [x] Transfer expiry
 - [ ] Auto cleanup job
 - [ ] Delete all transfers
 - [ ] Safer CORS config
