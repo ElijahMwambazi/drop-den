@@ -11,6 +11,7 @@ export type AppConfig = {
   has_host_device: boolean;
   is_host_device: boolean;
   join_pin?: string | null;
+  max_upload_size_bytes: number;
 };
 
 export type TransferStatus = "available" | "pending" | "accepted" | "rejected";

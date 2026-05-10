@@ -5,6 +5,8 @@ use axum::{
 };
 use serde::Deserialize;
 
+const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
+
 #[derive(Debug, Deserialize)]
 pub struct ConfigQuery {
     pub device_id: Option<String>,
@@ -31,5 +33,6 @@ pub async fn config(
         } else {
             None
         },
+        max_upload_size_bytes: MAX_UPLOAD_SIZE_BYTES,
     })
 }

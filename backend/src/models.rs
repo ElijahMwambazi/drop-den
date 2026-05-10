@@ -58,6 +58,7 @@ pub struct AppConfig {
     pub has_host_device: bool,
     pub is_host_device: bool,
     pub join_pin: Option<String>,
+    pub max_upload_size_bytes: u64,
 }
 
 #[derive(Debug, Serialize)]

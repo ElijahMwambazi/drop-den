@@ -18,6 +18,8 @@ use tokio::{fs::File, io::AsyncWriteExt};
 use uuid::Uuid;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
+const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
+
 pub async fn list_transfers(State(state): State<AppState>) -> Json<Vec<Transfer>> {
     let transfers = state.transfers.read().await;
     Json(transfers.values().cloned().collect())
@@ -68,8 +70,15 @@ pub async fn upload_transfer(
 
                 let mut size: u64 = 0;
                 let mut field = field;
+
                 while let Some(chunk) = field.chunk().await.map_err(|_| StatusCode::BAD_REQUEST)? {
                     size += chunk.len() as u64;
+
+                    if size > MAX_UPLOAD_SIZE_BYTES {
+                        let _ = tokio::fs::remove_dir_all(&transfer_dir).await;
+                        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+                    }
+
                     file.write_all(&chunk)
                         .await
                         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

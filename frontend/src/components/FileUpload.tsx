@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { listDevices } from "../api/devices";
 import { uploadTransfer } from "../api/transfers";
+import { getConfig } from "../api/config";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
@@ -27,10 +28,17 @@ export function FileUpload() {
     queryFn: listDevices,
   });
 
+  const { data: config } = useQuery({
+    queryKey: ["config", device?.id],
+    queryFn: () => getConfig(device?.id),
+  });
+
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [targetDeviceId, setTargetDeviceId] = useState("");
   const [uploadDebugMessage, setUploadDebugMessage] = useState("");
+
+  const maxUploadSizeBytes = config?.max_upload_size_bytes ?? 250 * 1024 * 1024;
 
   const targetDevices = devices.filter(
     (targetDevice) => targetDevice.id !== device?.id,
@@ -48,7 +56,26 @@ export function FileUpload() {
       return;
     }
 
-    const uploadItems: UploadItem[] = files.map((file) => ({
+    const allowedFiles = files.filter(
+      (file) => file.size <= maxUploadSizeBytes,
+    );
+    const blockedFiles = files.filter((file) => file.size > maxUploadSizeBytes);
+
+    for (const file of blockedFiles) {
+      addToast({
+        type: "error",
+        message: `${file.name} is larger than ${formatBytes(maxUploadSizeBytes)}.`,
+      });
+    }
+
+    if (allowedFiles.length === 0) {
+      setUploadDebugMessage(
+        `No files uploaded. Max file size is ${formatBytes(maxUploadSizeBytes)}.`,
+      );
+      return;
+    }
+
+    const uploadItems: UploadItem[] = allowedFiles.map((file) => ({
       id: createUploadId(),
       file,
       progress: 0,
@@ -210,7 +237,8 @@ export function FileUpload() {
         </span>
 
         <span className="mt-1 text-sm text-neutral-500">
-          Multiple files are uploaded one after another.
+          Multiple files are uploaded one after another. Max file size:{" "}
+          {formatBytes(maxUploadSizeBytes)}.
         </span>
 
         <input

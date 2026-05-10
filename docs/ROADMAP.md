@@ -10,22 +10,22 @@
 - [x] Message route
 - [x] WebSocket event route
 - [x] QR join UI placeholder
-- [ ] Improve transfer progress
-- [ ] Add better device identity persistence
+- [x] Improve transfer progress
+- [x] Add better device identity persistence
 
 ## Phase 2: Usability
 
-- [ ] Drag-and-drop upload
-- [ ] Multiple file upload
-- [ ] Image/video/audio previews
-- [ ] Download all as ZIP
-- [ ] Device targeting
-- [ ] Transfer accept/reject
-- [ ] Toast notifications
+- [x] Drag-and-drop upload
+- [x] Multiple file upload
+- [x] Image/video/audio previews
+- [x] Download all as ZIP
+- [x] Device targeting
+- [x] Transfer accept/reject
+- [x] Toast notifications
 
 ## Phase 3: Local security
 
-- [ ] Join PIN
+- [x] Join PIN
 - [ ] File size limit
 - [ ] Transfer expiry
 - [ ] Auto cleanup job
