@@ -3,12 +3,16 @@ import { DeviceSetup } from "./components/DeviceSetup";
 import { FileUpload } from "./components/FileUpload";
 import { JoinCard } from "./components/JoinCard";
 import { MessagePanel } from "./components/MessagePanel";
-import { TransferList } from "./components/TransferList";
 import { ToastViewport } from "./components/ToastViewport";
+import { TransferList } from "./components/TransferList";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
+import { useDeviceStore } from "./store/deviceStore";
 
 export function App() {
   useWebSocketRefresh();
+
+  const device = useDeviceStore((state) => state.device);
+  const isJoined = Boolean(device);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8">
@@ -27,16 +31,22 @@ export function App() {
 
       <JoinCard />
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-5">
+      {!isJoined ? (
+        <div className="max-w-3xl">
           <DeviceSetup />
-          <FileUpload />
-          <TransferList />
-          <MessagePanel />
         </div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0 space-y-5">
+            <DeviceSetup />
+            <FileUpload />
+            <TransferList />
+            <MessagePanel />
+          </div>
 
-        <DeviceList />
-      </div>
+          <DeviceList />
+        </div>
+      )}
 
       <ToastViewport />
     </main>
