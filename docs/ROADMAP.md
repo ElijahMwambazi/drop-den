@@ -34,7 +34,7 @@
 
 ## Phase 4: Production polish
 
-- [ ] Serve React dist from Rust
+- [x] Serve React dist from Rust
 - [ ] Local IP detection
 - [ ] Better QR code join URL
 - [ ] Desktop launcher script

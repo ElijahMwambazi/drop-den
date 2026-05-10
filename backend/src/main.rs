@@ -16,6 +16,7 @@ use state::AppState;
 use std::{net::SocketAddr, path::PathBuf};
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 
@@ -31,6 +32,10 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(storage_dir);
 
     cleanup::spawn_expired_transfer_cleanup(state.clone());
+
+    let frontend_dist = PathBuf::from("../frontend/dist");
+    let static_files = ServeDir::new(&frontend_dist)
+        .not_found_service(ServeFile::new(frontend_dist.join("index.html")));
 
     let app = Router::new()
         .route("/api/health", get(health::health))
@@ -76,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
             get(messages::list_messages).post(messages::create_message),
         )
         .route("/ws", get(ws::ws_handler))
+        .fallback_service(static_files)
         .layer(DefaultBodyLimit::max(1024 * 1024 * 1024))
         .layer(local_cors_layer())
         .layer(TraceLayer::new_for_http())
