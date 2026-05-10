@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteTransfer, listTransfers, transferDownloadUrl } from "../api/transfers";
+import {
+  deleteTransfer,
+  listTransfers,
+  transferDownloadUrl,
+} from "../api/transfers";
+import type { Transfer } from "../types";
 import { Card } from "./Card";
 
 function formatBytes(bytes: number) {
@@ -8,9 +13,63 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function getTransferPreviewType(mimeType: string) {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return "file";
+}
+
+function TransferPreview({ transfer }: { transfer: Transfer }) {
+  const previewType = getTransferPreviewType(transfer.mime_type);
+  const url = transferDownloadUrl(transfer.id);
+
+  if (previewType === "image") {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block">
+        <img
+          className="h-40 w-full rounded-2xl object-cover sm:h-24 sm:w-32"
+          src={url}
+          alt={transfer.filename}
+          loading="lazy"
+        />
+      </a>
+    );
+  }
+
+  if (previewType === "video") {
+    return (
+      <video
+        className="h-40 w-full rounded-2xl bg-black object-cover sm:h-24 sm:w-32"
+        src={url}
+        controls
+        preload="metadata"
+      />
+    );
+  }
+
+  if (previewType === "audio") {
+    return (
+      <div className="w-full rounded-2xl bg-white p-3 sm:w-72">
+        <audio className="w-full" src={url} controls preload="metadata" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-24 w-full items-center justify-center rounded-2xl bg-white text-sm font-medium text-neutral-500 sm:w-32">
+      File
+    </div>
+  );
+}
+
 export function TransferList() {
   const queryClient = useQueryClient();
-  const { data = [] } = useQuery({ queryKey: ["transfers"], queryFn: listTransfers });
+
+  const { data = [] } = useQuery({
+    queryKey: ["transfers"],
+    queryFn: listTransfers,
+  });
 
   const remove = useMutation({
     mutationFn: deleteTransfer,
@@ -20,23 +79,48 @@ export function TransferList() {
   return (
     <Card>
       <h2 className="text-xl font-semibold">Transfers</h2>
+
       <div className="mt-4 space-y-3">
         {data.length === 0 ? (
-          <p className="text-sm text-neutral-500">No files have been shared yet.</p>
+          <p className="text-sm text-neutral-500">
+            No files have been shared yet.
+          </p>
         ) : (
           data.map((transfer) => (
-            <div key={transfer.id} className="flex flex-col gap-3 rounded-2xl bg-neutral-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-medium">{transfer.filename}</p>
-                <p className="text-sm text-neutral-500">
-                  {formatBytes(transfer.size)} · {transfer.mime_type} · {new Date(transfer.created_at).toLocaleString()}
-                </p>
+            <div
+              key={transfer.id}
+              className="flex flex-col gap-4 rounded-2xl bg-neutral-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+                <TransferPreview transfer={transfer} />
+
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{transfer.filename}</p>
+
+                  <p className="mt-1 text-sm text-neutral-500">
+                    {formatBytes(transfer.size)} · {transfer.mime_type}
+                  </p>
+
+                  <p className="mt-1 text-xs text-neutral-400">
+                    {new Date(transfer.created_at).toLocaleString()}
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <a className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white" href={transferDownloadUrl(transfer.id)}>
+
+              <div className="flex shrink-0 gap-2">
+                <a
+                  className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                  href={transferDownloadUrl(transfer.id)}
+                >
                   Download
                 </a>
-                <button className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium" onClick={() => remove.mutate(transfer.id)}>
+
+                <button
+                  className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                  type="button"
+                  onClick={() => remove.mutate(transfer.id)}
+                  disabled={remove.isPending}
+                >
                   Delete
                 </button>
               </div>
