@@ -6,10 +6,53 @@ Base URL during development:
 http://localhost:8080
 ```
 
-From another LAN device:
+From another LAN device in packaged mode:
 
 ```txt
 http://<host-lan-ip>:8080
+```
+
+## Device authorization
+
+Private den routes require a registered device identity.
+
+Use this request header:
+
+```txt
+X-Drop-Den-Device-Id: <registered-device-id>
+```
+
+Browser download links may pass the current device ID as a query parameter:
+
+```txt
+GET /api/transfers/:id/download?device_id=<registered-device-id>
+GET /api/transfers/download-all?device_id=<registered-device-id>
+```
+
+### Public routes
+
+```txt
+GET /api/health
+GET /api/config
+POST /api/devices
+GET /ws
+```
+
+### Private routes
+
+```txt
+GET /api/devices
+DELETE /api/devices/:id
+GET /api/transfers
+POST /api/transfers/upload
+GET /api/transfers/download-all
+GET /api/transfers/:id/download
+PATCH /api/transfers/:id/accept
+PATCH /api/transfers/:id/reject
+DELETE /api/transfers/:id
+DELETE /api/transfers
+GET /api/messages
+POST /api/messages
 ```
 
 ## Health
@@ -31,26 +74,65 @@ Response:
 
 ```txt
 GET /api/config
+GET /api/config?device_id=<device-id>
 ```
 
-Returns host-facing metadata such as app name, port, and join URL placeholder.
+Returns app metadata, join URL metadata, host-device status, limits, and optionally the join PIN.
+
+The join PIN is only returned when the provided `device_id` belongs to the host device.
+
+Example response:
+
+```json
+{
+  "app_name": "Drop Den",
+  "mode": "packaged",
+  "port": 8080,
+  "local_only": true,
+  "public_name": "drop-den.local",
+  "friendly_origin": "http://drop-den.local:8080",
+  "lan_ip": "192.168.1.25",
+  "lan_origin": "http://192.168.1.25:8080",
+  "local_origin": "http://localhost:8080",
+  "recommended_join_origin": "http://drop-den.local:8080",
+  "has_host_device": true,
+  "is_host_device": true,
+  "join_pin": "123456",
+  "max_upload_size_bytes": 262144000,
+  "default_transfer_ttl_seconds": 86400
+}
+```
 
 ## Devices
 
 ```txt
 GET /api/devices
 POST /api/devices
+DELETE /api/devices/:id
 ```
 
-Example request:
+### Register first device
+
+The first registered device becomes the host device and does not require a join PIN.
 
 ```json
 {
-  "name": "Samsung Phone"
+  "name": "Elijah's Laptop"
 }
 ```
 
-Example response:
+### Register joined device
+
+Later devices require the join PIN.
+
+```json
+{
+  "name": "Samsung Phone",
+  "join_pin": "123456"
+}
+```
+
+### Device response
 
 ```json
 {
@@ -59,6 +141,14 @@ Example response:
   "connected_at": "2026-05-05T10:00:00Z"
 }
 ```
+
+### Remove device
+
+```txt
+DELETE /api/devices/:id
+```
+
+Only the host device can remove other devices. The host cannot remove itself through this action.
 
 ## Transfers
 
@@ -70,17 +160,75 @@ GET /api/transfers/:id/download
 PATCH /api/transfers/:id/accept
 PATCH /api/transfers/:id/reject
 DELETE /api/transfers/:id
+DELETE /api/transfers
 ```
+
+### Upload
 
 Upload uses multipart form data:
 
 ```txt
-file=<binary>
-sender_device_id=<uuid>
 target_device_id=<optional uuid>
+file=<binary>
 ```
 
-Transfers include an expires_at timestamp. Expired transfers are not downloadable and are excluded from ZIP downloads.
+The authenticated device header is used as the sender identity. The backend should not trust `sender_device_id` from multipart form data.
+
+### Transfer object
+
+```json
+{
+  "id": "uuid",
+  "filename": "photo.jpg",
+  "mime_type": "image/jpeg",
+  "size": 12345,
+  "sender_device_id": "uuid",
+  "target_device_id": null,
+  "status": "available",
+  "stored_path": "../storage/transfers/uuid/photo.jpg",
+  "created_at": "2026-05-05T10:00:00Z",
+  "expires_at": "2026-05-06T10:00:00Z"
+}
+```
+
+### Transfer statuses
+
+```txt
+available
+pending
+accepted
+rejected
+```
+
+Broadcast transfers are immediately `available`.
+
+Targeted transfers start as `pending` and become downloadable only after accept.
+
+### Download
+
+```txt
+GET /api/transfers/:id/download?device_id=<registered-device-id>
+```
+
+Expired transfers return `410 Gone`.
+
+Pending/rejected transfers return `403 Forbidden`.
+
+### Download all as ZIP
+
+```txt
+GET /api/transfers/download-all?device_id=<registered-device-id>
+```
+
+Expired and non-downloadable transfers are excluded.
+
+### Delete all transfers
+
+```txt
+DELETE /api/transfers
+```
+
+Deletes all transfer metadata and stored transfer files. This is a host-side action in the UI.
 
 ## Messages
 
@@ -89,14 +237,26 @@ GET /api/messages
 POST /api/messages
 ```
 
-Example request:
+Create message request:
 
 ```json
 {
-  "sender_device_id": "uuid",
   "body": "Hello from my phone"
 }
 ```
+
+Message response:
+
+```json
+{
+  "id": "uuid",
+  "sender_device_id": "uuid",
+  "body": "Hello from my phone",
+  "created_at": "2026-05-05T10:00:00Z"
+}
+```
+
+The authenticated device header is used as the sender identity.
 
 ## WebSocket
 
@@ -104,11 +264,24 @@ Example request:
 GET /ws
 ```
 
+WebSocket events are used to refresh state and show notifications.
+
 Event types:
 
 ```txt
 device_registered
+device_removed
 transfer_created
+transfer_updated
 transfer_deleted
 message_created
+```
+
+Example event:
+
+```json
+{
+  "event_type": "transfer_created",
+  "payload": {}
+}
 ```

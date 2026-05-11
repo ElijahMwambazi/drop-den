@@ -241,10 +241,12 @@ Current state is in-memory for:
 - devices
 - messages
 - transfer metadata
+- host device identity
+- join PIN
 
 Uploaded files are stored on disk under the configured storage directory.
 
-Later, in-memory state may be replaced with SQLite.
+The next major backend improvement is SQLite persistence.
 
 ## Frontend notes
 
