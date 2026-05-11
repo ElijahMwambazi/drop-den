@@ -11,12 +11,14 @@ export function JoinCard() {
   const [showPin, setShowPin] = useState(true);
 
   const device = useDeviceStore((state) => state.device);
-  const joinUrl = useMemo(() => window.location.origin, []);
 
   const { data: config } = useQuery({
     queryKey: ["config", device?.id],
     queryFn: () => getConfig(device?.id),
   });
+
+  const browserOrigin = useMemo(() => window.location.origin, []);
+  const joinUrl = config?.friendly_origin ?? browserOrigin;
 
   async function copyJoinUrl() {
     await navigator.clipboard.writeText(joinUrl);

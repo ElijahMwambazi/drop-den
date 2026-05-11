@@ -87,7 +87,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let port = configured_port();
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Drop Den backend listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -162,4 +163,13 @@ fn is_private_ipv4(address: &str) -> bool {
     let second = octets[1];
 
     first == 10 || (first == 172 && (16..=31).contains(&second)) || (first == 192 && second == 168)
+}
+
+fn configured_port() -> u16 {
+    let mode = std::env::var("DROP_DEN_MODE").unwrap_or_else(|_| "development".to_string());
+
+    std::env::var("DROP_DEN_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or_else(|| if mode == "packaged" { 80 } else { 8080 })
 }

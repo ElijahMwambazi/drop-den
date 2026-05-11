@@ -53,8 +53,11 @@ pub struct CreateMessageRequest {
 #[derive(Debug, Serialize)]
 pub struct AppConfig {
     pub app_name: String,
+    pub mode: String,
     pub port: u16,
     pub local_only: bool,
+    pub public_name: Option<String>,
+    pub friendly_origin: Option<String>,
     pub has_host_device: bool,
     pub is_host_device: bool,
     pub join_pin: Option<String>,

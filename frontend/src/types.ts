@@ -6,8 +6,11 @@ export type Device = {
 
 export type AppConfig = {
   app_name: string;
+  mode: string;
   port: number;
   local_only: boolean;
+  public_name?: string | null;
+  friendly_origin?: string | null;
   has_host_device: boolean;
   is_host_device: boolean;
   join_pin?: string | null;
