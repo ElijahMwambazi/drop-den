@@ -22,9 +22,10 @@ pub fn spawn_expired_transfer_cleanup(state: AppState) {
 }
 
 async fn cleanup_expired_transfers(state: AppState) {
+    let now = Utc::now();
+
     let expired_transfers = {
         let mut transfers = state.transfers.write().await;
-        let now = Utc::now();
 
         let expired_ids = transfers
             .iter()
@@ -42,6 +43,14 @@ async fn cleanup_expired_transfers(state: AppState) {
             .filter_map(|id| transfers.remove(&id))
             .collect::<Vec<_>>()
     };
+
+    if expired_transfers.is_empty() {
+        return;
+    }
+
+    if let Err(error) = db::delete_expired_transfers(&state.db, now).await {
+        tracing::warn!(error = %error, "failed to delete expired transfer metadata from sqlite");
+    }
 
     for transfer in expired_transfers {
         remove_transfer_files(&transfer).await;

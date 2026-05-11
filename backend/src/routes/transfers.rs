@@ -1,5 +1,6 @@
 use crate::{
     auth::{require_registered_device, require_registered_device_id},
+    db,
     models::{Transfer, TransferStatus, WsEvent},
     state::AppState,
 };
@@ -121,6 +122,14 @@ pub async fn upload_transfer(
     }
 
     let transfer = saved_transfer.ok_or(StatusCode::BAD_REQUEST)?;
+
+    db::insert_transfer(&state.db, &transfer)
+    .await
+    .map_err(|error| {
+        tracing::error!(error = %error, transfer_id = %transfer.id, "failed to persist transfer");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     state
         .transfers
         .write()
@@ -252,6 +261,13 @@ pub async fn delete_transfer(
     let removed = state.transfers.write().await.remove(&id);
 
     if let Some(transfer) = removed {
+        db::delete_transfer(&state.db, &transfer.id)
+    .await
+    .map_err(|error| {
+        tracing::error!(error = %error, transfer_id = %transfer.id, "failed to delete transfer metadata");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
         remove_transfer_files(&transfer).await;
 
         state.broadcast_json(&WsEvent {
@@ -279,6 +295,11 @@ pub async fn delete_all_transfers(
             .collect::<Vec<_>>()
     };
 
+    db::delete_all_transfers(&state.db).await.map_err(|error| {
+        tracing::error!(error = %error, "failed to delete all transfer metadata");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     for transfer in removed_transfers {
         remove_transfer_files(&transfer).await;
 
@@ -305,6 +326,14 @@ async fn update_transfer_status(
         }
 
         transfer.status = status;
+
+        db::update_transfer_status(&state.db, &transfer.id, &transfer.status)
+    .await
+    .map_err(|error| {
+        tracing::error!(error = %error, transfer_id = %transfer.id, "failed to persist transfer status");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
         transfer.clone()
     };
 

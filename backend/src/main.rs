@@ -44,6 +44,7 @@ async fn main() -> anyhow::Result<()> {
         persisted_state.host_device_id,
         persisted_state.devices,
         persisted_state.messages,
+        persisted_state.transfers,
     );
 
     cleanup::spawn_expired_transfer_cleanup(state.clone());

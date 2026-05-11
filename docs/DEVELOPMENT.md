@@ -280,18 +280,14 @@ The backend now persists:
 - host device identity
 - join PIN
 - app settings
-
-The backend now persists:
-
-- registered devices
-- host device identity
-- join PIN
-- app settings
 - messages
+- transfer metadata
 
 Messages expire after 24 hours and are removed by the cleanup job.
 
-Transfer metadata still uses in-memory state and will be wired into SQLite in a later stage.
+Transfers expire after the configured transfer lifetime and are removed by the cleanup job. On startup, non-expired transfer metadata is restored from SQLite. Expired transfers and records whose files are missing are removed from SQLite.
+
+Uploaded files remain stored on disk under the configured transfer storage directory.
 
 ## Frontend notes
 

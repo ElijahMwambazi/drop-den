@@ -140,16 +140,13 @@ The backend now persists:
 - app settings
 - join PIN
 - messages
+- transfer metadata
 
 Messages expire after 24 hours and are removed by the cleanup job.
 
-Current route behavior still uses in-memory state for:
-
-- transfer metadata
+Transfers expire after the configured transfer lifetime and are removed by the cleanup job. On startup, non-expired transfer metadata is restored from SQLite. Expired transfers and transfer records whose files are missing are removed from SQLite.
 
 Uploaded files are stored on disk.
-
-The next persistence work is to wire transfer metadata into SQLite.
 
 ## Future persistence model
 

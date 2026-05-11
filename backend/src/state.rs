@@ -23,6 +23,7 @@ impl AppState {
         host_device_id: Option<String>,
         devices: HashMap<String, Device>,
         messages: Vec<Message>,
+        transfers: HashMap<String, Transfer>,
     ) -> Self {
         let (events, _) = broadcast::channel(256);
 
@@ -32,7 +33,7 @@ impl AppState {
             join_pin,
             host_device_id: Arc::new(RwLock::new(host_device_id)),
             devices: Arc::new(RwLock::new(devices)),
-            transfers: Arc::new(RwLock::new(HashMap::new())),
+            transfers: Arc::new(RwLock::new(transfers)),
             messages: Arc::new(RwLock::new(messages)),
             events,
         }

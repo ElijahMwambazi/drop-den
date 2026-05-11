@@ -53,13 +53,13 @@
 - [x] Add SQLite dependency and migrations
 - [x] Persist devices
 - [x] Persist messages
-- [ ] Persist transfer metadata
+- [x] Persist transfer metadata
 - [x] Persist host device identity
 - [x] Persist app settings
 - [x] Message expiry
 - [ ] Decide whether to persist join PIN or join PIN hash
-- [ ] Restore non-expired transfer metadata on startup
-- [ ] Clean missing transfer files from metadata
+- [x] Restore non-expired transfer metadata on startup
+- [x] Clean missing transfer files from metadata
 - [x] Add database path configuration
 
 ## Phase 6: Desktop app direction
