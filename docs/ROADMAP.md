@@ -35,8 +35,8 @@
 ## Phase 4: Production polish
 
 - [x] Serve React dist from Rust
-- [ ] Local IP detection
-- [ ] Better QR code join URL
-- [ ] Desktop launcher script
+- [x] Local IP detection
+- [x] Better QR code join URL
+- [x] Desktop launcher script
 - [ ] Tauri wrapper optional
 - [ ] SQLite persistence optional
