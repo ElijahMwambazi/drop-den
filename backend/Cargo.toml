@@ -18,3 +18,4 @@ mime_guess = "2"
 anyhow = "1"
 zip = "2"
 local-ip-address = "0.6.12"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"] }

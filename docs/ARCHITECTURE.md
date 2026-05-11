@@ -131,7 +131,9 @@ WebSockets are used for notifications and state refresh triggers, not for large 
 
 ## Current state model
 
-Current runtime state is in memory for:
+SQLite setup is now present and migrations run at backend startup.
+
+Current route behavior still uses in-memory state for:
 
 - devices
 - messages
@@ -140,6 +142,8 @@ Current runtime state is in memory for:
 - join PIN
 
 Uploaded files are stored on disk.
+
+The next persistence work is to wire devices, settings, messages, and transfer metadata into SQL
 
 ## Future persistence model
 

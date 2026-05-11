@@ -248,6 +248,32 @@ Uploaded files are stored on disk under the configured storage directory.
 
 The next major backend improvement is SQLite persistence.
 
+## SQLite setup
+
+Drop Den now creates a SQLite database during backend startup.
+
+Default database path:
+
+```txt
+../storage/drop-den.sqlite
+```
+
+Default transfer storage path:
+
+```txt
+../storage/transfers
+```
+
+Override paths:
+
+```txt
+DROP_DEN_DATA_DIR=/path/to/drop-den-data cargo run
+DROP_DEN_DATABASE_PATH=/path/to/drop-den.sqlite cargo run
+DROP_DEN_STORAGE_DIR=/path/to/transfers cargo run
+```
+
+At this stage, SQLite migrations and the database connection are set up, but route behavior still uses in-memory state. Persistence will be wired in later stages.
+
 ## Frontend notes
 
 The frontend uses:
@@ -345,3 +371,7 @@ http://<pc-lan-ip>:8080
 ```
 
 or configure Avahi/local DNS.
+
+```
+
+```

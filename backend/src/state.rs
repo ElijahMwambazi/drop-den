@@ -1,10 +1,12 @@
 use crate::models::{Device, Message, Transfer};
+use sqlx::SqlitePool;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 
 #[derive(Clone)]
 pub struct AppState {
     pub storage_dir: PathBuf,
+    pub db: SqlitePool,
     pub join_pin: String,
     pub host_device_id: Arc<RwLock<Option<String>>>,
     pub devices: Arc<RwLock<HashMap<String, Device>>>,
@@ -14,11 +16,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(storage_dir: PathBuf) -> Self {
+    pub fn new(storage_dir: PathBuf, db: SqlitePool) -> Self {
         let (events, _) = broadcast::channel(256);
 
         Self {
             storage_dir,
+            db,
             join_pin: generate_join_pin(),
             host_device_id: Arc::new(RwLock::new(None)),
             devices: Arc::new(RwLock::new(HashMap::new())),

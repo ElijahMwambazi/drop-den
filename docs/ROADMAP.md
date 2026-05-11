@@ -50,7 +50,7 @@
 
 ## Phase 5: Persistence
 
-- [ ] Add SQLite dependency and migrations
+- [x] Add SQLite dependency and migrations
 - [ ] Persist devices
 - [ ] Persist messages
 - [ ] Persist transfer metadata
@@ -59,7 +59,7 @@
 - [ ] Decide whether to persist join PIN or join PIN hash
 - [ ] Restore non-expired transfer metadata on startup
 - [ ] Clean missing transfer files from metadata
-- [ ] Add database path configuration
+- [x] Add database path configuration
 
 ## Phase 6: Desktop app direction
 

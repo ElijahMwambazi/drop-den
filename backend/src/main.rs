@@ -1,5 +1,6 @@
 mod auth;
 mod cleanup;
+mod db;
 mod models;
 mod routes;
 mod state;
@@ -26,10 +27,16 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter("drop_den_backend=debug,tower_http=debug")
         .init();
 
-    let storage_dir = PathBuf::from("../storage/transfers");
+    let data_dir = configured_data_dir();
+    tokio::fs::create_dir_all(&data_dir).await?;
+
+    let storage_dir = configured_storage_dir(&data_dir);
     tokio::fs::create_dir_all(&storage_dir).await?;
 
-    let state = AppState::new(storage_dir);
+    let database_path = configured_database_path(&data_dir);
+    let db = db::connect_database(database_path).await?;
+
+    let state = AppState::new(storage_dir, db);
 
     cleanup::spawn_expired_transfer_cleanup(state.clone());
 
@@ -176,6 +183,24 @@ fn is_private_ipv4(address: &str) -> bool {
     let second = octets[1];
 
     first == 10 || (first == 172 && (16..=31).contains(&second)) || (first == 192 && second == 168)
+}
+
+fn configured_data_dir() -> PathBuf {
+    std::env::var("DROP_DEN_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("../storage"))
+}
+
+fn configured_storage_dir(data_dir: &std::path::Path) -> PathBuf {
+    std::env::var("DROP_DEN_STORAGE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| data_dir.join("transfers"))
+}
+
+fn configured_database_path(data_dir: &std::path::Path) -> PathBuf {
+    std::env::var("DROP_DEN_DATABASE_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| data_dir.join("drop-den.sqlite"))
 }
 
 fn configured_port() -> u16 {
