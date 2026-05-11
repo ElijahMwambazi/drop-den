@@ -14,6 +14,9 @@ storage/messages/*
 !storage/transfers/.gitkeep
 !storage/messages/.gitkeep
 
+# DB
+storage/*.sqlite
+
 # Env
 .env
 .env.local

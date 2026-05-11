@@ -143,7 +143,16 @@ Current route behavior still uses in-memory state for:
 
 Uploaded files are stored on disk.
 
-The next persistence work is to wire devices, settings, messages, and transfer metadata into SQL
+Device metadata, host device identity, app settings, and the join PIN are now wired into SQLite.
+
+Current route behavior still uses in-memory state for:
+
+- messages
+- transfer metadata
+
+Uploaded files are stored on disk.
+
+The next persistence work is to wire messages and transfer metadata into SQLite.
 
 ## Future persistence model
 

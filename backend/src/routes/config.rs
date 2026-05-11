@@ -44,11 +44,6 @@ pub async fn config(
             .or_else(|| lan_origin.clone())
             .unwrap_or_else(|| local_origin.clone())
     } else {
-        /*
-            In dev, the browser UI is usually served by Vite on 5173,
-            while the backend config endpoint is on 8080.
-            So expose the LAN Vite origin when possible.
-        */
         lan_ip
             .as_ref()
             .map(|ip| origin_for(ip, 5173))

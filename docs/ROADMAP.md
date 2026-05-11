@@ -51,11 +51,11 @@
 ## Phase 5: Persistence
 
 - [x] Add SQLite dependency and migrations
-- [ ] Persist devices
+- [x] Persist devices
 - [ ] Persist messages
 - [ ] Persist transfer metadata
-- [ ] Persist host device identity
-- [ ] Persist app settings
+- [x] Persist host device identity
+- [x] Persist app settings
 - [ ] Decide whether to persist join PIN or join PIN hash
 - [ ] Restore non-expired transfer metadata on startup
 - [ ] Clean missing transfer files from metadata

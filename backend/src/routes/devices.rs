@@ -1,5 +1,6 @@
 use crate::{
     auth::require_registered_device,
+    db,
     models::{Device, RegisterDeviceRequest, WsEvent},
     state::AppState,
 };
@@ -48,7 +49,21 @@ pub async fn register_device(
         connected_at: Utc::now(),
     };
 
+    db::insert_device(&state.db, &device)
+        .await
+        .map_err(|error| {
+            tracing::error!(error = %error, "failed to persist registered device");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
     if is_first_device {
+        db::set_setting(&state.db, "host_device_id", &device.id)
+            .await
+            .map_err(|error| {
+                tracing::error!(error = %error, "failed to persist host device id");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
         *host_device_id = Some(device.id.clone());
     }
 
@@ -83,6 +98,13 @@ pub async fn remove_device(
     if host_device_id.as_deref() == Some(device_id.as_str()) {
         return Err(StatusCode::BAD_REQUEST);
     }
+
+    db::delete_device(&state.db, &device_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(error = %error, device_id = %device_id, "failed to delete device from sqlite");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let removed = state.devices.write().await.remove(&device_id);
 

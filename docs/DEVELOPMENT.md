@@ -272,7 +272,16 @@ DROP_DEN_DATABASE_PATH=/path/to/drop-den.sqlite cargo run
 DROP_DEN_STORAGE_DIR=/path/to/transfers cargo run
 ```
 
-At this stage, SQLite migrations and the database connection are set up, but route behavior still uses in-memory state. Persistence will be wired in later stages.
+SQLite migrations and the database connection are set up.
+
+The backend now persists:
+
+- registered devices
+- host device identity
+- join PIN
+- app settings
+
+Messages and transfer metadata still use in-memory state and will be wired into SQLite in later stages.
 
 ## Frontend notes
 

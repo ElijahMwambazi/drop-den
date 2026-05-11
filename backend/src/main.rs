@@ -35,8 +35,15 @@ async fn main() -> anyhow::Result<()> {
 
     let database_path = configured_database_path(&data_dir);
     let db = db::connect_database(database_path).await?;
+    let persisted_state = db::load_persisted_runtime_state(&db).await?;
 
-    let state = AppState::new(storage_dir, db);
+    let state = AppState::new(
+        storage_dir,
+        db,
+        persisted_state.join_pin,
+        persisted_state.host_device_id,
+        persisted_state.devices,
+    );
 
     cleanup::spawn_expired_transfer_cleanup(state.clone());
 

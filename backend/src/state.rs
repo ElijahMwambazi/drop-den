@@ -16,15 +16,21 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(storage_dir: PathBuf, db: SqlitePool) -> Self {
+    pub fn new(
+        storage_dir: PathBuf,
+        db: SqlitePool,
+        join_pin: String,
+        host_device_id: Option<String>,
+        devices: HashMap<String, Device>,
+    ) -> Self {
         let (events, _) = broadcast::channel(256);
 
         Self {
             storage_dir,
             db,
-            join_pin: generate_join_pin(),
-            host_device_id: Arc::new(RwLock::new(None)),
-            devices: Arc::new(RwLock::new(HashMap::new())),
+            join_pin,
+            host_device_id: Arc::new(RwLock::new(host_device_id)),
+            devices: Arc::new(RwLock::new(devices)),
             transfers: Arc::new(RwLock::new(HashMap::new())),
             messages: Arc::new(RwLock::new(Vec::new())),
             events,
@@ -36,9 +42,4 @@ impl AppState {
             let _ = self.events.send(payload);
         }
     }
-}
-
-fn generate_join_pin() -> String {
-    let value = uuid::Uuid::new_v4().as_u128() % 1_000_000;
-    format!("{value:06}")
 }
