@@ -52,10 +52,11 @@
 
 - [x] Add SQLite dependency and migrations
 - [x] Persist devices
-- [ ] Persist messages
+- [x] Persist messages
 - [ ] Persist transfer metadata
 - [x] Persist host device identity
 - [x] Persist app settings
+- [x] Message expiry
 - [ ] Decide whether to persist join PIN or join PIN hash
 - [ ] Restore non-expired transfer metadata on startup
 - [ ] Clean missing transfer files from metadata
@@ -80,7 +81,6 @@
 - Regenerate join PIN from host UI
 - Clear all messages
 - Message targeting
-- Message expiry
 - Optional encryption-at-rest
 - Better host dashboard/settings page
 - Local DNS/mDNS setup helper

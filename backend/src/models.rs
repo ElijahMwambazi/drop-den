@@ -43,6 +43,7 @@ pub struct Message {
     pub sender_device_id: Option<String>,
     pub body: String,
     pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,15 +1,18 @@
-use crate::models::Device;
-use chrono::{DateTime, Utc};
+use crate::models::{Device, Message};
+use chrono::{DateTime, Duration, Utc};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Row, SqlitePool,
 };
 use std::{collections::HashMap, path::PathBuf};
 
+const DEFAULT_MESSAGE_TTL_SECONDS: i64 = 24 * 60 * 60;
+
 pub struct PersistedRuntimeState {
     pub join_pin: String,
     pub host_device_id: Option<String>,
     pub devices: HashMap<String, Device>,
+    pub messages: Vec<Message>,
 }
 
 pub async fn connect_database(database_path: PathBuf) -> anyhow::Result<SqlitePool> {
@@ -48,11 +51,13 @@ pub async fn load_persisted_runtime_state(
 
     let host_device_id = get_setting(pool, "host_device_id").await?;
     let devices = load_devices(pool).await?;
+    let messages = load_messages(pool).await?;
 
     Ok(PersistedRuntimeState {
         join_pin,
         host_device_id,
         devices,
+        messages,
     })
 }
 
@@ -111,6 +116,39 @@ pub async fn delete_device(pool: &SqlitePool, device_id: &str) -> anyhow::Result
     Ok(())
 }
 
+pub async fn insert_message(pool: &SqlitePool, message: &Message) -> anyhow::Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO messages (id, sender_device_id, body, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            sender_device_id = excluded.sender_device_id,
+            body = excluded.body,
+            created_at = excluded.created_at,
+            expires_at = excluded.expires_at
+        "#,
+    )
+    .bind(&message.id)
+    .bind(&message.sender_device_id)
+    .bind(&message.body)
+    .bind(message.created_at.to_rfc3339())
+    .bind(message.expires_at.to_rfc3339())
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn delete_expired_messages(pool: &SqlitePool, now: DateTime<Utc>) -> anyhow::Result<u64> {
+    let result =
+        sqlx::query("DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at <= ?")
+            .bind(now.to_rfc3339())
+            .execute(pool)
+            .await?;
+
+    Ok(result.rows_affected())
+}
+
 async fn load_devices(pool: &SqlitePool) -> anyhow::Result<HashMap<String, Device>> {
     let rows = sqlx::query("SELECT id, name, connected_at FROM devices ORDER BY connected_at ASC")
         .fetch_all(pool)
@@ -134,6 +172,45 @@ async fn load_devices(pool: &SqlitePool) -> anyhow::Result<HashMap<String, Devic
     }
 
     Ok(devices)
+}
+
+async fn load_messages(pool: &SqlitePool) -> anyhow::Result<Vec<Message>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT id, sender_device_id, body, created_at, expires_at
+        FROM messages
+        ORDER BY created_at ASC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let now = Utc::now();
+    let mut messages = Vec::new();
+
+    for row in rows {
+        let created_at = parse_datetime(row.get::<String, _>("created_at"))?;
+        let expires_at = match row.try_get::<Option<String>, _>("expires_at")? {
+            Some(value) => parse_datetime(value)?,
+            None => created_at + Duration::seconds(DEFAULT_MESSAGE_TTL_SECONDS),
+        };
+
+        if now >= expires_at {
+            continue;
+        }
+
+        messages.push(Message {
+            id: row.get::<String, _>("id"),
+            sender_device_id: row.get::<Option<String>, _>("sender_device_id"),
+            body: row.get::<String, _>("body"),
+            created_at,
+            expires_at,
+        });
+    }
+
+    delete_expired_messages(pool, now).await?;
+
+    Ok(messages)
 }
 
 fn parse_datetime(value: String) -> anyhow::Result<DateTime<Utc>> {

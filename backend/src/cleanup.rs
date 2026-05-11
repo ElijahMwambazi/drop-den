@@ -1,4 +1,5 @@
 use crate::{
+    db,
     models::{Transfer, WsEvent},
     state::AppState,
 };
@@ -15,6 +16,7 @@ pub fn spawn_expired_transfer_cleanup(state: AppState) {
         loop {
             interval.tick().await;
             cleanup_expired_transfers(state.clone()).await;
+            cleanup_expired_messages(state.clone()).await;
         }
     });
 }
@@ -64,4 +66,30 @@ async fn remove_transfer_files(transfer: &Transfer) {
             );
         }
     }
+}
+
+async fn cleanup_expired_messages(state: AppState) {
+    let now = Utc::now();
+
+    let removed_count = {
+        let mut messages = state.messages.write().await;
+        let before = messages.len();
+
+        messages.retain(|message| now < message.expires_at);
+
+        before.saturating_sub(messages.len())
+    };
+
+    if removed_count == 0 {
+        return;
+    }
+
+    if let Err(error) = db::delete_expired_messages(&state.db, now).await {
+        tracing::warn!(error = %error, "failed to delete expired messages from sqlite");
+    }
+
+    state.broadcast_json(&WsEvent {
+        event_type: "messages_deleted".to_string(),
+        payload: removed_count,
+    });
 }

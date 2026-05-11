@@ -131,28 +131,25 @@ WebSockets are used for notifications and state refresh triggers, not for large 
 
 ## Current state model
 
-SQLite setup is now present and migrations run at backend startup.
+SQLite setup is present and migrations run at backend startup.
 
-Current route behavior still uses in-memory state for:
+The backend now persists:
 
-- devices
-- messages
-- transfer metadata
-- host device ID
+- registered devices
+- host device identity
+- app settings
 - join PIN
+- messages
 
-Uploaded files are stored on disk.
-
-Device metadata, host device identity, app settings, and the join PIN are now wired into SQLite.
+Messages expire after 24 hours and are removed by the cleanup job.
 
 Current route behavior still uses in-memory state for:
 
-- messages
 - transfer metadata
 
 Uploaded files are stored on disk.
 
-The next persistence work is to wire messages and transfer metadata into SQLite.
+The next persistence work is to wire transfer metadata into SQLite.
 
 ## Future persistence model
 

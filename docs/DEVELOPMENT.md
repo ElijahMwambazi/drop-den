@@ -281,7 +281,17 @@ The backend now persists:
 - join PIN
 - app settings
 
-Messages and transfer metadata still use in-memory state and will be wired into SQLite in later stages.
+The backend now persists:
+
+- registered devices
+- host device identity
+- join PIN
+- app settings
+- messages
+
+Messages expire after 24 hours and are removed by the cleanup job.
+
+Transfer metadata still uses in-memory state and will be wired into SQLite in a later stage.
 
 ## Frontend notes
 
