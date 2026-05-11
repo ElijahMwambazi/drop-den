@@ -91,7 +91,20 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Drop Den backend listening on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|error| {
+        if port == 80 && error.kind() == std::io::ErrorKind::PermissionDenied {
+            anyhow::anyhow!(
+                "Port 80 requires elevated bind permissions. For testing, use DROP_DEN_PORT=8080. For packaged mode, install Drop Den as a systemd service with CAP_NET_BIND_SERVICE."
+            )
+        } else if error.kind() == std::io::ErrorKind::AddrInUse {
+            anyhow::anyhow!(
+                "Port {port} is already in use. Stop the existing Drop Den/backend process or choose another DROP_DEN_PORT."
+            )
+        } else {
+            anyhow::anyhow!("Could not bind to {addr}: {error}")
+        }
+    })?;
+
     axum::serve(listener, app).await?;
 
     Ok(())
