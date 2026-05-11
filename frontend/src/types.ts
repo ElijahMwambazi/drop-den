@@ -11,6 +11,10 @@ export type AppConfig = {
   local_only: boolean;
   public_name?: string | null;
   friendly_origin?: string | null;
+  lan_ip?: string | null;
+  lan_origin?: string | null;
+  local_origin: string;
+  recommended_join_origin: string;
   has_host_device: boolean;
   is_host_device: boolean;
   join_pin?: string | null;

@@ -18,7 +18,9 @@ export function JoinCard() {
   });
 
   const browserOrigin = useMemo(() => window.location.origin, []);
-  const joinUrl = config?.friendly_origin ?? browserOrigin;
+  const joinUrl = config?.recommended_join_origin ?? browserOrigin;
+  const fallbackJoinUrl = browserOrigin !== joinUrl ? browserOrigin : null;
+  const lanJoinUrl = config?.lan_origin ?? null;
 
   async function copyJoinUrl() {
     await navigator.clipboard.writeText(joinUrl);
@@ -54,6 +56,31 @@ export function JoinCard() {
             <code className="min-w-0 flex-1 overflow-x-auto rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-800">
               {joinUrl}
             </code>
+
+            <div className="mt-3 space-y-1 text-xs text-neutral-500">
+              <p>
+                QR code uses:{" "}
+                <span className="font-medium text-neutral-700">{joinUrl}</span>
+              </p>
+
+              {lanJoinUrl && lanJoinUrl !== joinUrl && (
+                <p>
+                  LAN fallback:{" "}
+                  <span className="font-medium text-neutral-700">
+                    {lanJoinUrl}
+                  </span>
+                </p>
+              )}
+
+              {fallbackJoinUrl && (
+                <p>
+                  Browser fallback:{" "}
+                  <span className="font-medium text-neutral-700">
+                    {fallbackJoinUrl}
+                  </span>
+                </p>
+              )}
+            </div>
 
             <button
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-medium text-white"
