@@ -47,7 +47,6 @@ pub struct Message {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateMessageRequest {
-    pub sender_device_id: Option<String>,
     pub body: String,
 }
 

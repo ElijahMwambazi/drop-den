@@ -49,7 +49,6 @@ pub async fn upload_transfer(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut sender_device_id: Option<String> = None;
     let mut target_device_id: Option<String> = None;
     let mut saved_transfer: Option<Transfer> = None;
 
@@ -61,9 +60,6 @@ pub async fn upload_transfer(
         let name = field.name().unwrap_or_default().to_string();
 
         match name.as_str() {
-            "sender_device_id" => {
-                sender_device_id = field.text().await.ok().filter(|value| !value.is_empty());
-            }
             "target_device_id" => {
                 target_device_id = field.text().await.ok().filter(|value| !value.is_empty());
             }
@@ -98,8 +94,6 @@ pub async fn upload_transfer(
                         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 }
 
-                sender_device_id = Some(requesting_device_id.clone());
-
                 let status = if target_device_id.is_some() {
                     TransferStatus::Pending
                 } else {
@@ -114,7 +108,7 @@ pub async fn upload_transfer(
                     filename,
                     mime_type,
                     size,
-                    sender_device_id: sender_device_id.clone(),
+                    sender_device_id: Some(requesting_device_id.clone()),
                     target_device_id: target_device_id.clone(),
                     status,
                     stored_path: file_path.to_string_lossy().to_string(),
