@@ -1,0 +1,24 @@
+[Unit]
+Description=Drop Den local transfer hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/drop-den/drop-den.env
+ExecStart=/usr/local/bin/drop-den
+WorkingDirectory=/var/lib/drop-den
+Restart=on-failure
+RestartSec=3
+
+User=drop-den
+Group=drop-den
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/drop-den
+
+[Install]
+WantedBy=multi-user.target

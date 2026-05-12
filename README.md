@@ -11,6 +11,7 @@ Drop Den is now beyond the basic MVP scaffold. It currently supports:
 - Device registration with a join PIN.
 - First registered device as the host device.
 - Host-only join PIN visibility.
+- Join PIN hashing and rotation after successful device joins.
 - Host-only device removal.
 - Host-only delete-all-transfers action.
 - File upload with progress.
@@ -22,11 +23,14 @@ Drop Den is now beyond the basic MVP scaffold. It currently supports:
 - Device-targeted transfers.
 - Transfer accept/reject flow.
 - Local text messages with sender identity.
+- Message persistence and 24-hour message expiry.
 - Toast notifications and WebSocket refresh events.
 - Registered-device header checks for private API routes.
+- SQLite persistence for devices, messages, transfer metadata, app settings, and host identity.
 - Rust serving the built React frontend in packaged mode.
 - Local IP detection and better join URLs.
 - Packaged-mode build/run scripts.
+- Linux systemd service installer.
 
 ## Project shape
 
@@ -35,7 +39,8 @@ drop-den/
   backend/       Rust Axum backend
   frontend/      React + TypeScript browser UI
   docs/          Project documentation
-  scripts/       Build and packaged-mode launcher scripts
+  scripts/       Build, run, and installer scripts
+  packaging/     System service files
   storage/       Local development transfer storage
 ```
 
@@ -118,9 +123,71 @@ DROP_DEN_PUBLIC_NAME=drop-den.local ./scripts/run-packaged.sh
 
 A friendly name such as `drop-den.local` requires mDNS, Avahi, or local DNS support on the host/network.
 
+## Linux background service
+
+Install Drop Den as a background systemd service:
+
+```bash
+sudo ./scripts/install-linux.sh
+```
+
+If `cargo` is not found when running under `sudo`, first make sure your normal user has a Rust default toolchain:
+
+```bash
+rustup default stable
+```
+
+Then rerun:
+
+```bash
+sudo ./scripts/install-linux.sh
+```
+
+Check service status:
+
+```bash
+systemctl status drop-den
+```
+
+View logs:
+
+```bash
+journalctl -u drop-den -f
+```
+
+Default service URL:
+
+```txt
+http://localhost:8080
+```
+
+From another device on the same local network:
+
+```txt
+http://<host-lan-ip>:8080
+```
+
+Uninstall service:
+
+```bash
+sudo ./scripts/uninstall-linux.sh
+```
+
+The uninstaller removes the service, config, and binary. It does not delete saved data under:
+
+```txt
+/var/lib/drop-den
+```
+
+To remove saved data manually:
+
+```bash
+sudo rm -rf /var/lib/drop-den
+```
+
 ## Product direction
 
-Drop Den should support two delivery modes:
+Drop Den should support two delivery modes.
 
 ### Drop Den Server
 
@@ -142,18 +209,13 @@ Both versions should share the same backend logic, frontend UI, storage model, a
 
 ## Near-term direction
 
-The next recommended implementation is SQLite persistence in the backend.
+The next recommended implementation is the optional Tauri wrapper.
 
-SQLite should persist:
+The preferred direction is:
 
-- devices
-- messages
-- transfer metadata
-- host device identity
-- app settings
-- join PIN or join PIN hash
-
-Uploaded files should remain stored on disk.
+```txt
+Tauri desktop shell -> starts backend sidecar -> loads same React UI
+```
 
 ## Documentation
 

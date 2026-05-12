@@ -17,6 +17,8 @@ It should be used on trusted local networks and should not be exposed directly t
 - Expire transfers after the configured transfer lifetime.
 - Automatically clean up expired transfers.
 - Restrict CORS to local development origins instead of using permissive CORS.
+- Run the Linux background service with a dedicated `drop-den` system user.
+- Keep service data under `/var/lib/drop-den`.
 
 ## Current access model
 

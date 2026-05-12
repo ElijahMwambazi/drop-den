@@ -45,7 +45,7 @@
 - [x] Local IP detection
 - [x] Better QR code join URL
 - [x] Packaged-mode launcher scripts
-- [ ] Linux systemd service installer
+- [x] Linux systemd service installer
 - [ ] Configurable data and storage directories
 - [ ] SQLite persistence
 - [ ] Tauri wrapper optional

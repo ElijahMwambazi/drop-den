@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     cleanup::spawn_expired_transfer_cleanup(state.clone());
 
-    let frontend_dist = PathBuf::from("../frontend/dist");
+    let frontend_dist = configured_frontend_dist_dir();
     let static_files = ServeDir::new(&frontend_dist)
         .not_found_service(ServeFile::new(frontend_dist.join("index.html")));
 
@@ -220,4 +220,10 @@ fn configured_port() -> u16 {
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or_else(|| if mode == "packaged" { 80 } else { 8080 })
+}
+
+fn configured_frontend_dist_dir() -> PathBuf {
+    std::env::var("DROP_DEN_FRONTEND_DIST")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("../frontend/dist"))
 }
