@@ -54,21 +54,21 @@ This is an MVP authorization mechanism. It prevents removed or unknown devices f
 
 ## Current limitations
 
-Drop Den currently uses in-memory state for devices, messages, transfer metadata, host identity, and join PIN. Restarting the backend loses this state.
+Drop Den now persists core metadata with SQLite, including devices, messages, transfer metadata, host identity, and app settings.
 
-SQLite persistence should be added before relying on Drop Den for longer-lived usage.
+The join PIN plaintext is kept only in runtime memory. SQLite stores a join PIN hash.
+
+A new join PIN is generated on backend startup, and the PIN rotates after every successful joined-device registration.
+
+The current API authorization model still uses a registered device ID header. This is suitable for an MVP on trusted local networks, but it is not a full cryptographic session system.
 
 ## Recommended future security improvements
 
-- SQLite persistence for devices, messages, transfers, and settings.
-- Store a join PIN hash instead of the plaintext PIN.
-- Rotate/regenerate join PIN from the host UI.
 - Add device/session tokens instead of trusting only a device ID header.
 - Add host-only setting controls.
-- Add configurable data directory and storage directory.
-- Optional encryption-at-rest for stored transfer files.
-- Stronger access control for download links.
-- Optional audit log for device joins/removals/transfers.
+- Add optional encryption-at-rest for stored transfer files.
+- Add stronger access control for download links.
+- Add optional audit log for device joins/removals/transfers.
 
 ## Avoid in the MVP
 

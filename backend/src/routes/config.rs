@@ -64,7 +64,7 @@ pub async fn config(
         has_host_device: host_device_id.is_some(),
         is_host_device,
         join_pin: if is_host_device {
-            Some(state.join_pin.clone())
+            Some(state.join_pin.read().await.clone())
         } else {
             None
         },

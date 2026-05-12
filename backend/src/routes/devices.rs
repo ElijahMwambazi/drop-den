@@ -37,8 +37,15 @@ pub async fn register_device(
 
     if !is_first_device {
         let submitted_pin = input.join_pin.unwrap_or_default();
+        let current_hash = state.join_pin_hash.read().await.clone();
 
-        if submitted_pin.trim() != state.join_pin {
+        let is_valid_pin =
+            db::verify_join_pin(submitted_pin.trim(), &current_hash).map_err(|error| {
+                tracing::error!(error = %error, "failed to verify join pin");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        if !is_valid_pin {
             return Err(StatusCode::UNAUTHORIZED);
         }
     }
@@ -65,6 +72,8 @@ pub async fn register_device(
             })?;
 
         *host_device_id = Some(device.id.clone());
+    } else {
+        rotate_join_pin(&state).await?;
     }
 
     drop(host_device_id);
@@ -118,4 +127,24 @@ pub async fn remove_device(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+async fn rotate_join_pin(state: &AppState) -> Result<(), StatusCode> {
+    let new_pin = db::generate_join_pin();
+    let new_hash = db::hash_join_pin(&new_pin).map_err(|error| {
+        tracing::error!(error = %error, "failed to hash rotated join pin");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    db::set_setting(&state.db, "join_pin_hash", &new_hash)
+        .await
+        .map_err(|error| {
+            tracing::error!(error = %error, "failed to persist rotated join pin hash");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    *state.join_pin.write().await = new_pin;
+    *state.join_pin_hash.write().await = new_hash;
+
+    Ok(())
 }

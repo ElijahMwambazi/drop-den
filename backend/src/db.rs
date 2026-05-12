@@ -1,5 +1,10 @@
 use crate::models::{Device, Message, Transfer, TransferStatus};
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use chrono::{DateTime, Duration, Utc};
+use rand_core::OsRng;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Row, SqlitePool,
@@ -10,6 +15,7 @@ const DEFAULT_MESSAGE_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 pub struct PersistedRuntimeState {
     pub join_pin: String,
+    pub join_pin_hash: String,
     pub host_device_id: Option<String>,
     pub devices: HashMap<String, Device>,
     pub messages: Vec<Message>,
@@ -41,14 +47,11 @@ pub async fn connect_database(database_path: PathBuf) -> anyhow::Result<SqlitePo
 pub async fn load_persisted_runtime_state(
     pool: &SqlitePool,
 ) -> anyhow::Result<PersistedRuntimeState> {
-    let join_pin = match get_setting(pool, "join_pin").await? {
-        Some(value) => value,
-        None => {
-            let value = generate_join_pin();
-            set_setting(pool, "join_pin", &value).await?;
-            value
-        }
-    };
+    let join_pin = generate_join_pin();
+    let join_pin_hash = hash_join_pin(&join_pin)?;
+
+    set_setting(pool, "join_pin_hash", &join_pin_hash).await?;
+    delete_setting(pool, "join_pin").await?;
 
     let host_device_id = get_setting(pool, "host_device_id").await?;
     let devices = load_devices(pool).await?;
@@ -57,6 +60,7 @@ pub async fn load_persisted_runtime_state(
 
     Ok(PersistedRuntimeState {
         join_pin,
+        join_pin_hash,
         host_device_id,
         devices,
         messages,
@@ -71,6 +75,15 @@ pub async fn get_setting(pool: &SqlitePool, key: &str) -> anyhow::Result<Option<
         .await?;
 
     Ok(row.map(|row| row.get::<String, _>("value")))
+}
+
+pub async fn delete_setting(pool: &SqlitePool, key: &str) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM app_settings WHERE key = ?")
+        .bind(key)
+        .execute(pool)
+        .await?;
+
+    Ok(())
 }
 
 pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> anyhow::Result<()> {
@@ -389,7 +402,27 @@ fn transfer_status_to_str(status: &TransferStatus) -> &'static str {
     }
 }
 
-fn generate_join_pin() -> String {
+pub fn generate_join_pin() -> String {
     let value = uuid::Uuid::new_v4().as_u128() % 1_000_000;
     format!("{value:06}")
+}
+
+pub fn hash_join_pin(pin: &str) -> anyhow::Result<String> {
+    let salt = SaltString::generate(&mut OsRng);
+
+    let hash = Argon2::default()
+        .hash_password(pin.as_bytes(), &salt)
+        .map_err(|error| anyhow::anyhow!("failed to hash join pin: {error}"))?
+        .to_string();
+
+    Ok(hash)
+}
+
+pub fn verify_join_pin(pin: &str, hash: &str) -> anyhow::Result<bool> {
+    let parsed_hash = PasswordHash::new(hash)
+        .map_err(|error| anyhow::anyhow!("failed to parse join pin hash: {error}"))?;
+
+    Ok(Argon2::default()
+        .verify_password(pin.as_bytes(), &parsed_hash)
+        .is_ok())
 }

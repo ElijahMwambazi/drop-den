@@ -138,9 +138,11 @@ The backend now persists:
 - registered devices
 - host device identity
 - app settings
-- join PIN
+- join PIN hash
 - messages
 - transfer metadata
+
+The plaintext join PIN is kept only in runtime memory so it can be shown to the host device. SQLite stores the hash. A fresh PIN is generated on backend startup, and the PIN rotates after every successful joined-device registration.
 
 Messages expire after 24 hours and are removed by the cleanup job.
 

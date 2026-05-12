@@ -36,6 +36,8 @@
 - [x] Delete all transfers
 - [x] Safer CORS config
 - [x] Registered-device checks for private API routes
+- [x] Store join PIN hash
+- [x] Rotate join PIN after successful device join
 
 ## Phase 4: Production polish
 
@@ -57,7 +59,7 @@
 - [x] Persist host device identity
 - [x] Persist app settings
 - [x] Message expiry
-- [ ] Decide whether to persist join PIN or join PIN hash
+- [x] Decide whether to persist join PIN or join PIN hash
 - [x] Restore non-expired transfer metadata on startup
 - [x] Clean missing transfer files from metadata
 - [x] Add database path configuration
@@ -78,7 +80,6 @@
 ## Long-term ideas
 
 - Configurable transfer expiry
-- Regenerate join PIN from host UI
 - Clear all messages
 - Message targeting
 - Optional encryption-at-rest

@@ -41,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
         storage_dir,
         db,
         persisted_state.join_pin,
+        persisted_state.join_pin_hash,
         persisted_state.host_device_id,
         persisted_state.devices,
         persisted_state.messages,
