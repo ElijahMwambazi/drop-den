@@ -35,6 +35,14 @@ async fn main() -> anyhow::Result<()> {
 
     let database_path = configured_database_path(&data_dir);
     let db = db::connect_database(database_path).await?;
+
+    if should_reset_host() {
+        db::reset_host_device(&db).await?;
+        tracing::warn!(
+        "DROP_DEN_RESET_HOST=1 was set. Persisted host device was cleared. The next registered browser device will become host."
+    );
+    }
+
     let persisted_state = db::load_persisted_runtime_state(&db).await?;
 
     let state = AppState::new(
@@ -125,6 +133,13 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+fn should_reset_host() -> bool {
+    matches!(
+        std::env::var("DROP_DEN_RESET_HOST").ok().as_deref(),
+        Some("1") | Some("true") | Some("yes")
+    )
 }
 
 fn local_cors_layer() -> CorsLayer {

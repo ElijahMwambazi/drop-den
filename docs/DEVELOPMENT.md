@@ -289,6 +289,40 @@ Transfers expire after the configured transfer lifetime and are removed by the c
 
 Uploaded files remain stored on disk under the configured transfer storage directory.
 
+## Host recovery
+
+If the host browser identity is lost, clear the persisted host device and let the next registered browser become host.
+
+Development:
+
+```bash
+DROP_DEN_RESET_HOST=1 cargo run
+```
+
+Linux service mode:
+
+```bash
+sudo nano /etc/drop-den/drop-den.env
+```
+
+Add temporarily:
+
+```txt
+DROP_DEN_RESET_HOST=1
+```
+
+Restart:
+
+```txt
+sudo systemctl restart drop-den
+```
+
+Open the canonical LAN URL and register the browser that should become host.
+
+After recovery, remove DROP_DEN_RESET_HOST=1 from /etc/drop-den/drop-den.env and restart the service again.
+
+This keeps existing devices, messages, transfers, and app data. It only clears the persisted host_device_id.
+
 ## Frontend notes
 
 The frontend uses:
@@ -386,7 +420,3 @@ http://<pc-lan-ip>:8080
 ```
 
 or configure Avahi/local DNS.
-
-```
-
-```

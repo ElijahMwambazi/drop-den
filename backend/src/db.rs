@@ -86,6 +86,10 @@ pub async fn delete_setting(pool: &SqlitePool, key: &str) -> anyhow::Result<()> 
     Ok(())
 }
 
+pub async fn reset_host_device(pool: &SqlitePool) -> anyhow::Result<()> {
+    delete_setting(pool, "host_device_id").await
+}
+
 pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> anyhow::Result<()> {
     sqlx::query(
         r#"

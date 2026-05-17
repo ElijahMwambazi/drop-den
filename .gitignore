@@ -1,27 +1,72 @@
 # Rust
-/target
-backend/target
-Cargo.lock
+/target/
+backend/target/
+src-tauri/target/
 
-# Node
-node_modules
-frontend/node_modules
-frontend/dist
+# Keep Cargo.lock for app binaries
+# Cargo.lock
 
-# Local storage
-storage/transfers/*
-storage/messages/*
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Tauri generated/bundled output
+src-tauri/gen/
+src-tauri/binaries/
+src-tauri/icons/*.icns
+src-tauri/icons/*.ico
+src-tauri/icons/*Template.png
+src-tauri/icons/Square*.png
+src-tauri/icons/StoreLogo.png
+
+# Keep the base Tauri icon if committed
+!src-tauri/icons/icon.png
+
+# Local development storage
+storage/*
+!storage/.gitkeep
+!storage/transfers/
 !storage/transfers/.gitkeep
+!storage/messages/
 !storage/messages/.gitkeep
 
-# DB
+# SQLite databases and sidecar files
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
 storage/*.sqlite
+storage/*.sqlite3
+storage/*.db
+storage/*.db-shm
+storage/*.db-wal
 
-# Env
+# Runtime uploads / transfer files
+storage/transfers/*
+!storage/transfers/.gitkeep
+storage/messages/*
+!storage/messages/.gitkeep
+
+# Environment/config secrets
 .env
-.env.local
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
 
 # OS/editor
 .DS_Store
-.vscode
-.idea
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+.cache/

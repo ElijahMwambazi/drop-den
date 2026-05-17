@@ -46,9 +46,7 @@
 - [x] Better QR code join URL
 - [x] Packaged-mode launcher scripts
 - [x] Linux systemd service installer
-- [ ] Configurable data and storage directories
-- [ ] SQLite persistence
-- [ ] Tauri wrapper optional
+- [x] Host recovery reset
 
 ## Phase 5: Persistence
 
@@ -63,10 +61,11 @@
 - [x] Restore non-expired transfer metadata on startup
 - [x] Clean missing transfer files from metadata
 - [x] Add database path configuration
+- [ ] Configurable data and storage directories
 
 ## Phase 6: Desktop app direction
 
-- [ ] Add `src-tauri/`
+- [x] Add `src-tauri/`
 - [ ] Bundle backend as Tauri sidecar
 - [ ] Start backend sidecar from Tauri
 - [ ] Wait for `/api/health` before loading UI

@@ -44,6 +44,16 @@ Not-joined browsers should only see:
 - Join this den
 - Your device setup
 
+### Host recovery
+
+If the host browser identity is lost, the server can clear the persisted `host_device_id` with:
+
+```txt
+DROP_DEN_RESET_HOST=1
+```
+
+The next registered browser device becomes the host. This is a recovery mechanism for local/server-admin use and should only be used by someone with access to the machine running Drop Den.
+
 ## API authorization
 
 Private API routes require:
