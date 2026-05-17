@@ -7,8 +7,11 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:dev": "cd .. && frontend/node_modules/.bin/tauri dev",
+    "desktop:build": "cd .. && frontend/node_modules/.bin/tauri build",
+    "desktop:prepare": "../scripts/prepare-tauri-sidecar.sh",
+    "desktop:dev:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri dev",
+    "desktop:build:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri build"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.9",
