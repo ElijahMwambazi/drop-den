@@ -19,8 +19,6 @@ export function JoinCard() {
 
   const browserOrigin = useMemo(() => window.location.origin, []);
   const joinUrl = config?.recommended_join_origin ?? browserOrigin;
-  const fallbackJoinUrl = browserOrigin !== joinUrl ? browserOrigin : null;
-  const lanJoinUrl = config?.lan_origin ?? null;
 
   async function copyJoinUrl() {
     await navigator.clipboard.writeText(joinUrl);
@@ -57,31 +55,6 @@ export function JoinCard() {
               {joinUrl}
             </code>
 
-            <div className="mt-3 space-y-1 text-xs text-neutral-500">
-              <p>
-                QR code uses:{" "}
-                <span className="font-medium text-neutral-700">{joinUrl}</span>
-              </p>
-
-              {lanJoinUrl && lanJoinUrl !== joinUrl && (
-                <p>
-                  LAN fallback:{" "}
-                  <span className="font-medium text-neutral-700">
-                    {lanJoinUrl}
-                  </span>
-                </p>
-              )}
-
-              {fallbackJoinUrl && (
-                <p>
-                  Browser fallback:{" "}
-                  <span className="font-medium text-neutral-700">
-                    {fallbackJoinUrl}
-                  </span>
-                </p>
-              )}
-            </div>
-
             <button
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-medium text-white"
               type="button"
@@ -94,8 +67,9 @@ export function JoinCard() {
 
           {joinUrl.includes("localhost") && (
             <p className="mt-3 text-xs text-amber-700">
-              This device is using localhost. To join from another device, open
-              Drop Den using your computer&apos;s LAN IP address instead.
+              This device is using localhost because a LAN IP could not be
+              detected. To join from another device, open Drop Den using your
+              computer&apos;s LAN IP address instead.
             </p>
           )}
 
