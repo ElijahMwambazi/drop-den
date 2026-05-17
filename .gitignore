@@ -20,7 +20,6 @@ src-tauri/icons/*Template.png
 src-tauri/icons/Square*.png
 src-tauri/icons/StoreLogo.png
 
-# Keep the base Tauri icon if committed
 !src-tauri/icons/icon.png
 
 # Local development storage

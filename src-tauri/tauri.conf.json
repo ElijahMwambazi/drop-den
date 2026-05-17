@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.dropden.app",
   "build": {
-    "beforeDevCommand": "cd frontend && npm run dev",
+    "beforeDevCommand": "cd ../frontend && yarn dev",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "cd ../frontend && yarn build",
     "frontendDist": "../frontend/dist"
@@ -29,6 +29,8 @@
     "targets": "all",
     "category": "Utility",
     "shortDescription": "Local-only file and message transfer hub",
-    "longDescription": "Drop Den is a local-only browser-based file and message transfer hub for nearby devices."
+    "longDescription": "Drop Den is a local-only browser-based file and message transfer hub for nearby devices.",
+    "externalBin": ["binaries/drop-den-backend"],
+    "icon": ["icons/icon.png"]
   }
 }
