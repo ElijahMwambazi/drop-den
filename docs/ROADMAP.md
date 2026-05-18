@@ -66,10 +66,12 @@
 ## Phase 6: Desktop app direction
 
 - [x] Add `src-tauri/`
-- [ ] Bundle backend as Tauri sidecar
-- [ ] Start backend sidecar from Tauri
-- [ ] Wait for `/api/health` before loading UI
-- [ ] Add tray menu
+- [x] Bundle backend as Tauri sidecar
+- [x] Start backend sidecar from Tauri
+- [x] Wait for `/api/health` before loading UI
+- [x] Add tray menu
+- [x] Add “Copy Local URL” action
+- [x] Support mobile-width desktop window resizing
 - [ ] Add “Open Drop Den” action
 - [ ] Add “Copy join URL” action
 - [ ] Package Linux build

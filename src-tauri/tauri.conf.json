@@ -13,11 +13,12 @@
     "windows": [
       {
         "title": "Drop Den",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 650,
-        "resizable": true
+        "width": 400,
+        "height": 640,
+        "minWidth": 400,
+        "minHeight": 640,
+        "resizable": true,
+        "visible": false
       }
     ],
     "security": {

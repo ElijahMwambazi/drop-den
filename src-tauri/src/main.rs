@@ -1,50 +1,117 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
+    sync::Mutex,
     thread,
     time::{Duration, Instant},
 };
-use tauri::{Manager, WindowEvent};
+
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    AppHandle, Manager, WindowEvent,
+};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 const BACKEND_URL: &str = "http://127.0.0.1:8080";
 const HEALTH_URL: &str = "http://127.0.0.1:8080/api/health";
 
-struct BackendChild(std::sync::Mutex<Option<CommandChild>>);
+struct BackendChild(Mutex<Option<CommandChild>>);
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let child = start_backend_sidecar(app)?;
+            app.manage(BackendChild(Mutex::new(Some(child))));
 
-            app.manage(BackendChild(std::sync::Mutex::new(Some(child))));
+            setup_tray(app.handle())?;
 
             wait_for_backend_health(Duration::from_secs(15))?;
-
-            if let Some(window) = app.get_webview_window("main") {
-                window.show()?;
-                window.set_focus()?;
-            }
+            show_main_window(app.handle())?;
 
             Ok(())
         })
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {
-                if let Some(state) = window.try_state::<BackendChild>() {
-                    if let Ok(mut child) = state.0.lock() {
-                        if let Some(child) = child.take() {
-    let _ = child.kill();
-}
-                    }
+                if let Some(app) = window.app_handle().get_webview_window("main") {
+                    let _ = app.close();
                 }
+
+                stop_backend(window.app_handle());
+                window.app_handle().exit(0);
             }
         })
         .run(tauri::generate_context!())
         .expect("failed to run Drop Den desktop app");
 }
 
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let open_item = MenuItem::with_id(app, "open", "Open Drop Den", true, None::<&str>)?;
+    let copy_url_item =
+        MenuItem::with_id(app, "copy_local_url", "Copy Local URL", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+    let menu = Menu::with_items(app, &[&open_item, &copy_url_item, &quit_item])?;
+
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .ok_or_else(|| tauri::Error::Anyhow(anyhow::anyhow!("default window icon not found")))?;
+
+    TrayIconBuilder::new()
+        .icon(icon)
+        .tooltip("Drop Den")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => {
+                if let Err(error) = show_main_window(app) {
+                    eprintln!("failed to open Drop Den window: {error}");
+                }
+            }
+            "copy_local_url" => {
+                if let Err(error) = app.clipboard().write_text(BACKEND_URL.to_string()) {
+                    eprintln!("failed to copy local URL: {error}");
+                }
+            }
+            "quit" => {
+                stop_backend(app);
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+fn show_main_window(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show()?;
+        window.set_focus()?;
+    }
+
+    Ok(())
+}
+
+fn stop_backend(app: &AppHandle) {
+    if let Some(state) = app.try_state::<BackendChild>() {
+        if let Ok(mut child) = state.0.lock() {
+            if let Some(child) = child.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+}
+
 fn start_backend_sidecar(app: &tauri::App) -> tauri::Result<CommandChild> {
+    let data_dir = desktop_data_dir(app);
+    let storage_dir = data_dir.join("transfers");
+    let database_path = data_dir.join("drop-den.sqlite");
+
     let command = app.shell().sidecar("drop-den-backend").map_err(|error| {
         tauri::Error::Anyhow(anyhow::anyhow!(
             "failed to create backend sidecar command: {error}"
@@ -55,15 +122,9 @@ fn start_backend_sidecar(app: &tauri::App) -> tauri::Result<CommandChild> {
         .env("DROP_DEN_MODE", "desktop")
         .env("DROP_DEN_PORT", "8080")
         .env("DROP_DEN_PUBLIC_NAME", "127.0.0.1")
-        .env("DROP_DEN_DATA_DIR", desktop_data_dir(app))
-        .env(
-            "DROP_DEN_STORAGE_DIR",
-            desktop_data_dir(app).join("transfers"),
-        )
-        .env(
-            "DROP_DEN_DATABASE_PATH",
-            desktop_data_dir(app).join("drop-den.sqlite"),
-        )
+        .env("DROP_DEN_DATA_DIR", data_dir)
+        .env("DROP_DEN_STORAGE_DIR", storage_dir)
+        .env("DROP_DEN_DATABASE_PATH", database_path)
         .spawn()
         .map_err(|error| {
             tauri::Error::Anyhow(anyhow::anyhow!("failed to spawn backend sidecar: {error}"))
