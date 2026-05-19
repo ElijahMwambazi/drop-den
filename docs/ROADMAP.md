@@ -61,7 +61,6 @@
 - [x] Restore non-expired transfer metadata on startup
 - [x] Clean missing transfer files from metadata
 - [x] Add database path configuration
-- [ ] Configurable data and storage directories
 
 ## Phase 6: Desktop app direction
 
@@ -72,6 +71,8 @@
 - [x] Add tray menu
 - [x] Add “Copy Local URL” action
 - [x] Support mobile-width desktop window resizing
+- [x] Use dedicated desktop backend port
+- [ ] Configurable data and storage directories
 - [ ] Add “Open Drop Den” action
 - [ ] Add “Copy join URL” action
 - [ ] Package Linux build

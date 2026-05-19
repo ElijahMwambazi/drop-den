@@ -38,14 +38,16 @@ pub async fn config(
 
     let local_origin = origin_for("localhost", port);
 
-    let recommended_join_origin = if mode == "packaged" {
-        lan_origin.clone().unwrap_or_else(|| local_origin.clone())
-    } else {
-        lan_ip
-            .as_ref()
-            .map(|ip| origin_for(ip, 8080))
-            .unwrap_or_else(|| origin_for("localhost", 8080))
-    };
+   let recommended_join_origin = if mode == "packaged" || mode == "desktop" {
+    lan_origin
+        .clone()
+        .unwrap_or_else(|| local_origin.clone())
+} else {
+    lan_ip
+        .as_ref()
+        .map(|ip| origin_for(ip, 5173))
+        .unwrap_or_else(|| origin_for("localhost", 5173))
+};
 
     Json(AppConfig {
         app_name: "Drop Den".to_string(),

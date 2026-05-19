@@ -279,6 +279,12 @@ Current desktop direction:
 Tauri shell -> starts backend sidecar -> waits for /api/health -> opens React UI
 ```
 
+Desktop sidecar mode uses a dedicated backend port:
+
+```txt
+http://127.0.0.1:18080
+```
+
 ### Linux Tauri dependencies
 
 On Fedora, install the required Tauri/WebKit/GTK development packages:

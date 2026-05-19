@@ -54,13 +54,9 @@ export function useWebSocketRefresh() {
 }
 
 function getWebSocketUrl() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
-  if (window.location.port === "5173") {
-    return `${protocol}://${window.location.hostname}:8080/ws`;
-  }
-
-  return `${protocol}://${window.location.host}/ws`;
+  return `${protocol}//${window.location.host}/ws`;
 }
 
 function handleWebSocketToast(

@@ -65,7 +65,7 @@ export function JoinCard() {
             </button>
           </div>
 
-          {joinUrl.includes("localhost") && (
+          {joinUrl.includes("localhost") && config?.mode !== "desktop" && (
             <p className="mt-3 text-xs text-amber-700">
               This device is using localhost because a LAN IP could not be
               detected. To join from another device, open Drop Den using your

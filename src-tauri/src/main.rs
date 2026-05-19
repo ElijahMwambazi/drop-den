@@ -14,8 +14,9 @@ use tauri::{
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
-const BACKEND_URL: &str = "http://127.0.0.1:8080";
-const HEALTH_URL: &str = "http://127.0.0.1:8080/api/health";
+const BACKEND_PORT: &str = "18080";
+const BACKEND_URL: &str = "http://127.0.0.1:18080";
+const HEALTH_URL: &str = "http://127.0.0.1:18080/api/health";
 
 struct BackendChild(Mutex<Option<CommandChild>>);
 
@@ -120,7 +121,7 @@ fn start_backend_sidecar(app: &tauri::App) -> tauri::Result<CommandChild> {
 
     let (_rx, child) = command
         .env("DROP_DEN_MODE", "desktop")
-        .env("DROP_DEN_PORT", "8080")
+        .env("DROP_DEN_PORT", BACKEND_PORT)
         .env("DROP_DEN_PUBLIC_NAME", "127.0.0.1")
         .env("DROP_DEN_DATA_DIR", data_dir)
         .env("DROP_DEN_STORAGE_DIR", storage_dir)
