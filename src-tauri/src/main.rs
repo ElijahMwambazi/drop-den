@@ -37,10 +37,6 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {
-                if let Some(app) = window.app_handle().get_webview_window("main") {
-                    let _ = app.close();
-                }
-
                 stop_backend(window.app_handle());
                 window.app_handle().exit(0);
             }
