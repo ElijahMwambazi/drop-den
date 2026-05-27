@@ -113,6 +113,8 @@ fn start_backend_sidecar(app: &tauri::App) -> tauri::Result<CommandChild> {
     let storage_dir = data_dir.join("transfers");
     let database_path = data_dir.join("drop-den.sqlite");
 
+    let frontend_dist = bundled_frontend_dist(app)?;
+
     let command = app.shell().sidecar("drop-den-backend").map_err(|error| {
         tauri::Error::Anyhow(anyhow::anyhow!(
             "failed to create backend sidecar command: {error}"
@@ -126,6 +128,7 @@ fn start_backend_sidecar(app: &tauri::App) -> tauri::Result<CommandChild> {
         .env("DROP_DEN_DATA_DIR", data_dir)
         .env("DROP_DEN_STORAGE_DIR", storage_dir)
         .env("DROP_DEN_DATABASE_PATH", database_path)
+        .env("DROP_DEN_FRONTEND_DIST", frontend_dist)
         .spawn()
         .map_err(|error| {
             tauri::Error::Anyhow(anyhow::anyhow!("failed to spawn backend sidecar: {error}"))
@@ -138,6 +141,30 @@ fn desktop_data_dir(app: &tauri::App) -> std::path::PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| std::env::temp_dir().join("drop-den-desktop"))
+}
+
+fn bundled_frontend_dist(app: &tauri::App) -> tauri::Result<std::path::PathBuf> {
+    let frontend_dist = app
+        .path()
+        .resolve("frontend-dist", tauri::path::BaseDirectory::Resource)
+        .map_err(|error| {
+            tauri::Error::Anyhow(anyhow::anyhow!(
+                "failed to resolve bundled frontend-dist resource path: {error}"
+            ))
+        })?;
+
+    let index_html = frontend_dist.join("index.html");
+
+    if !index_html.is_file() {
+        return Err(tauri::Error::Anyhow(anyhow::anyhow!(
+            "bundled frontend dist is missing index.html at {}",
+            index_html.display()
+        )));
+    }
+
+    eprintln!("using bundled frontend dist: {}", frontend_dist.display());
+
+    Ok(frontend_dist)
 }
 
 fn wait_for_backend_health(timeout: Duration) -> tauri::Result<()> {

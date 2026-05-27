@@ -17,7 +17,14 @@ export function JoinCard() {
     queryFn: () => getConfig(device?.id),
   });
 
-  const browserOrigin = useMemo(() => window.location.origin, []);
+  const browserOrigin = useMemo(() => {
+    if (window.location.protocol === "tauri:") {
+      return "http://127.0.0.1:18080";
+    }
+
+    return window.location.origin;
+  }, []);
+
   const joinUrl = config?.recommended_join_origin ?? browserOrigin;
 
   async function copyJoinUrl() {
@@ -67,9 +74,8 @@ export function JoinCard() {
 
           {joinUrl.includes("localhost") && config?.mode !== "desktop" && (
             <p className="mt-3 text-xs text-amber-700">
-              This device is using localhost because a LAN IP could not be
-              detected. To join from another device, open Drop Den using your
-              computer&apos;s LAN IP address instead.
+              This device is using localhost. To join from another device, open
+              Drop Den using your computer&apos;s LAN IP address instead.
             </p>
           )}
 

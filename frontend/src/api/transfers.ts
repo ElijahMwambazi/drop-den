@@ -1,5 +1,6 @@
 import {
   DEVICE_ID_HEADER,
+  apiUrl,
   currentDeviceQuery,
   deleteRequest,
   getJson,
@@ -40,7 +41,7 @@ export function uploadTransfer(
   return new Promise<Transfer>((resolve, reject) => {
     const request = new XMLHttpRequest();
 
-    request.open("POST", "/api/transfers/upload");
+    request.open("POST", apiUrl("/api/transfers/upload"));
 
     if (senderDeviceId) {
       request.setRequestHeader(DEVICE_ID_HEADER, senderDeviceId);
@@ -89,16 +90,18 @@ export function deleteAllTransfers() {
 
 export function transferDownloadUrl(id: string) {
   const query = currentDeviceQuery();
-
-  return query
+  const path = query
     ? `/api/transfers/${id}/download?${query}`
     : `/api/transfers/${id}/download`;
+
+  return apiUrl(path);
 }
 
 export function downloadAllTransfersUrl() {
   const query = currentDeviceQuery();
-
-  return query
+  const path = query
     ? `/api/transfers/download-all?${query}`
     : "/api/transfers/download-all";
+
+  return apiUrl(path);
 }

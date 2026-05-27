@@ -167,27 +167,29 @@ fn is_allowed_local_origin(origin: &HeaderValue) -> bool {
         return false;
     };
 
-    if origin == "http://localhost:5173" || origin == "http://127.0.0.1:5173" {
+    if origin == "tauri://localhost" || origin == "http://tauri.localhost" {
         return true;
     }
 
     if let Some(host) = origin.strip_prefix("http://") {
-        return is_allowed_lan_dev_origin(host);
+        return is_allowed_local_http_origin(host);
     }
 
     false
 }
 
-fn is_allowed_lan_dev_origin(host: &str) -> bool {
+fn is_allowed_local_http_origin(host: &str) -> bool {
     let Some((address, port)) = host.rsplit_once(':') else {
         return false;
     };
 
-    if port != "5173" {
+    let allowed_port = matches!(port, "5173" | "8080" | "18080");
+
+    if !allowed_port {
         return false;
     }
 
-    is_private_ipv4(address)
+    address == "localhost" || address == "127.0.0.1" || is_private_ipv4(address)
 }
 
 fn is_private_ipv4(address: &str) -> bool {

@@ -285,6 +285,12 @@ Desktop sidecar mode uses a dedicated backend port:
 http://127.0.0.1:18080
 ```
 
+Build the desktop app:
+
+```bash
+./scripts/build-desktop.sh
+```
+
 ### Linux Tauri dependencies
 
 On Fedora, install the required Tauri/WebKit/GTK development packages:

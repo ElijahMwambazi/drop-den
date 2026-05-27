@@ -1,7 +1,29 @@
 import { useDeviceStore } from "../store/deviceStore";
 
-export const apiBaseUrl = "";
+const DESKTOP_API_ORIGIN = "http://127.0.0.1:18080";
+
 export const DEVICE_ID_HEADER = "X-Drop-Den-Device-Id";
+
+export function isTauriRuntime() {
+  return window.location.protocol === "tauri:";
+}
+
+export function apiUrl(path: string) {
+  if (isTauriRuntime()) {
+    return `${DESKTOP_API_ORIGIN}${path}`;
+  }
+
+  return path;
+}
+
+export function websocketUrl(path = "/ws") {
+  if (isTauriRuntime()) {
+    return `ws://127.0.0.1:18080${path}`;
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}${path}`;
+}
 
 function getDeviceId() {
   return useDeviceStore.getState().device?.id;
@@ -27,7 +49,7 @@ export function currentDeviceQuery() {
 }
 
 export async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     headers: authorizedHeaders(),
   });
 
@@ -42,7 +64,7 @@ export async function postJson<TResponse, TBody>(
   path: string,
   body: TBody,
 ): Promise<TResponse> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method: "POST",
     headers: authorizedHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -59,7 +81,7 @@ export async function patchJson<TResponse, TBody = undefined>(
   path: string,
   body?: TBody,
 ): Promise<TResponse> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method: "PATCH",
     headers: authorizedHeaders(
       body === undefined ? {} : { "Content-Type": "application/json" },
@@ -75,7 +97,7 @@ export async function patchJson<TResponse, TBody = undefined>(
 }
 
 export async function deleteRequest(path: string): Promise<void> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method: "DELETE",
     headers: authorizedHeaders(),
   });

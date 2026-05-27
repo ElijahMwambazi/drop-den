@@ -11,7 +11,8 @@
     "desktop:build": "cd .. && frontend/node_modules/.bin/tauri build",
     "desktop:prepare": "../scripts/prepare-tauri-sidecar.sh",
     "desktop:dev:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri dev",
-    "desktop:build:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri build"
+    "desktop:build:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri build",
+    "desktop:package": "cd .. && ./scripts/build-desktop.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.9",

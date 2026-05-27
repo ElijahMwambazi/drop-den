@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
+import { websocketUrl } from "../api/client";
 import type { Device, Transfer, WsEvent } from "../types";
 
 export function useWebSocketRefresh() {
@@ -13,7 +14,7 @@ export function useWebSocketRefresh() {
   useEffect(() => {
     let shouldShowDisconnectToast = true;
 
-    const socket = new WebSocket(getWebSocketUrl());
+    const socket = new WebSocket(websocketUrl());
 
     socket.onopen = () => {
       shouldShowDisconnectToast = true;
@@ -51,12 +52,6 @@ export function useWebSocketRefresh() {
       socket.close();
     };
   }, [addToast, clearDevice, currentDevice?.id, queryClient]);
-}
-
-function getWebSocketUrl() {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-
-  return `${protocol}//${window.location.host}/ws`;
 }
 
 function handleWebSocketToast(
