@@ -369,6 +369,13 @@ In desktop sidecar mode, Tauri:
 - waits for `/api/health`
 - opens the React UI in a desktop window
 
+Tray actions:
+
+- Open Drop Den: shows and focuses the desktop window.
+- Copy Join URL: copies the LAN join URL from `/api/config`.
+- Copy Local URL: copies `http://127.0.0.1:18080`.
+- Quit: stops the backend sidecar and exits the app.
+
 ## Build checks
 
 Frontend:

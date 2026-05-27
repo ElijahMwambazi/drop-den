@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use serde::Deserialize;
 use std::{
     sync::Mutex,
     thread,
@@ -13,6 +14,11 @@ use tauri::{
 };
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
+
+#[derive(Debug, Deserialize)]
+struct AppConfig {
+    recommended_join_origin: String,
+}
 
 const BACKEND_PORT: &str = "18080";
 const BACKEND_URL: &str = "http://127.0.0.1:18080";
@@ -47,11 +53,21 @@ fn main() {
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let open_item = MenuItem::with_id(app, "open", "Open Drop Den", true, None::<&str>)?;
-    let copy_url_item =
+    let copy_join_url_item =
+        MenuItem::with_id(app, "copy_join_url", "Copy Join URL", true, None::<&str>)?;
+    let copy_local_url_item =
         MenuItem::with_id(app, "copy_local_url", "Copy Local URL", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
-    let menu = Menu::with_items(app, &[&open_item, &copy_url_item, &quit_item])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &open_item,
+            &copy_join_url_item,
+            &copy_local_url_item,
+            &quit_item,
+        ],
+    )?;
 
     let icon = app
         .default_window_icon()
@@ -69,6 +85,16 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                     eprintln!("failed to open Drop Den window: {error}");
                 }
             }
+            "copy_join_url" => match fetch_join_url() {
+                Ok(join_url) => {
+                    if let Err(error) = app.clipboard().write_text(join_url) {
+                        eprintln!("failed to copy join URL: {error}");
+                    }
+                }
+                Err(error) => {
+                    eprintln!("failed to fetch join URL: {error}");
+                }
+            },
             "copy_local_url" => {
                 if let Err(error) = app.clipboard().write_text(BACKEND_URL.to_string()) {
                     eprintln!("failed to copy local URL: {error}");
@@ -161,6 +187,14 @@ fn bundled_frontend_dist(app: &tauri::App) -> tauri::Result<std::path::PathBuf> 
     eprintln!("using bundled frontend dist: {}", frontend_dist.display());
 
     Ok(frontend_dist)
+}
+
+fn fetch_join_url() -> anyhow::Result<String> {
+    let config: AppConfig = reqwest::blocking::get(format!("{BACKEND_URL}/api/config"))?
+        .error_for_status()?
+        .json()?;
+
+    Ok(config.recommended_join_origin)
 }
 
 fn wait_for_backend_health(timeout: Duration) -> tauri::Result<()> {

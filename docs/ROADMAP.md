@@ -74,8 +74,8 @@
 - [x] Use dedicated desktop backend port
 - [x] Package Linux build
 - [ ] Configurable data and storage directories
-- [ ] Add “Open Drop Den” action
-- [ ] Add “Copy join URL” action
+- [x] Add “Open Drop Den” action
+- [x] Add “Copy join URL” action
 - [ ] Package Windows build
 - [ ] Package macOS build
 
