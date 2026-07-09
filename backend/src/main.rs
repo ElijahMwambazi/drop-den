@@ -82,6 +82,10 @@ async fn main() -> anyhow::Result<()> {
             axum::routing::post(transfers::upload_transfer),
         )
         .route(
+            "/api/transfers/upload-local-paths",
+            axum::routing::post(transfers::upload_local_paths),
+        )
+        .route(
             "/api/transfers/download-all",
             get(transfers::download_all_transfers),
         )

@@ -1,9 +1,9 @@
-import { ChangeEvent, DragEvent, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
-import { uploadTransfer } from "../api/transfers";
+import { uploadLocalPaths, uploadTransfer } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
@@ -16,6 +16,25 @@ type UploadItem = {
   progress: number;
   status: UploadStatus;
   error?: string;
+};
+
+type TauriDragDropEvent = {
+  payload:
+    | {
+        type: "enter" | "over" | "leave";
+        position?: {
+          x: number;
+          y: number;
+        };
+      }
+    | {
+        type: "drop";
+        paths: string[];
+        position?: {
+          x: number;
+          y: number;
+        };
+      };
 };
 
 export function FileUpload() {
@@ -49,6 +68,108 @@ export function FileUpload() {
   const isUploading = uploads.some(
     (upload) => upload.status === "queued" || upload.status === "uploading",
   );
+
+  useEffect(() => {
+    if (window.location.protocol !== "tauri:") {
+      return;
+    }
+
+    let unlisten: (() => void) | undefined;
+    let isMounted = true;
+
+    async function listenForTauriFileDrops() {
+      try {
+        const { getCurrentWebviewWindow } =
+          await import("@tauri-apps/api/webviewWindow");
+
+        unlisten = await getCurrentWebviewWindow().onDragDropEvent(
+          (event: TauriDragDropEvent) => {
+            if (
+              event.payload.type === "enter" ||
+              event.payload.type === "over"
+            ) {
+              setIsDragging(true);
+              return;
+            }
+
+            if (event.payload.type === "leave") {
+              setIsDragging(false);
+              return;
+            }
+
+            if (event.payload.type === "drop") {
+              setIsDragging(false);
+
+              const paths = event.payload.paths ?? [];
+
+              setUploadDebugMessage(`Dropped ${paths.length} local path(s).`);
+
+              if (paths.length === 0) {
+                return;
+              }
+
+              uploadDroppedLocalPaths(paths);
+            }
+          },
+        );
+
+        if (isMounted) {
+          setUploadDebugMessage("Desktop drag/drop listener ready.");
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : JSON.stringify(error);
+
+        setUploadDebugMessage(`Desktop drag/drop listener failed: ${message}`);
+      }
+    }
+
+    listenForTauriFileDrops();
+
+    return () => {
+      isMounted = false;
+      unlisten?.();
+    };
+  }, [device?.id, targetDeviceId]);
+
+  async function uploadDroppedLocalPaths(paths: string[]) {
+    if (paths.length === 0) {
+      return;
+    }
+
+    setUploadDebugMessage(`Uploading ${paths.length} dropped local file(s).`);
+
+    try {
+      const transfers = await uploadLocalPaths(paths, {
+        senderDeviceId: device?.id,
+        targetDeviceId: targetDeviceId || undefined,
+      });
+
+      addToast({
+        type: "success",
+        message:
+          transfers.length === 1
+            ? `${transfers[0].filename} uploaded.`
+            : `${transfers.length} files uploaded.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Dropped file upload failed.";
+
+      setUploadDebugMessage(errorMessage);
+
+      addToast({
+        type: "error",
+        message: errorMessage,
+      });
+    }
+  }
 
   async function uploadFiles(files: File[]) {
     setUploadDebugMessage(`Selected ${files.length} file(s).`);
@@ -152,20 +273,53 @@ export function FileUpload() {
     event.target.value = "";
   }
 
-  function onDragOver(event: DragEvent<HTMLLabelElement>) {
+  function onDragEnter(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
-    setIsDragging(true);
+    event.stopPropagation();
+
+    const hasFiles = Array.from(event.dataTransfer.types ?? []).includes(
+      "Files",
+    );
+
+    if (hasFiles) {
+      setIsDragging(true);
+    }
   }
 
-  function onDragLeave() {
-    setIsDragging(false);
+  function onDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    event.dataTransfer.dropEffect = "copy";
+
+    const hasFiles = Array.from(event.dataTransfer.types ?? []).includes(
+      "Files",
+    );
+
+    if (hasFiles) {
+      setIsDragging(true);
+    }
+  }
+
+  function onDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsDragging(false);
+    }
   }
 
   function onDrop(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
+    event.stopPropagation();
+
     setIsDragging(false);
 
     const files = Array.from(event.dataTransfer.files ?? []);
+
+    setUploadDebugMessage(`Dropped ${files.length} file(s).`);
+
     uploadFiles(files);
   }
 
@@ -221,6 +375,7 @@ export function FileUpload() {
       </div>
 
       <label
+        onDragEnter={onDragEnter}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}

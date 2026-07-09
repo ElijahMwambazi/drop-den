@@ -5,6 +5,7 @@ import {
   deleteRequest,
   getJson,
   patchJson,
+  postJson,
 } from "./client";
 import { useDeviceStore } from "../store/deviceStore";
 import type { Transfer } from "../types";
@@ -13,6 +14,11 @@ type UploadTransferOptions = {
   senderDeviceId?: string;
   targetDeviceId?: string;
   onProgress?: (progress: number) => void;
+};
+
+type UploadLocalPathsOptions = {
+  senderDeviceId?: string;
+  targetDeviceId?: string;
 };
 
 export function listTransfers() {
@@ -69,6 +75,20 @@ export function uploadTransfer(
     };
 
     request.send(formData);
+  });
+}
+
+export function uploadLocalPaths(
+  paths: string[],
+  options: UploadLocalPathsOptions = {},
+) {
+  const senderDeviceId =
+    useDeviceStore.getState().device?.id ?? options.senderDeviceId;
+
+  return postJson<Transfer[], unknown>("/api/transfers/upload-local-paths", {
+    sender_device_id: senderDeviceId,
+    target_device_id: options.targetDeviceId || undefined,
+    paths,
   });
 }
 

@@ -16,7 +16,10 @@ use std::{
     io::{Cursor, Write},
     path::PathBuf,
 };
-use tokio::{fs::File, io::AsyncWriteExt};
+use tokio::{
+    fs::{self, File},
+    io::AsyncWriteExt,
+};
 use uuid::Uuid;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
@@ -26,6 +29,13 @@ const DEFAULT_TRANSFER_TTL_SECONDS: i64 = 24 * 60 * 60;
 #[derive(Debug, serde::Deserialize)]
 pub struct DeviceQuery {
     pub device_id: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LocalPathUploadRequest {
+    pub sender_device_id: Option<String>,
+    pub target_device_id: Option<String>,
+    pub paths: Vec<String>,
 }
 
 pub async fn list_transfers(
@@ -142,6 +152,125 @@ pub async fn upload_transfer(
     });
 
     Ok(Json(transfer))
+}
+
+pub async fn upload_local_paths(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<LocalPathUploadRequest>,
+) -> Result<Json<Vec<Transfer>>, StatusCode> {
+    if !is_desktop_mode() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+
+    if payload.sender_device_id.as_deref() != Some(&requesting_device_id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    if payload.paths.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let mut created_transfers = Vec::new();
+
+    for raw_path in payload.paths {
+        let source_path = PathBuf::from(&raw_path);
+        let metadata = fs::metadata(&source_path)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+        if !metadata.is_file() {
+            continue;
+        }
+
+        let size = metadata.len();
+
+        if size > MAX_UPLOAD_SIZE_BYTES {
+            return Err(StatusCode::PAYLOAD_TOO_LARGE);
+        }
+
+        let filename = source_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(sanitize_filename)
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "upload.bin".to_string());
+
+        let transfer_id = Uuid::new_v4().to_string();
+        let transfer_dir = state.storage_dir.join(&transfer_id);
+
+        fs::create_dir_all(&transfer_dir)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let file_path = transfer_dir.join(&filename);
+
+        fs::copy(&source_path, &file_path).await.map_err(|error| {
+            tracing::error!(
+                error = %error,
+                source_path = %source_path.display(),
+                destination_path = %file_path.display(),
+                "failed to copy local dropped file"
+            );
+
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        let status = if payload.target_device_id.is_some() {
+            TransferStatus::Pending
+        } else {
+            TransferStatus::Available
+        };
+
+        let created_at = Utc::now();
+        let expires_at = created_at + Duration::seconds(DEFAULT_TRANSFER_TTL_SECONDS);
+
+        let transfer = Transfer {
+            id: transfer_id,
+            filename,
+            mime_type: guess_mime_type(&source_path),
+            size,
+            sender_device_id: Some(requesting_device_id.clone()),
+            target_device_id: payload.target_device_id.clone(),
+            status,
+            stored_path: file_path.to_string_lossy().to_string(),
+            created_at,
+            expires_at,
+        };
+
+        db::insert_transfer(&state.db, &transfer)
+            .await
+            .map_err(|error| {
+                tracing::error!(
+                    error = %error,
+                    transfer_id = %transfer.id,
+                    "failed to persist local-path transfer"
+                );
+
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        state
+            .transfers
+            .write()
+            .await
+            .insert(transfer.id.clone(), transfer.clone());
+
+        state.broadcast_json(&WsEvent {
+            event_type: "transfer_created".to_string(),
+            payload: transfer.clone(),
+        });
+
+        created_transfers.push(transfer);
+    }
+
+    if created_transfers.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    Ok(Json(created_transfers))
 }
 
 pub async fn download_transfer(
@@ -380,4 +509,37 @@ async fn remove_transfer_files(transfer: &Transfer) {
     if let Some(parent) = path.parent() {
         let _ = tokio::fs::remove_dir_all(parent).await;
     }
+}
+
+fn is_desktop_mode() -> bool {
+    matches!(
+        std::env::var("DROP_DEN_MODE").ok().as_deref(),
+        Some("desktop")
+    )
+}
+
+fn guess_mime_type(path: &std::path::Path) -> String {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("png") => "image/png",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        Some("mp4") => "video/mp4",
+        Some("webm") => "video/webm",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("ogg") => "audio/ogg",
+        Some("pdf") => "application/pdf",
+        Some("txt") => "text/plain",
+        Some("json") => "application/json",
+        Some("zip") => "application/zip",
+        _ => "application/octet-stream",
+    }
+    .to_string()
 }

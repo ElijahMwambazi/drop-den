@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { DeviceList } from "./components/DeviceList";
 import { DeviceSetup } from "./components/DeviceSetup";
 import { FileUpload } from "./components/FileUpload";
@@ -8,8 +9,34 @@ import { TransferList } from "./components/TransferList";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 import { useDeviceStore } from "./store/deviceStore";
 
+function useGlobalDragDropGuard() {
+  useEffect(() => {
+    function preventFileDropNavigation(event: DragEvent) {
+      const hasFiles = Array.from(event.dataTransfer?.types ?? []).includes(
+        "Files",
+      );
+
+      if (!hasFiles) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    window.addEventListener("dragover", preventFileDropNavigation);
+    window.addEventListener("drop", preventFileDropNavigation);
+
+    return () => {
+      window.removeEventListener("dragover", preventFileDropNavigation);
+      window.removeEventListener("drop", preventFileDropNavigation);
+    };
+  }, []);
+}
+
 export function App() {
   useWebSocketRefresh();
+  useGlobalDragDropGuard();
 
   const device = useDeviceStore((state) => state.device);
   const isJoined = Boolean(device);
