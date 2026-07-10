@@ -50,17 +50,37 @@ export function App() {
       <main
         className={[
           "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8",
-          isDesktopRuntime ? "pt-11" : "",
+          isDesktopRuntime ? "gap-3 px-2.5 py-3 pt-11 text-[13px]" : "",
         ].join(" ")}
       >
-        <header className="rounded-4xl bg-neutral-950 p-6 text-white shadow-sm md:p-8">
-          <p className="text-sm font-medium uppercase tracking-[0.3em] text-neutral-400">
+        <header
+          className={[
+            "rounded-4xl bg-neutral-950 p-6 text-white shadow-sm md:p-8",
+            isDesktopRuntime ? "rounded-2xl p-4 md:p-4" : "",
+          ].join(" ")}
+        >
+          <p
+            className={[
+              "text-sm font-medium uppercase tracking-[0.3em] text-neutral-400",
+              isDesktopRuntime ? "text-[10px] tracking-[0.22em]" : "",
+            ].join(" ")}
+          >
             Local-only transfer hub
           </p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-6xl">
+          <h1
+            className={[
+              "mt-3 text-4xl font-bold tracking-tight md:text-6xl",
+              isDesktopRuntime ? "mt-2 text-2xl md:text-2xl" : "",
+            ].join(" ")}
+          >
             Drop Den
           </h1>
-          <p className="mt-4 max-w-2xl text-neutral-300">
+          <p
+            className={[
+              "mt-4 max-w-2xl text-neutral-300",
+              isDesktopRuntime ? "mt-2 text-xs leading-5" : "",
+            ].join(" ")}
+          >
             Move files, media, and text messages between nearby devices through
             one host machine. No cloud. No accounts. Just the local network.
           </p>
@@ -73,8 +93,18 @@ export function App() {
             <DeviceSetup />
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-            <div className="min-w-0 space-y-5">
+          <div
+            className={[
+              "grid gap-5 lg:grid-cols-[1fr_360px]",
+              isDesktopRuntime ? "gap-3 lg:grid-cols-1" : "",
+            ].join(" ")}
+          >
+            <div
+              className={[
+                "min-w-0 space-y-5",
+                isDesktopRuntime ? "space-y-3" : "",
+              ].join(" ")}
+            >
               <DeviceSetup />
               <FileUpload />
               <TransferList />

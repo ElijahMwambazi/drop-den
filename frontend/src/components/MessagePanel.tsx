@@ -79,15 +79,15 @@ export function MessagePanel() {
     <Card>
       <div className="flex min-w-0 flex-col">
         <div>
-          <h2 className="text-xl font-semibold">Messages</h2>
+          <h2 className="text-base font-semibold">Messages</h2>
           <p className="mt-1 text-sm text-neutral-500">
             Send short local notes to everyone connected to this den.
           </p>
         </div>
 
-        <div className="mt-4 max-h-[26rem] min-h-40 space-y-3 overflow-y-auto rounded-3xl bg-neutral-50 p-3">
+        <div className="mt-3 max-h-80 min-h-32 space-y-2 overflow-y-auto rounded-2xl bg-neutral-50 p-2">
           {messages.length === 0 ? (
-            <div className="flex min-h-32 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white p-6 text-center">
+            <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white p-4 text-center">
               <p className="max-w-sm text-sm text-neutral-500">
                 No messages yet. Send a note to everyone in the den.
               </p>
@@ -112,7 +112,7 @@ export function MessagePanel() {
                 >
                   <div
                     className={[
-                      "max-w-[85%] rounded-3xl px-4 py-3 shadow-sm",
+                      "max-w-[88%] rounded-2xl px-3 py-2 shadow-sm",
                       isOwnMessage
                         ? "bg-neutral-900 text-white"
                         : "border border-neutral-200 bg-white text-neutral-900",
@@ -131,7 +131,7 @@ export function MessagePanel() {
                       </time>
                     </div>
 
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                    <p className="whitespace-pre-wrap wrap-break-word text-xs leading-5">
                       {message.body}
                     </p>
                   </div>
@@ -143,9 +143,9 @@ export function MessagePanel() {
           <div ref={bottomRef} />
         </div>
 
-        <form className="mt-4 flex gap-2" onSubmit={onSubmit}>
+        <form className="mt-3 flex gap-2" onSubmit={onSubmit}>
           <textarea
-            className="min-h-12 min-w-0 flex-1 resize-none rounded-2xl border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
+            className="min-h-10 min-w-0 flex-1 resize-none rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900"
             placeholder={
               device
                 ? "Send a local message..."
@@ -159,11 +159,11 @@ export function MessagePanel() {
           />
 
           <button
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-neutral-900 px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
             disabled={!device || !canSend}
           >
-            <Send size={16} />
+            <Send size={14} />
             {mutation.isPending ? "Sending" : "Send"}
           </button>
         </form>

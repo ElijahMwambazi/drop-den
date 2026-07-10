@@ -96,7 +96,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
 
   if (!canPreview) {
     return (
-      <div className="flex h-24 w-full items-center justify-center rounded-2xl bg-white text-sm font-medium text-neutral-500 sm:w-32">
+      <div className="flex h-20 w-full items-center justify-center rounded-xl bg-white text-xs font-medium text-neutral-500 sm:w-24">
         {formatTransferStatus(transfer)}
       </div>
     );
@@ -114,7 +114,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
         className="block w-full shrink-0 sm:w-32"
       >
         <img
-          className="h-40 w-full rounded-2xl object-cover sm:h-24 sm:w-32"
+          className="h-28 w-full rounded-xl object-cover sm:h-20 sm:w-24"
           src={url}
           alt={transfer.filename}
           loading="lazy"
@@ -126,7 +126,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
   if (previewType === "video") {
     return (
       <video
-        className="h-40 w-full max-w-full rounded-2xl bg-black object-cover sm:h-24 sm:w-32"
+        className="h-28 w-full max-w-full rounded-xl bg-black object-cover sm:h-20 sm:w-24"
         src={url}
         controls
         preload="metadata"
@@ -136,7 +136,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
 
   if (previewType === "audio") {
     return (
-      <div className="min-w-0 max-w-full rounded-2xl bg-white p-3 sm:w-72">
+      <div className="min-w-0 max-w-full rounded-xl bg-white p-2 sm:w-64">
         <audio
           className="w-full max-w-full"
           src={url}
@@ -148,7 +148,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
   }
 
   return (
-    <div className="flex h-24 w-full items-center justify-center rounded-2xl bg-white text-sm font-medium text-neutral-500 sm:w-32">
+    <div className="flex h-20 w-full items-center justify-center rounded-xl bg-white text-xs font-medium text-neutral-500 sm:w-24">
       File
     </div>
   );
@@ -230,10 +230,10 @@ export function TransferList() {
   return (
     <Card>
       <div className="min-w-0">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold">Transfers</h2>
-            <p className="mt-1 text-sm text-neutral-500">
+            <h2 className="text-base font-semibold">Transfers</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">
               {hasTransfers
                 ? `${visibleTransfers.length} visible ${
                     visibleTransfers.length === 1 ? "file" : "files"
@@ -246,7 +246,7 @@ export function TransferList() {
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
               {hasDownloadableTransfers && (
                 <a
-                  className="rounded-xl bg-neutral-900 px-4 py-2 text-center text-sm font-medium text-white"
+                  className="rounded-xl bg-neutral-900 px-3 py-2 text-center text-xs font-medium text-white"
                   href={downloadAllTransfersUrl()}
                 >
                   Download ZIP
@@ -255,7 +255,7 @@ export function TransferList() {
 
               {canDeleteAllTransfers && (
                 <button
-                  className="rounded-xl border border-red-200 px-4 py-2 text-center text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-red-200 px-3 py-2 text-center text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
                   onClick={() => {
                     if (window.confirm("Delete all transfers from this den?")) {
@@ -271,7 +271,7 @@ export function TransferList() {
           )}
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-2">
           {!hasTransfers ? (
             <p className="text-sm text-neutral-500">
               Upload files to make them available to nearby devices.
@@ -295,40 +295,40 @@ export function TransferList() {
               return (
                 <div
                   key={transfer.id}
-                  className="grid min-w-0 gap-4 overflow-hidden rounded-2xl bg-neutral-50 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  className="grid min-w-0 gap-3 overflow-hidden rounded-xl bg-neutral-50 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                 >
-                  <div className="grid min-w-0 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
                     <TransferPreview transfer={transfer} />
 
                     <div className="min-w-0 overflow-hidden">
-                      <p className="truncate font-medium">
+                      <p className="truncate text-sm font-medium">
                         {transfer.filename}
                       </p>
 
-                      <p className="mt-1 truncate text-sm text-neutral-500">
+                      <p className="mt-0.5 truncate text-xs text-neutral-500">
                         {formatBytes(transfer.size)} · {transfer.mime_type}
                       </p>
 
-                      <div className="mt-2 flex min-w-0 flex-wrap gap-2 text-xs">
-                        <span className="max-w-full truncate rounded-full bg-white px-3 py-1 text-neutral-600">
+                      <div className="mt-1.5 flex min-w-0 flex-wrap gap-1.5 text-[11px]">
+                        <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-neutral-600">
                           From {senderName ?? "unknown"}
                         </span>
 
-                        <span className="max-w-full truncate rounded-full bg-white px-3 py-1 text-neutral-600">
+                        <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-neutral-600">
                           To {targetName ?? "everyone"}
                         </span>
 
-                        <span className="rounded-full bg-white px-3 py-1 text-neutral-600">
+                        <span className="rounded-full bg-white px-2 py-0.5 text-neutral-600">
                           {formatTransferStatus(transfer)}
                         </span>
                       </div>
 
-                      <p className="mt-2 truncate text-xs text-neutral-400">
+                      <p className="mt-1.5 truncate text-[11px] text-neutral-400">
                         Uploaded{" "}
                         {new Date(transfer.created_at).toLocaleString()}
                       </p>
 
-                      <p className="mt-1 truncate text-xs text-neutral-400">
+                      <p className="mt-1.5 truncate text-[11px] text-neutral-400">
                         Expires {new Date(transfer.expires_at).toLocaleString()}
                       </p>
                     </div>
@@ -338,7 +338,7 @@ export function TransferList() {
                     {canReview && (
                       <>
                         <button
-                          className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
                           type="button"
                           onClick={() => accept.mutate(transfer.id)}
                           disabled={accept.isPending || reject.isPending}
@@ -347,7 +347,7 @@ export function TransferList() {
                         </button>
 
                         <button
-                          className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
                           type="button"
                           onClick={() => reject.mutate(transfer.id)}
                           disabled={accept.isPending || reject.isPending}
@@ -359,7 +359,7 @@ export function TransferList() {
 
                     {canDownload && (
                       <a
-                        className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+                        className="rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white"
                         href={transferDownloadUrl(transfer.id)}
                       >
                         Download
@@ -367,7 +367,7 @@ export function TransferList() {
                     )}
 
                     <button
-                      className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-medium"
+                      className="rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium"
                       type="button"
                       onClick={() => remove.mutate(transfer.id)}
                       disabled={remove.isPending}

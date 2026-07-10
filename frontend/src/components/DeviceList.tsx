@@ -48,9 +48,9 @@ export function DeviceList() {
 
   return (
     <Card>
-      <h2 className="text-xl font-semibold">Connected devices</h2>
+      <h2 className="text-base font-semibold">Connected devices</h2>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-3 space-y-2">
         {devices.length === 0 ? (
           <p className="text-sm text-neutral-500">No devices registered yet.</p>
         ) : (
@@ -61,11 +61,13 @@ export function DeviceList() {
             return (
               <div
                 key={device.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-neutral-50 px-4 py-3"
+                className="flex items-center justify-between gap-2 rounded-xl bg-neutral-50 px-3 py-2"
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className="truncate font-medium">{device.name}</p>
+                    <p className="truncate text-sm font-medium">
+                      {device.name}
+                    </p>
 
                     {isCurrentDevice && (
                       <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-neutral-500">
@@ -81,7 +83,7 @@ export function DeviceList() {
 
                 {canRemoveDevice && (
                   <button
-                    className="shrink-0 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="shrink-0 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                     type="button"
                     onClick={() => {
                       if (

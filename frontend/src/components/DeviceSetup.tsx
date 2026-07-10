@@ -62,19 +62,19 @@ export function DeviceSetup() {
 
   return (
     <Card>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Your device</h2>
+          <h2 className="text-base font-semibold">Your device</h2>
 
           {device ? (
-            <div className="mt-2 space-y-1 text-sm text-neutral-600">
+            <div className="mt-1 space-y-1 text-xs text-neutral-600">
               <p>
                 Connected as{" "}
                 <span className="font-semibold text-neutral-900">
                   {device.name}
                 </span>
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="mt-1 text-xs leading-5 text-neutral-600">
                 {isHostDevice
                   ? "This is the host device. The join PIN is visible here by default."
                   : "This is a joined device. The join PIN is hidden from this browser."}
@@ -91,7 +91,7 @@ export function DeviceSetup() {
 
         {device && (
           <button
-            className="rounded-2xl border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            className="rounded-xl border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
             type="button"
             onClick={onSwitchDevice}
           >
@@ -104,21 +104,21 @@ export function DeviceSetup() {
         <form
           className={
             requiresPin
-              ? "mt-4 grid gap-3 sm:grid-cols-[1fr_180px_auto]"
-              : "mt-4 flex flex-col gap-3 sm:flex-row"
+              ? "mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]"
+              : "mt-3 flex flex-col gap-2 sm:flex-row"
           }
           onSubmit={onSubmit}
         >
           <input
-            className="min-w-0 rounded-2xl border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900 sm:flex-1"
-            placeholder="e.g. Elijah's laptop"
+            className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 sm:flex-1"
+            placeholder="e.g. John's laptop"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
 
           {requiresPin && (
             <input
-              className="min-w-0 rounded-2xl border border-neutral-300 px-4 py-3 font-mono tracking-[0.2em] outline-none focus:border-neutral-900"
+              className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 font-mono text-xs tracking-[0.18em] outline-none focus:border-neutral-900"
               inputMode="numeric"
               maxLength={6}
               placeholder="PIN"
@@ -130,7 +130,7 @@ export function DeviceSetup() {
           )}
 
           <button
-            className="rounded-2xl bg-neutral-900 px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
             disabled={
               mutation.isPending ||

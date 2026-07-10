@@ -7,15 +7,15 @@ export function ToastViewport() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-3">
+    <div className="fixed bottom-3 right-3 z-[60] flex w-[calc(100%-1.5rem)] max-w-xs flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-lg"
+          className="flex items-start gap-2 rounded-xl border border-neutral-200 bg-white p-3 shadow-lg"
         >
           <ToastIcon type={toast.type} />
 
-          <p className="min-w-0 flex-1 text-sm font-medium text-neutral-800">
+          <p className="min-w-0 flex-1 text-xs font-medium text-neutral-800">
             {toast.message}
           </p>
 
@@ -25,7 +25,7 @@ export function ToastViewport() {
             onClick={() => removeToast(toast.id)}
             aria-label="Dismiss notification"
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
       ))}
@@ -35,12 +35,12 @@ export function ToastViewport() {
 
 function ToastIcon({ type }: { type: ToastType }) {
   if (type === "success") {
-    return <CheckCircle className="mt-0.5 text-green-700" size={18} />;
+    return <CheckCircle className="mt-0.5 text-green-700" size={16} />;
   }
 
   if (type === "error") {
-    return <XCircle className="mt-0.5 text-red-600" size={18} />;
+    return <XCircle className="mt-0.5 text-red-600" size={16} />;
   }
 
-  return <Info className="mt-0.5 text-neutral-700" size={18} />;
+  return <Info className="mt-0.5 text-neutral-700" size={16} />;
 }

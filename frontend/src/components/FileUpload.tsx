@@ -331,22 +331,22 @@ export function FileUpload() {
 
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">Send files</h2>
-          <p className="mt-2 text-sm text-neutral-600">
+          <h2 className="text-base font-semibold">Send files</h2>
+          <p className="mt-1 text-xs leading-5 text-neutral-600">
             Upload media, documents, archives, or any local files to this den.
           </p>
         </div>
 
-        <div className="rounded-2xl bg-neutral-100 p-3 text-neutral-700">
-          <Upload size={20} />
+        <div className="rounded-xl bg-neutral-100 p-2 text-neutral-700">
+          <Upload size={16} />
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-3">
         <label
-          className="text-sm font-medium text-neutral-700"
+          className="text-xs font-medium text-neutral-700"
           htmlFor="target-device"
         >
           Send to
@@ -354,7 +354,7 @@ export function FileUpload() {
 
         <select
           id="target-device"
-          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-1.5 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
           value={targetDeviceId}
           onChange={(event) => setTargetDeviceId(event.target.value)}
           disabled={isUploading}
@@ -380,7 +380,7 @@ export function FileUpload() {
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         className={[
-          "mt-4 flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed p-8 text-center transition",
+          "mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-5 text-center transition",
           isDragging
             ? "border-neutral-900 bg-neutral-100"
             : "border-neutral-300 bg-neutral-50 hover:bg-neutral-100",
@@ -391,7 +391,7 @@ export function FileUpload() {
           {isDragging ? "Drop files here" : "Choose or drop files"}
         </span>
 
-        <span className="mt-1 text-sm text-neutral-500">
+        <span className="mt-1 text-xs leading-5 text-neutral-500">
           Multiple files are uploaded one after another. Max file size:{" "}
           {formatBytes(maxUploadSizeBytes)}.
         </span>
@@ -410,7 +410,7 @@ export function FileUpload() {
       )}
 
       {uploads.length > 0 && (
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium text-neutral-700">Upload queue</p>
 
@@ -429,7 +429,7 @@ export function FileUpload() {
           {uploads.map((upload) => (
             <div
               key={upload.id}
-              className="rounded-2xl border border-neutral-200 bg-white p-4"
+              className="rounded-xl border border-neutral-200 bg-white p-3"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -448,7 +448,7 @@ export function FileUpload() {
                 </p>
               </div>
 
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-100">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100">
                 <div
                   className={[
                     "h-full rounded-full transition-all",
