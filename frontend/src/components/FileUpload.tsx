@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, useEffect, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { getConfig } from "../api/config";
@@ -58,6 +58,11 @@ export function FileUpload() {
   const [targetDeviceId, setTargetDeviceId] = useState("");
   const [uploadDebugMessage, setUploadDebugMessage] = useState("");
 
+  const lastDesktopDropSignatureRef = useRef("");
+  const lastDesktopDropTimeRef = useRef(0);
+  const deviceIdRef = useRef(device?.id);
+  const targetDeviceIdRef = useRef(targetDeviceId);
+
   const maxUploadSizeBytes = config?.max_upload_size_bytes ?? 250 * 1024 * 1024;
   const transferTtlSeconds =
     config?.default_transfer_ttl_seconds ?? 24 * 60 * 60;
@@ -69,6 +74,11 @@ export function FileUpload() {
   const isUploading = uploads.some(
     (upload) => upload.status === "queued" || upload.status === "uploading",
   );
+
+  useEffect(() => {
+    deviceIdRef.current = device?.id;
+    targetDeviceIdRef.current = targetDeviceId;
+  }, [device?.id, targetDeviceId]);
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -101,13 +111,19 @@ export function FileUpload() {
             if (event.payload.type === "drop") {
               setIsDragging(false);
 
-              const paths = event.payload.paths ?? [];
-
-              setUploadDebugMessage(`Dropped ${paths.length} local path(s).`);
+              const paths = [...new Set(event.payload.paths ?? [])];
 
               if (paths.length === 0) {
+                setUploadDebugMessage("Dropped 0 local path(s).");
                 return;
               }
+
+              if (shouldIgnoreDuplicateDesktopDrop(paths)) {
+                setUploadDebugMessage("Ignored duplicate desktop drop event.");
+                return;
+              }
+
+              setUploadDebugMessage(`Dropped ${paths.length} local path(s).`);
 
               uploadDroppedLocalPaths(paths);
             }
@@ -135,20 +151,63 @@ export function FileUpload() {
       isMounted = false;
       unlisten?.();
     };
-  }, [device?.id, targetDeviceId]);
+  }, []);
+
+  function createLocalPathUploadItems(paths: string[]): UploadItem[] {
+    return paths.map((path) => ({
+      id: createUploadId(),
+      file: createSyntheticFileFromPath(path),
+      progress: 0,
+      status: "queued",
+    }));
+  }
+
+  function shouldIgnoreDuplicateDesktopDrop(paths: string[]) {
+    const normalizedPaths = [...new Set(paths)].sort();
+    const signature = normalizedPaths.join("\n");
+    const now = Date.now();
+
+    const isDuplicate =
+      signature === lastDesktopDropSignatureRef.current &&
+      now - lastDesktopDropTimeRef.current < 1500;
+
+    lastDesktopDropSignatureRef.current = signature;
+    lastDesktopDropTimeRef.current = now;
+
+    return isDuplicate;
+  }
 
   async function uploadDroppedLocalPaths(paths: string[]) {
     if (paths.length === 0) {
       return;
     }
 
+    const uploadItems = createLocalPathUploadItems(paths);
+
+    setUploads(uploadItems);
     setUploadDebugMessage(`Uploading ${paths.length} dropped local file(s).`);
+
+    setUploads((currentUploads) =>
+      currentUploads.map((upload) => ({
+        ...upload,
+        status: "uploading",
+        progress: 0,
+      })),
+    );
 
     try {
       const transfers = await uploadLocalPaths(paths, {
-        senderDeviceId: device?.id,
-        targetDeviceId: targetDeviceId || undefined,
+        senderDeviceId: deviceIdRef.current,
+        targetDeviceId: targetDeviceIdRef.current || undefined,
       });
+
+      setUploads((currentUploads) =>
+        currentUploads.map((upload) => ({
+          ...upload,
+          status: "success",
+          progress: 100,
+        })),
+      );
 
       addToast({
         type: "success",
@@ -164,6 +223,14 @@ export function FileUpload() {
         error instanceof Error ? error.message : "Dropped file upload failed.";
 
       setUploadDebugMessage(errorMessage);
+
+      setUploads((currentUploads) =>
+        currentUploads.map((upload) => ({
+          ...upload,
+          status: "error",
+          error: errorMessage,
+        })),
+      );
 
       addToast({
         type: "error",
@@ -278,6 +345,10 @@ export function FileUpload() {
     event.preventDefault();
     event.stopPropagation();
 
+    if (isTauriRuntime()) {
+      return;
+    }
+
     const hasFiles = Array.from(event.dataTransfer.types ?? []).includes(
       "Files",
     );
@@ -290,6 +361,10 @@ export function FileUpload() {
   function onDragOver(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
     event.stopPropagation();
+
+    if (isTauriRuntime()) {
+      return;
+    }
 
     event.dataTransfer.dropEffect = "copy";
 
@@ -316,6 +391,10 @@ export function FileUpload() {
     event.stopPropagation();
 
     setIsDragging(false);
+
+    if (isTauriRuntime()) {
+      return;
+    }
 
     const files = Array.from(event.dataTransfer.files ?? []);
 
@@ -518,4 +597,12 @@ function createUploadId() {
   }
 
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createSyntheticFileFromPath(path: string): File {
+  const filename = path.split(/[\\/]/).pop() || "dropped-file";
+
+  return new File([], filename, {
+    type: "application/octet-stream",
+  });
 }
