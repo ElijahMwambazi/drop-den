@@ -11,6 +11,7 @@
     "desktop:build": "cd .. && frontend/node_modules/.bin/tauri build",
     "desktop:prepare": "../scripts/prepare-tauri-sidecar.sh",
     "desktop:dev:sidecar": "yarn build && ../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri dev",
+    "desktop:dev:fast": "yarn build && ../scripts/prepare-tauri-sidecar-dev.sh && cd .. && frontend/node_modules/.bin/tauri dev",
     "desktop:build:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri build",
     "desktop:package": "cd .. && ./scripts/build-desktop.sh",
     "dev:desktop-api": "DROP_DEN_API_TARGET=http://127.0.0.1:18080 yarn dev"
