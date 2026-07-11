@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DeviceList } from "./components/DeviceList";
 import { DeviceSetup } from "./components/DeviceSetup";
 import { FileUpload } from "./components/FileUpload";
@@ -8,9 +9,11 @@ import { ToastViewport } from "./components/ToastViewport";
 import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
+import { CollapsibleSection } from "./components/CollapsibleSection";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 import { useDeviceStore } from "./store/deviceStore";
 import { isTauriRuntime } from "./api/client";
+import { getConfig } from "./api/config";
 
 function useGlobalDragDropGuard() {
   useEffect(() => {
@@ -44,6 +47,15 @@ export function App() {
   const isDesktopRuntime = isTauriRuntime();
   const device = useDeviceStore((state) => state.device);
   const isJoined = Boolean(device);
+
+  const { data: config } = useQuery({
+    queryKey: ["config", device?.id],
+    queryFn: () => getConfig(device?.id),
+    enabled: isDesktopRuntime && Boolean(device),
+  });
+
+  const canShowDesktopSettings =
+    isDesktopRuntime && Boolean(device) && Boolean(config?.is_host_device);
 
   return (
     <>
@@ -98,8 +110,10 @@ export function App() {
         ) : (
           <div
             className={[
-              "grid gap-5 lg:grid-cols-[1fr_360px]",
-              isDesktopRuntime ? "gap-3 lg:grid-cols-1" : "",
+              "grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]",
+              isDesktopRuntime
+                ? "gap-3 lg:grid-cols-[minmax(0,1fr)_260px]"
+                : "",
             ].join(" ")}
           >
             <div
@@ -111,11 +125,40 @@ export function App() {
               <DeviceSetup />
               <FileUpload />
               <TransferList />
-              <MessagePanel />
-              <DesktopSettings />
+
+              <CollapsibleSection
+                title="Messages"
+                description="Send short local notes to connected devices."
+                defaultOpen={!isDesktopRuntime}
+              >
+                <MessagePanel embedded />
+              </CollapsibleSection>
             </div>
 
-            <DeviceList />
+            <aside
+              className={[
+                "min-w-0 space-y-5",
+                isDesktopRuntime ? "space-y-3" : "",
+              ].join(" ")}
+            >
+              <CollapsibleSection
+                title="Connected devices"
+                description="Devices currently registered in this den."
+                defaultOpen
+              >
+                <DeviceList embedded />
+              </CollapsibleSection>
+
+              {isDesktopRuntime && config?.is_host_device && (
+                <CollapsibleSection
+                  title="Desktop settings"
+                  description="Runtime paths, quick actions, and maintenance."
+                  defaultOpen={false}
+                >
+                  <DesktopSettings embedded />
+                </CollapsibleSection>
+              )}
+            </aside>
           </div>
         )}
 

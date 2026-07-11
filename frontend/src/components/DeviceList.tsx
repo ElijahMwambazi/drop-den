@@ -5,7 +5,11 @@ import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
 
-export function DeviceList() {
+type DeviceListProps = {
+  embedded?: boolean;
+};
+
+export function DeviceList({ embedded = false }: DeviceListProps) {
   const queryClient = useQueryClient();
   const currentDevice = useDeviceStore((state) => state.device);
   const addToast = useToastStore((state) => state.addToast);
@@ -46,9 +50,16 @@ export function DeviceList() {
 
   const isHostDevice = Boolean(config?.is_host_device);
 
-  return (
-    <Card>
-      <h2 className="text-base font-semibold">Connected devices</h2>
+  const content = (
+    <>
+      {!embedded && (
+        <div className="mb-3">
+          <h2 className="text-base font-semibold">Connected devices</h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            Devices currently registered in this den.
+          </p>
+        </div>
+      )}
 
       <div className="mt-3 space-y-2">
         {devices.length === 0 ? (
@@ -102,6 +113,12 @@ export function DeviceList() {
           })
         )}
       </div>
-    </Card>
+    </>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return <Card>{content}</Card>;
 }
