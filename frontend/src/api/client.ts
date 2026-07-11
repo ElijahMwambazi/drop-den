@@ -4,8 +4,15 @@ const DESKTOP_API_ORIGIN = "http://127.0.0.1:18080";
 
 export const DEVICE_ID_HEADER = "X-Drop-Den-Device-Id";
 
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: unknown;
+};
+
 export function isTauriRuntime() {
-  return window.location.protocol === "tauri:";
+  return (
+    window.location.protocol === "tauri:" ||
+    "__TAURI_INTERNALS__" in (window as TauriWindow)
+  );
 }
 
 export function apiUrl(path: string) {

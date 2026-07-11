@@ -13,10 +13,7 @@ import { clearMessages } from "../api/messages";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
-
-function isTauriRuntime() {
-  return window.location.protocol === "tauri:";
-}
+import { isTauriRuntime } from "../api/client";
 
 export function DesktopSettings() {
   const [copiedValue, setCopiedValue] = useState<string | null>(null);

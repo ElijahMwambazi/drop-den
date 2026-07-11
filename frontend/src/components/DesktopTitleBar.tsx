@@ -1,8 +1,5 @@
 import { Minus, Square, X } from "lucide-react";
-
-function isTauriRuntime() {
-  return window.location.protocol === "tauri:";
-}
+import { isTauriRuntime } from "../api/client";
 
 async function getWindow() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");

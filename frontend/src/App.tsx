@@ -10,6 +10,7 @@ import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 import { useDeviceStore } from "./store/deviceStore";
+import { isTauriRuntime } from "./api/client";
 
 function useGlobalDragDropGuard() {
   useEffect(() => {
@@ -40,7 +41,7 @@ export function App() {
   useWebSocketRefresh();
   useGlobalDragDropGuard();
 
-  const isDesktopRuntime = window.location.protocol === "tauri:";
+  const isDesktopRuntime = isTauriRuntime();
   const device = useDeviceStore((state) => state.device);
   const isJoined = Boolean(device);
 

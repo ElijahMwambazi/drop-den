@@ -7,6 +7,7 @@ import { uploadLocalPaths, uploadTransfer } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
+import { isTauriRuntime } from "../api/client";
 
 type UploadStatus = "queued" | "uploading" | "success" | "error";
 
@@ -70,7 +71,7 @@ export function FileUpload() {
   );
 
   useEffect(() => {
-    if (window.location.protocol !== "tauri:") {
+    if (!isTauriRuntime()) {
       return;
     }
 
