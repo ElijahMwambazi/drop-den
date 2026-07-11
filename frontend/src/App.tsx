@@ -7,6 +7,7 @@ import { MessagePanel } from "./components/MessagePanel";
 import { ToastViewport } from "./components/ToastViewport";
 import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
+import { DesktopSettings } from "./components/DesktopSettings";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 import { useDeviceStore } from "./store/deviceStore";
 
@@ -89,8 +90,9 @@ export function App() {
         <JoinCard />
 
         {!isJoined ? (
-          <div className="max-w-3xl">
+          <div className="max-w-3xl space-y-3">
             <DeviceSetup />
+            <DesktopSettings />
           </div>
         ) : (
           <div
@@ -109,6 +111,7 @@ export function App() {
               <FileUpload />
               <TransferList />
               <MessagePanel />
+              <DesktopSettings />
             </div>
 
             <DeviceList />

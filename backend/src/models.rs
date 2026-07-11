@@ -68,6 +68,9 @@ pub struct AppConfig {
     pub join_pin: Option<String>,
     pub max_upload_size_bytes: u64,
     pub default_transfer_ttl_seconds: u64,
+    pub data_dir: Option<String>,
+    pub storage_dir: Option<String>,
+    pub database_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

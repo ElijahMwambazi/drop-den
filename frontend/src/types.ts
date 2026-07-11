@@ -20,6 +20,9 @@ export type AppConfig = {
   join_pin?: string | null;
   max_upload_size_bytes: number;
   default_transfer_ttl_seconds: number;
+  data_dir?: string;
+  storage_dir?: string;
+  database_path?: string;
 };
 
 export type TransferStatus = "available" | "pending" | "accepted" | "rejected";

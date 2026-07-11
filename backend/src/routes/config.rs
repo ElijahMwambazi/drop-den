@@ -14,6 +14,12 @@ pub struct ConfigQuery {
     pub device_id: Option<String>,
 }
 
+struct DesktopPaths {
+    data_dir: Option<String>,
+    storage_dir: Option<String>,
+    database_path: Option<String>,
+}
+
 pub async fn config(
     State(state): State<AppState>,
     Query(query): Query<ConfigQuery>,
@@ -25,6 +31,15 @@ pub async fn config(
     };
 
     let mode = std::env::var("DROP_DEN_MODE").unwrap_or_else(|_| "development".to_string());
+    let desktop_paths = if mode == "desktop" {
+        Some(DesktopPaths {
+            data_dir: std::env::var("DROP_DEN_DATA_DIR").ok(),
+            storage_dir: Some(state.storage_dir.to_string_lossy().to_string()),
+            database_path: std::env::var("DROP_DEN_DATABASE_PATH").ok(),
+        })
+    } else {
+        None
+    };
     let port = std::env::var("DROP_DEN_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -38,16 +53,14 @@ pub async fn config(
 
     let local_origin = origin_for("localhost", port);
 
-   let recommended_join_origin = if mode == "packaged" || mode == "desktop" {
-    lan_origin
-        .clone()
-        .unwrap_or_else(|| local_origin.clone())
-} else {
-    lan_ip
-        .as_ref()
-        .map(|ip| origin_for(ip, 5173))
-        .unwrap_or_else(|| origin_for("localhost", 5173))
-};
+    let recommended_join_origin = if mode == "packaged" || mode == "desktop" {
+        lan_origin.clone().unwrap_or_else(|| local_origin.clone())
+    } else {
+        lan_ip
+            .as_ref()
+            .map(|ip| origin_for(ip, 5173))
+            .unwrap_or_else(|| origin_for("localhost", 5173))
+    };
 
     Json(AppConfig {
         app_name: "Drop Den".to_string(),
@@ -69,6 +82,15 @@ pub async fn config(
         },
         max_upload_size_bytes: MAX_UPLOAD_SIZE_BYTES,
         default_transfer_ttl_seconds: DEFAULT_TRANSFER_TTL_SECONDS,
+        data_dir: desktop_paths
+            .as_ref()
+            .and_then(|paths| paths.data_dir.clone()),
+        storage_dir: desktop_paths
+            .as_ref()
+            .and_then(|paths| paths.storage_dir.clone()),
+        database_path: desktop_paths
+            .as_ref()
+            .and_then(|paths| paths.database_path.clone()),
     })
 }
 
