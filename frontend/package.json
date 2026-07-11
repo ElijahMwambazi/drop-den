@@ -12,7 +12,8 @@
     "desktop:prepare": "../scripts/prepare-tauri-sidecar.sh",
     "desktop:dev:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri dev",
     "desktop:build:sidecar": "../scripts/prepare-tauri-sidecar.sh && cd .. && frontend/node_modules/.bin/tauri build",
-    "desktop:package": "cd .. && ./scripts/build-desktop.sh"
+    "desktop:package": "cd .. && ./scripts/build-desktop.sh",
+    "dev:desktop-api": "DROP_DEN_API_TARGET=http://127.0.0.1:18080 yarn dev"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.9",
