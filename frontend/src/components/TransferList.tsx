@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
@@ -14,6 +15,26 @@ import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import type { Device, Transfer, TransferStatus } from "../types";
 import { Card } from "./Card";
+
+type TransferFilter =
+  | "all"
+  | "available"
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "expired"
+  | "image"
+  | "video"
+  | "audio"
+  | "file";
+
+type TransferSortMode =
+  | "newest"
+  | "oldest"
+  | "name"
+  | "largest"
+  | "smallest"
+  | "expiring";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -159,6 +180,10 @@ export function TransferList() {
   const currentDevice = useDeviceStore((state) => state.device);
   const addToast = useToastStore((state) => state.addToast);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<TransferFilter>("all");
+  const [sortMode, setSortMode] = useState<TransferSortMode>("newest");
+
   const { data: transfers = [] } = useQuery({
     queryKey: ["transfers"],
     queryFn: listTransfers,
@@ -218,12 +243,33 @@ export function TransferList() {
     },
   });
 
-  const visibleTransfers = transfers.filter((transfer) =>
-    isTransferVisibleToDevice(transfer, currentDevice?.id),
+  const visibleTransfers = useMemo(
+    () =>
+      transfers.filter((transfer) =>
+        isTransferVisibleToDevice(transfer, currentDevice?.id),
+      ),
+    [transfers, currentDevice?.id],
   );
 
-  const downloadableTransfers = visibleTransfers.filter(isTransferDownloadable);
+  const filteredTransfers = useMemo(
+    () =>
+      sortTransfers(
+        filterTransfers({
+          transfers: visibleTransfers,
+          devices,
+          searchQuery,
+          statusFilter,
+        }),
+        sortMode,
+      ),
+    [visibleTransfers, devices, searchQuery, statusFilter, sortMode],
+  );
+
+  const downloadableTransfers = filteredTransfers.filter(
+    isTransferDownloadable,
+  );
   const hasTransfers = visibleTransfers.length > 0;
+  const hasFilteredTransfers = filteredTransfers.length > 0;
   const hasDownloadableTransfers = downloadableTransfers.length > 0;
   const canDeleteAllTransfers = Boolean(config?.is_host_device) && hasTransfers;
 
@@ -233,9 +279,53 @@ export function TransferList() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h2 className="text-base font-semibold">Transfers</h2>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+              <input
+                className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900"
+                placeholder="Search transfers..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+
+              <select
+                className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-900"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as TransferFilter)
+                }
+              >
+                <option value="all">All</option>
+                <option value="available">Available</option>
+                <option value="pending">Pending</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+                <option value="expired">Expired</option>
+                <option value="image">Images</option>
+                <option value="video">Videos</option>
+                <option value="audio">Audio</option>
+                <option value="file">Files</option>
+              </select>
+
+              <select
+                className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-900"
+                value={sortMode}
+                onChange={(event) =>
+                  setSortMode(event.target.value as TransferSortMode)
+                }
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="name">Name A-Z</option>
+                <option value="largest">Largest</option>
+                <option value="smallest">Smallest</option>
+                <option value="expiring">Expiring soon</option>
+              </select>
+            </div>
+
             <p className="mt-0.5 text-xs text-neutral-500">
               {hasTransfers
-                ? `${visibleTransfers.length} visible ${
+                ? `${filteredTransfers.length} of ${visibleTransfers.length} visible ${
                     visibleTransfers.length === 1 ? "file" : "files"
                   }`
                 : "No files visible for this device."}
@@ -383,4 +473,91 @@ export function TransferList() {
       </div>
     </Card>
   );
+}
+
+function filterTransfers({
+  transfers,
+  devices,
+  searchQuery,
+  statusFilter,
+}: {
+  transfers: Transfer[];
+  devices: Device[];
+  searchQuery: string;
+  statusFilter: TransferFilter;
+}) {
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  return transfers.filter((transfer) => {
+    if (!matchesTransferFilter(transfer, statusFilter)) {
+      return false;
+    }
+
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    const senderName = getDeviceName(devices, transfer.sender_device_id) ?? "";
+    const targetName = getDeviceName(devices, transfer.target_device_id) ?? "";
+
+    return [
+      transfer.filename,
+      transfer.mime_type,
+      senderName,
+      targetName,
+      formatTransferStatus(transfer),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearch);
+  });
+}
+
+function matchesTransferFilter(transfer: Transfer, filter: TransferFilter) {
+  if (filter === "all") return true;
+  if (filter === "expired") return isTransferExpired(transfer);
+
+  if (filter === "image" || filter === "video" || filter === "audio") {
+    return getTransferPreviewType(transfer.mime_type) === filter;
+  }
+
+  if (filter === "file") {
+    return getTransferPreviewType(transfer.mime_type) === "file";
+  }
+
+  return !isTransferExpired(transfer) && transfer.status === filter;
+}
+
+function sortTransfers(transfers: Transfer[], sortMode: TransferSortMode) {
+  return [...transfers].sort((first, second) => {
+    switch (sortMode) {
+      case "oldest":
+        return (
+          new Date(first.created_at).getTime() -
+          new Date(second.created_at).getTime()
+        );
+
+      case "name":
+        return first.filename.localeCompare(second.filename);
+
+      case "largest":
+        return second.size - first.size;
+
+      case "smallest":
+        return first.size - second.size;
+
+      case "expiring":
+        return (
+          new Date(first.expires_at).getTime() -
+          new Date(second.expires_at).getTime()
+        );
+
+      case "newest":
+      default:
+        return (
+          new Date(second.created_at).getTime() -
+          new Date(first.created_at).getTime()
+        );
+    }
+  });
 }
