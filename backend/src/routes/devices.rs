@@ -129,6 +129,36 @@ pub async fn remove_device(
     }
 }
 
+pub async fn reset_host_identity(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<StatusCode, StatusCode> {
+    if std::env::var("DROP_DEN_MODE").ok().as_deref() != Some("desktop") {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let host_device_id = state.host_device_id.read().await.clone();
+
+    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    db::reset_host_device(&state.db).await.map_err(|error| {
+        tracing::error!(error = %error, "failed to reset host device");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    *state.host_device_id.write().await = None;
+
+    state.broadcast_json(&WsEvent {
+        event_type: "host_reset".to_string(),
+        payload: serde_json::json!({}),
+    });
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn rotate_join_pin(state: &AppState) -> Result<(), StatusCode> {
     let new_pin = db::generate_join_pin();
     let new_hash = db::hash_join_pin(&new_pin).map_err(|error| {

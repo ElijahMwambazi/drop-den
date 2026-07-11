@@ -1,7 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, HardDrive, RotateCcw } from "lucide-react";
+import {
+  Check,
+  Copy,
+  HardDrive,
+  MessageSquareX,
+  RotateCcw,
+} from "lucide-react";
 import { useState } from "react";
 import { getConfig } from "../api/config";
+import { resetHostIdentity } from "../api/devices";
+import { clearMessages } from "../api/messages";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
@@ -62,6 +70,61 @@ export function DesktopSettings() {
       type: "info",
       message: "Local device identity cleared.",
     });
+  }
+
+  async function clearAllMessages() {
+    if (!window.confirm("Clear all local messages from this den?")) {
+      return;
+    }
+
+    try {
+      await clearMessages();
+
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+
+      addToast({
+        type: "success",
+        message: "Messages cleared.",
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Could not clear messages.",
+      });
+    }
+  }
+
+  async function resetHost() {
+    if (
+      !window.confirm(
+        "Reset the host identity? The next registered device will become the host.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await resetHostIdentity();
+
+      clearDevice();
+
+      queryClient.invalidateQueries({ queryKey: ["config"] });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+
+      addToast({
+        type: "success",
+        message: "Host identity reset.",
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not reset host identity.",
+      });
+    }
   }
 
   return (
@@ -131,6 +194,24 @@ export function DesktopSettings() {
         >
           <RotateCcw size={14} />
           Clear local identity
+        </button>
+
+        <button
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+          type="button"
+          onClick={clearAllMessages}
+        >
+          <MessageSquareX size={14} />
+          Clear messages
+        </button>
+
+        <button
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+          type="button"
+          onClick={resetHost}
+        >
+          <RotateCcw size={14} />
+          Reset host
         </button>
       </div>
     </Card>

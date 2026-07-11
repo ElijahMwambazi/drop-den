@@ -20,3 +20,7 @@ export function registerDevice(input: RegisterDeviceInput) {
 export function removeDevice(deviceId: string) {
   return deleteRequest(`/api/devices/${deviceId}`);
 }
+
+export function resetHostIdentity() {
+  return postJson<void, Record<string, never>>("/api/desktop/reset-host", {});
+}

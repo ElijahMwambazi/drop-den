@@ -74,6 +74,10 @@ async fn main() -> anyhow::Result<()> {
             axum::routing::delete(devices::remove_device),
         )
         .route(
+            "/api/desktop/reset-host",
+            axum::routing::post(devices::reset_host_identity),
+        )
+        .route(
             "/api/transfers",
             get(transfers::list_transfers).delete(transfers::delete_all_transfers),
         )
@@ -107,7 +111,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/api/messages",
-            get(messages::list_messages).post(messages::create_message),
+            get(messages::list_messages)
+                .post(messages::create_message)
+                .delete(messages::delete_all_messages),
         )
         .route("/ws", get(ws::ws_handler))
         .fallback_service(static_files)

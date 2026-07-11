@@ -68,3 +68,29 @@ pub async fn create_message(
 
     Ok(Json(message))
 }
+
+pub async fn delete_all_messages(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<StatusCode, StatusCode> {
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let host_device_id = state.host_device_id.read().await.clone();
+
+    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    db::delete_all_messages(&state.db).await.map_err(|error| {
+        tracing::error!(error = %error, "failed to delete all messages");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    state.messages.write().await.clear();
+
+    state.broadcast_json(&WsEvent {
+        event_type: "messages_cleared".to_string(),
+        payload: serde_json::json!({}),
+    });
+
+    Ok(StatusCode::NO_CONTENT)
+}

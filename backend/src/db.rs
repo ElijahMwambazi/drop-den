@@ -169,6 +169,12 @@ pub async fn delete_expired_messages(pool: &SqlitePool, now: DateTime<Utc>) -> a
     Ok(result.rows_affected())
 }
 
+pub async fn delete_all_messages(pool: &SqlitePool) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM messages").execute(pool).await?;
+
+    Ok(())
+}
+
 pub async fn insert_transfer(pool: &SqlitePool, transfer: &Transfer) -> anyhow::Result<()> {
     sqlx::query(
         r#"

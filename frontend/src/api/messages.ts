@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./client";
+import { deleteRequest, getJson, postJson } from "./client";
 import type { LocalMessage } from "../types";
 
 export function listMessages() {
@@ -9,4 +9,8 @@ export function createMessage(body: string) {
   return postJson<LocalMessage, { body: string }>("/api/messages", {
     body,
   });
+}
+
+export function clearMessages() {
+  return deleteRequest("/api/messages");
 }
