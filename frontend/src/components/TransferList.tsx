@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileStack } from "lucide-react";
+import {
+  Archive,
+  Download,
+  File,
+  FileStack,
+  Film,
+  Image as ImageIcon,
+  Music2,
+  Trash2,
+} from "lucide-react";
 import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
 import {
@@ -117,28 +126,19 @@ function formatStatusLabel(status: TransferStatus) {
 
 function TransferPreview({ transfer }: { transfer: Transfer }) {
   const canPreview = isTransferDownloadable(transfer);
-
-  if (!canPreview) {
-    return (
-      <div className="flex h-20 w-full items-center justify-center rounded-xl bg-white text-xs font-medium text-neutral-500 sm:w-24">
-        {formatTransferStatus(transfer)}
-      </div>
-    );
-  }
-
   const previewType = getTransferPreviewType(transfer.mime_type);
   const url = transferDownloadUrl(transfer.id);
 
-  if (previewType === "image") {
+  if (canPreview && previewType === "image") {
     return (
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="block w-full shrink-0 sm:w-32"
+        className="block h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white"
       >
         <img
-          className="h-28 w-full rounded-xl object-cover sm:h-20 sm:w-24"
+          className="h-full w-full object-cover"
           src={url}
           alt={transfer.filename}
           loading="lazy"
@@ -147,35 +147,63 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
     );
   }
 
-  if (previewType === "video") {
+  if (canPreview && previewType === "video") {
     return (
       <video
-        className="h-28 w-full max-w-full rounded-xl bg-black object-cover sm:h-20 sm:w-24"
+        className="h-14 w-14 shrink-0 rounded-xl bg-black object-cover"
         src={url}
-        controls
         preload="metadata"
+        muted
       />
     );
   }
 
-  if (previewType === "audio") {
-    return (
-      <div className="min-w-0 max-w-full rounded-xl bg-white p-2 sm:w-64">
-        <audio
-          className="w-full max-w-full"
-          src={url}
-          controls
-          preload="metadata"
-        />
-      </div>
-    );
-  }
+  const PreviewIcon =
+    previewType === "image"
+      ? ImageIcon
+      : previewType === "video"
+        ? Film
+        : previewType === "audio"
+          ? Music2
+          : File;
 
   return (
-    <div className="flex h-20 w-full items-center justify-center rounded-xl bg-white text-xs font-medium text-neutral-500 sm:w-24">
-      File
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white text-neutral-400">
+      <PreviewIcon size={20} />
     </div>
   );
+}
+
+function formatRelativeTime(value: string) {
+  const difference = new Date(value).getTime() - Date.now();
+  const absoluteDifference = Math.abs(difference);
+  const units = [
+    { milliseconds: 24 * 60 * 60 * 1000, label: "d" },
+    { milliseconds: 60 * 60 * 1000, label: "h" },
+    { milliseconds: 60 * 1000, label: "m" },
+  ];
+  const unit = units.find(({ milliseconds }) => absoluteDifference >= milliseconds);
+  const amount = unit ? Math.max(1, Math.round(absoluteDifference / unit.milliseconds)) : 1;
+  const label = unit?.label ?? "m";
+
+  return difference >= 0 ? `in ${amount}${label}` : `${amount}${label} ago`;
+}
+
+function formatFileType(transfer: Transfer) {
+  const extension = transfer.filename.split(".").pop();
+  if (extension && extension !== transfer.filename && extension.length <= 6) {
+    return extension.toUpperCase();
+  }
+
+  return getTransferPreviewType(transfer.mime_type).toUpperCase();
+}
+
+function transferStatusClass(transfer: Transfer) {
+  if (isTransferExpired(transfer) || transfer.status === "rejected") {
+    return "bg-red-50 text-red-700";
+  }
+  if (transfer.status === "pending") return "bg-amber-50 text-amber-800";
+  return "bg-emerald-50 text-emerald-700";
 }
 
 export function TransferList() {
@@ -338,19 +366,24 @@ export function TransferList() {
           </div>
 
           {hasTransfers && (
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-row">
               {hasDownloadableTransfers && (
                 <a
-                  className="rounded-xl bg-neutral-900 px-3 py-2 text-center text-xs font-medium text-white"
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-neutral-900 px-3 py-2 text-center text-xs font-medium text-white ${
+                    canDeleteAllTransfers ? "" : "col-span-2"
+                  }`}
                   href={downloadAllTransfersUrl()}
                 >
+                  <Archive size={13} />
                   Download ZIP
                 </a>
               )}
 
               {canDeleteAllTransfers && (
                 <button
-                  className="rounded-xl border border-red-200 px-3 py-2 text-center text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-center text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    hasDownloadableTransfers ? "" : "col-span-2"
+                  }`}
                   type="button"
                   onClick={async () => {
                     if (
@@ -365,6 +398,7 @@ export function TransferList() {
                   }}
                   disabled={removeAll.isPending}
                 >
+                  <Trash2 size={13} />
                   {removeAll.isPending ? "Deleting..." : "Delete all"}
                 </button>
               )}
@@ -372,7 +406,13 @@ export function TransferList() {
           )}
         </div>
 
-        <div className="mt-3 space-y-2">
+        <div
+          className={
+            hasFilteredTransfers
+              ? "drop-den-scrollbar mt-3 max-h-[min(52vh,30rem)] space-y-2 overflow-y-auto overscroll-contain pr-1"
+              : "mt-3 space-y-2"
+          }
+        >
           {!hasTransfers ? (
             <div className="flex items-center gap-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-3">
               <div className="rounded-lg bg-white p-2 text-neutral-400">
@@ -411,50 +451,62 @@ export function TransferList() {
               return (
                 <div
                   key={transfer.id}
-                  className="grid min-w-0 gap-3 overflow-hidden rounded-xl bg-neutral-50 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  className="min-w-0 overflow-hidden rounded-xl bg-neutral-50 p-2.5"
                 >
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                  <div className="flex min-w-0 items-start gap-2.5">
                     <TransferPreview transfer={transfer} />
 
-                    <div className="min-w-0 overflow-hidden">
-                      <p className="truncate text-sm font-medium">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <p
+                        className="truncate text-xs font-semibold text-neutral-900"
+                        title={transfer.filename}
+                      >
                         {transfer.filename}
                       </p>
 
-                      <p className="mt-0.5 truncate text-xs text-neutral-500">
-                        {formatBytes(transfer.size)} · {transfer.mime_type}
+                      <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                        {formatBytes(transfer.size)} · {formatFileType(transfer)}
                       </p>
 
-                      <div className="mt-1.5 flex min-w-0 flex-wrap gap-1.5 text-[11px]">
-                        <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-neutral-600">
-                          From {senderName ?? "unknown"}
+                      <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[10px]">
+                        <span
+                          className="min-w-0 flex-1 truncate text-neutral-500"
+                          title={`${senderName ?? "Unknown"} to ${targetName ?? "Everyone"}`}
+                        >
+                          {senderName ?? "Unknown"} → {targetName ?? "Everyone"}
                         </span>
-
-                        <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-neutral-600">
-                          To {targetName ?? "everyone"}
-                        </span>
-
-                        <span className="rounded-full bg-white px-2 py-0.5 text-neutral-600">
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 font-medium ${transferStatusClass(transfer)}`}
+                        >
                           {formatTransferStatus(transfer)}
                         </span>
                       </div>
 
-                      <p className="mt-1.5 truncate text-[11px] text-neutral-400">
-                        Uploaded{" "}
-                        {new Date(transfer.created_at).toLocaleString()}
-                      </p>
-
-                      <p className="mt-1.5 truncate text-[11px] text-neutral-400">
-                        Expires {new Date(transfer.expires_at).toLocaleString()}
+                      <p
+                        className="mt-1.5 truncate text-[10px] text-neutral-400"
+                        title={`Uploaded ${new Date(transfer.created_at).toLocaleString()} · Expires ${new Date(transfer.expires_at).toLocaleString()}`}
+                      >
+                        Uploaded {formatRelativeTime(transfer.created_at)} · Expires{" "}
+                        {formatRelativeTime(transfer.expires_at)}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                  {canDownload &&
+                    getTransferPreviewType(transfer.mime_type) === "audio" && (
+                      <audio
+                        className="mt-2 h-8 w-full"
+                        src={transferDownloadUrl(transfer.id)}
+                        controls
+                        preload="metadata"
+                      />
+                    )}
+
+                  <div className="mt-2 flex shrink-0 flex-wrap justify-end gap-1.5 border-t border-neutral-200/70 pt-2">
                     {canReview && (
                       <>
                         <button
-                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
+                          className="rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-medium text-white"
                           type="button"
                           onClick={() => accept.mutate(transfer.id)}
                           disabled={accept.isPending || reject.isPending}
@@ -463,7 +515,7 @@ export function TransferList() {
                         </button>
 
                         <button
-                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
+                          className="rounded-lg border border-neutral-300 px-2.5 py-1.5 text-[11px] font-medium text-neutral-700"
                           type="button"
                           onClick={() => reject.mutate(transfer.id)}
                           disabled={accept.isPending || reject.isPending}
@@ -475,19 +527,21 @@ export function TransferList() {
 
                     {canDownload && (
                       <a
-                        className="rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-medium text-white"
                         href={transferDownloadUrl(transfer.id)}
                       >
+                        <Download size={12} />
                         Download
                       </a>
                     )}
 
                     <button
-                      className="rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 hover:bg-white"
                       type="button"
                       onClick={() => remove.mutate(transfer.id)}
                       disabled={remove.isPending}
                     >
+                      <Trash2 size={12} />
                       Delete
                     </button>
                   </div>

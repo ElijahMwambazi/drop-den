@@ -55,3 +55,21 @@ button:disabled {
 a {
   text-decoration: none;
 }
+
+.drop-den-scrollbar {
+  scrollbar-color: #a3a3a3 transparent;
+  scrollbar-width: thin;
+}
+
+.drop-den-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.drop-den-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.drop-den-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #a3a3a3;
+}
