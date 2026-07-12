@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FileStack } from "lucide-react";
 import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
 import {
@@ -281,11 +282,16 @@ export function TransferList() {
       <div className="min-w-0">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold">Transfers</h2>
+            <h2 className="text-base font-semibold">
+              Transfers
+              <span className="ml-1.5 text-xs font-medium text-neutral-400">
+                · {visibleTransfers.length}
+              </span>
+            </h2>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto]">
               <input
-                className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900"
+                className="col-span-2 min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 sm:col-span-1"
                 placeholder="Search transfers..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
@@ -324,13 +330,11 @@ export function TransferList() {
               />
             </div>
 
-            <p className="mt-0.5 text-xs text-neutral-500">
-              {hasTransfers
-                ? `${filteredTransfers.length} of ${visibleTransfers.length} visible ${
-                    visibleTransfers.length === 1 ? "file" : "files"
-                  }`
-                : "No files visible for this device."}
-            </p>
+            {hasTransfers && (
+              <p className="mt-1.5 text-xs text-neutral-500">
+                {filteredTransfers.length} of {visibleTransfers.length} visible
+              </p>
+            )}
           </div>
 
           {hasTransfers && (
@@ -370,9 +374,24 @@ export function TransferList() {
 
         <div className="mt-3 space-y-2">
           {!hasTransfers ? (
-            <p className="text-sm text-neutral-500">
-              Upload files to make them available to nearby devices.
-            </p>
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-3">
+              <div className="rounded-lg bg-white p-2 text-neutral-400">
+                <FileStack size={16} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-neutral-800">No transfers yet</p>
+                <p className="mt-0.5 text-[11px] text-neutral-500">
+                  Drop files above to make them available.
+                </p>
+              </div>
+            </div>
+          ) : !hasFilteredTransfers ? (
+            <div className="rounded-xl bg-neutral-50 px-3 py-4 text-center">
+              <p className="text-xs font-semibold text-neutral-800">No matching transfers</p>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Try a different search or filter.
+              </p>
+            </div>
           ) : (
             filteredTransfers.map((transfer) => {
               const senderName = getDeviceName(

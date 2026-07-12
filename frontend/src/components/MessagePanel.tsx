@@ -90,11 +90,11 @@ export function MessagePanel({ embedded = false }: MessagePanelProps) {
         </div>
       )}
 
-      <div className="mt-3 max-h-80 min-h-32 space-y-2 overflow-y-auto rounded-2xl bg-neutral-50 p-2">
+      <div className="mt-3 max-h-80 min-h-20 space-y-2 overflow-y-auto rounded-2xl bg-neutral-50 p-2">
         {messages.length === 0 ? (
-          <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white p-4 text-center">
+          <div className="flex min-h-16 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white p-3 text-center">
             <p className="max-w-sm text-sm text-neutral-500">
-              No messages yet. Send a note to everyone in the den.
+              No messages yet. Send a note below.
             </p>
           </div>
         ) : (

@@ -53,11 +53,10 @@ export function App() {
   const { data: config } = useQuery({
     queryKey: ["config", device?.id],
     queryFn: () => getConfig(device?.id),
-    enabled: isDesktopRuntime && Boolean(device),
+    enabled: Boolean(device),
   });
 
-  const canShowDesktopSettings =
-    isDesktopRuntime && Boolean(device) && Boolean(config?.is_host_device);
+  const isHostDevice = Boolean(config?.is_host_device);
 
   useEffect(() => {
     document.documentElement.classList.toggle(
@@ -96,38 +95,63 @@ export function App() {
               : "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8"
           }
         >
-        <header
-          className={[
-            "rounded-4xl bg-neutral-950 p-6 text-white shadow-sm md:p-8",
-            isDesktopRuntime ? "rounded-2xl p-4 md:p-4" : "",
-          ].join(" ")}
-        >
-          <p
-            className={[
-              "text-sm font-medium uppercase tracking-[0.3em] text-neutral-400",
-              isDesktopRuntime ? "text-[10px] tracking-[0.22em]" : "",
-            ].join(" ")}
+        {isDesktopRuntime ? (
+          <header className="flex items-center justify-between gap-3 rounded-2xl bg-neutral-950 px-4 py-3 text-white shadow-sm">
+            <div className="min-w-0">
+              <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-neutral-500">
+                Local transfer hub
+              </p>
+              <h1 className="mt-0.5 text-lg font-bold tracking-tight">Drop Den</h1>
+            </div>
+            <div className="min-w-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-neutral-300">
+              <span className="block max-w-32 truncate">
+                {device?.name ?? "Not joined"}
+              </span>
+            </div>
+          </header>
+        ) : isJoined ? (
+          <header
+            className={`bg-neutral-950 text-white shadow-sm ${
+              isHostDevice
+                ? "rounded-4xl p-5 md:p-6"
+                : "flex items-center justify-between gap-3 rounded-3xl px-5 py-4"
+            }`}
           >
-            Local-only transfer hub
-          </p>
-          <h1
-            className={[
-              "mt-3 text-4xl font-bold tracking-tight md:text-6xl",
-              isDesktopRuntime ? "mt-2 text-2xl md:text-2xl" : "",
-            ].join(" ")}
-          >
-            Drop Den
-          </h1>
-          <p
-            className={[
-              "mt-4 max-w-2xl text-neutral-300",
-              isDesktopRuntime ? "mt-2 text-xs leading-5" : "",
-            ].join(" ")}
-          >
-            Move files, media, and text messages between nearby devices through
-            one host machine. No cloud. No accounts. Just the local network.
-          </p>
-        </header>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-neutral-500">
+                Local transfer hub
+              </p>
+              <h1
+                className={`font-bold tracking-tight ${
+                  isHostDevice ? "mt-2 text-3xl" : "mt-1 text-2xl"
+                }`}
+              >
+                Drop Den
+              </h1>
+              {isHostDevice && (
+                <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-300">
+                  Share files and messages with devices on your local network.
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-neutral-200">
+              {isHostDevice ? "Host" : device?.name}
+            </span>
+          </header>
+        ) : (
+          <header className="rounded-4xl bg-neutral-950 p-6 text-white shadow-sm md:p-8">
+            <p className="text-sm font-medium uppercase tracking-[0.3em] text-neutral-400">
+              Local-only transfer hub
+            </p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-6xl">
+              Drop Den
+            </h1>
+            <p className="mt-4 max-w-2xl text-neutral-300">
+              Move files, media, and text messages between nearby devices through
+              one host machine. No cloud. No accounts. Just the local network.
+            </p>
+          </header>
+        )}
 
         <JoinCard />
 

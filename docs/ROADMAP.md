@@ -94,6 +94,7 @@
 ## Phase 7: Desktop maintenance and polish
 
 - [x] Streamline Desktop Settings layout and action hierarchy
+- [x] Compact joined-device hero, invite flow, and transfer controls across clients
 - [x] Add desktop titlebar frontend reload action
 - [x] Clear messages maintenance action
 - [x] Reset host maintenance action

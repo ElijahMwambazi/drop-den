@@ -57,7 +57,6 @@ export function FileUpload() {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [targetDeviceId, setTargetDeviceId] = useState("");
-  const [uploadDebugMessage, setUploadDebugMessage] = useState("");
 
   const lastDesktopDropSignatureRef = useRef("");
   const lastDesktopDropTimeRef = useRef(0);
@@ -115,25 +114,17 @@ export function FileUpload() {
               const paths = [...new Set(event.payload.paths ?? [])];
 
               if (paths.length === 0) {
-                setUploadDebugMessage("Dropped 0 local path(s).");
                 return;
               }
 
               if (shouldIgnoreDuplicateDesktopDrop(paths)) {
-                setUploadDebugMessage("Ignored duplicate desktop drop event.");
                 return;
               }
-
-              setUploadDebugMessage(`Dropped ${paths.length} local path(s).`);
 
               uploadDroppedLocalPaths(paths);
             }
           },
         );
-
-        if (isMounted) {
-          setUploadDebugMessage("Desktop drag/drop listener ready.");
-        }
       } catch (error) {
         const message =
           error instanceof Error
@@ -142,7 +133,12 @@ export function FileUpload() {
               ? error
               : JSON.stringify(error);
 
-        setUploadDebugMessage(`Desktop drag/drop listener failed: ${message}`);
+        if (isMounted) {
+          addToast({
+            type: "error",
+            message: `Desktop drag/drop unavailable: ${message}`,
+          });
+        }
       }
     }
 
@@ -186,8 +182,6 @@ export function FileUpload() {
     const uploadItems = createLocalPathUploadItems(paths);
 
     setUploads(uploadItems);
-    setUploadDebugMessage(`Uploading ${paths.length} dropped local file(s).`);
-
     setUploads((currentUploads) =>
       currentUploads.map((upload) => ({
         ...upload,
@@ -223,8 +217,6 @@ export function FileUpload() {
       const errorMessage =
         error instanceof Error ? error.message : "Dropped file upload failed.";
 
-      setUploadDebugMessage(errorMessage);
-
       setUploads((currentUploads) =>
         currentUploads.map((upload) => ({
           ...upload,
@@ -241,10 +233,7 @@ export function FileUpload() {
   }
 
   async function uploadFiles(files: File[]) {
-    setUploadDebugMessage(`Selected ${files.length} file(s).`);
-
     if (files.length === 0) {
-      setUploadDebugMessage("No files were selected by the browser.");
       return;
     }
 
@@ -261,9 +250,6 @@ export function FileUpload() {
     }
 
     if (allowedFiles.length === 0) {
-      setUploadDebugMessage(
-        `No files uploaded. Max file size is ${formatBytes(maxUploadSizeBytes)}.`,
-      );
       return;
     }
 
@@ -399,8 +385,6 @@ export function FileUpload() {
 
     const files = Array.from(event.dataTransfer.files ?? []);
 
-    setUploadDebugMessage(`Dropped ${files.length} file(s).`);
-
     uploadFiles(files);
   }
 
@@ -481,10 +465,6 @@ export function FileUpload() {
           disabled={isUploading}
         />
       </label>
-
-      {uploadDebugMessage && (
-        <p className="mt-3 text-xs text-neutral-500">{uploadDebugMessage}</p>
-      )}
 
       {uploads.length > 0 && (
         <div className="mt-3 space-y-2">
