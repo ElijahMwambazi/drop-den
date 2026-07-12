@@ -75,14 +75,14 @@ export function App() {
     <div
       className={
         isDesktopRuntime
-          ? "h-screen overflow-hidden bg-transparent p-2"
+          ? "h-screen w-screen overflow-hidden bg-transparent p-px"
           : "contents"
       }
     >
       <div
         className={
           isDesktopRuntime
-            ? "relative flex h-full flex-col overflow-hidden rounded-3xl bg-neutral-100 shadow-2xl ring-1 ring-black/10"
+            ? "relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/10"
             : "contents"
         }
       >
