@@ -203,6 +203,7 @@ rejected
 Broadcast transfers are immediately `available`.
 
 Targeted transfers start as `pending` and become downloadable only after accept.
+Only the target device can accept or reject a targeted transfer.
 
 ### Download
 
@@ -214,13 +215,15 @@ Expired transfers return `410 Gone`.
 
 Pending/rejected transfers return `403 Forbidden`.
 
+Accepted targeted transfers can only be downloaded by their sender or target device.
+
 ### Download all as ZIP
 
 ```txt
 GET /api/transfers/download-all?device_id=<registered-device-id>
 ```
 
-Expired and non-downloadable transfers are excluded.
+Expired, non-downloadable, and targeted transfers belonging to other devices are excluded.
 
 ### Delete all transfers
 
@@ -228,7 +231,7 @@ Expired and non-downloadable transfers are excluded.
 DELETE /api/transfers
 ```
 
-Deletes all transfer metadata and stored transfer files. This is a host-side action in the UI.
+Deletes all transfer metadata and stored transfer files. Only the host device can use this route.
 
 ## Messages
 

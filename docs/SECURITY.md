@@ -36,7 +36,7 @@ Joined devices can:
 - send files
 - send messages
 - receive visible transfers
-- accept or reject targeted transfers
+- accept or reject transfers targeted to their device
 - view connected devices
 
 Not-joined browsers should only see:
@@ -72,14 +72,14 @@ The join PIN plaintext is kept only in runtime memory. SQLite stores a join PIN 
 
 A new join PIN is generated on backend startup, and the PIN rotates after every successful joined-device registration.
 
-The current API authorization model still uses a registered device ID header. This is suitable for an MVP on trusted local networks, but it is not a full cryptographic session system.
+The current API authorization model still uses a registered device ID header. Targeted transfer actions and downloads enforce device ownership, but device IDs are not cryptographic credentials. This remains suitable only for an MVP on trusted local networks.
 
 ## Recommended future security improvements
 
 - Add device/session tokens instead of trusting only a device ID header.
 - Add host-only setting controls.
 - Add optional encryption-at-rest for stored transfer files.
-- Add stronger access control for download links.
+- Replace device-ID download links with short-lived authenticated download tokens.
 - Add optional audit log for device joins/removals/transfers.
 
 ## Avoid in the MVP

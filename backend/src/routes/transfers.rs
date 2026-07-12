@@ -278,7 +278,8 @@ pub async fn download_transfer(
     Path(id): Path<String>,
     Query(query): Query<DeviceQuery>,
 ) -> Result<Response, StatusCode> {
-    require_registered_device_id(&state, query.device_id.as_deref()).await?;
+    let requesting_device_id =
+        require_registered_device_id(&state, query.device_id.as_deref()).await?;
     let transfer = {
         let transfers = state.transfers.read().await;
         transfers.get(&id).cloned()
@@ -289,7 +290,7 @@ pub async fn download_transfer(
         return Err(StatusCode::GONE);
     }
 
-    if !is_downloadable(&transfer) {
+    if !is_downloadable_for(&transfer, &requesting_device_id) {
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -313,13 +314,14 @@ pub async fn download_all_transfers(
     State(state): State<AppState>,
     Query(query): Query<DeviceQuery>,
 ) -> Result<Response, StatusCode> {
-    require_registered_device_id(&state, query.device_id.as_deref()).await?;
+    let requesting_device_id =
+        require_registered_device_id(&state, query.device_id.as_deref()).await?;
 
     let mut transfers = {
         let transfers = state.transfers.read().await;
         transfers
             .values()
-            .filter(|transfer| is_downloadable(transfer))
+            .filter(|transfer| is_downloadable_for(transfer, &requesting_device_id))
             .cloned()
             .collect::<Vec<_>>()
     };
@@ -368,8 +370,8 @@ pub async fn accept_transfer(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Transfer>, StatusCode> {
-    require_registered_device(&state, &headers).await?;
-    update_transfer_status(state, id, TransferStatus::Accepted).await
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    update_transfer_status(state, id, requesting_device_id, TransferStatus::Accepted).await
 }
 
 pub async fn reject_transfer(
@@ -377,8 +379,8 @@ pub async fn reject_transfer(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Transfer>, StatusCode> {
-    require_registered_device(&state, &headers).await?;
-    update_transfer_status(state, id, TransferStatus::Rejected).await
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    update_transfer_status(state, id, requesting_device_id, TransferStatus::Rejected).await
 }
 
 pub async fn delete_transfer(
@@ -414,7 +416,12 @@ pub async fn delete_all_transfers(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
-    require_registered_device(&state, &headers).await?;
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let host_device_id = state.host_device_id.read().await.clone();
+
+    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     let removed_transfers = {
         let mut transfers = state.transfers.write().await;
@@ -444,6 +451,7 @@ pub async fn delete_all_transfers(
 async fn update_transfer_status(
     state: AppState,
     id: String,
+    requesting_device_id: String,
     status: TransferStatus,
 ) -> Result<Json<Transfer>, StatusCode> {
     let transfer = {
@@ -452,6 +460,10 @@ async fn update_transfer_status(
 
         if is_expired(transfer) {
             return Err(StatusCode::GONE);
+        }
+
+        if transfer.target_device_id.as_deref() != Some(requesting_device_id.as_str()) {
+            return Err(StatusCode::FORBIDDEN);
         }
 
         transfer.status = status;
@@ -480,6 +492,18 @@ fn is_downloadable(transfer: &Transfer) -> bool {
             transfer.status,
             TransferStatus::Available | TransferStatus::Accepted
         )
+}
+
+fn is_downloadable_for(transfer: &Transfer, device_id: &str) -> bool {
+    is_downloadable(transfer)
+        && transfer
+            .target_device_id
+            .as_deref()
+            .map(|target_device_id| {
+                target_device_id == device_id
+                    || transfer.sender_device_id.as_deref() == Some(device_id)
+            })
+            .unwrap_or(true)
 }
 
 fn is_expired(transfer: &Transfer) -> bool {
