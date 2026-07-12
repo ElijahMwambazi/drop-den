@@ -4,6 +4,7 @@ import { listDevices, removeDevice } from "../api/devices";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
+import { useDialogStore } from "../store/dialogStore";
 
 type DeviceListProps = {
   embedded?: boolean;
@@ -13,6 +14,7 @@ export function DeviceList({ embedded = false }: DeviceListProps) {
   const queryClient = useQueryClient();
   const currentDevice = useDeviceStore((state) => state.device);
   const addToast = useToastStore((state) => state.addToast);
+  const confirm = useDialogStore((state) => state.confirm);
 
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
@@ -96,12 +98,16 @@ export function DeviceList({ embedded = false }: DeviceListProps) {
                   <button
                     className="shrink-0 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(`Remove ${device.name} from this den?`)
-                      ) {
-                        remove.mutate(device.id);
-                      }
+                        await confirm({
+                          title: `Remove ${device.name}?`,
+                          description:
+                            "This device will lose access and must use the current join PIN to reconnect.",
+                          confirmLabel: "Remove device",
+                          tone: "danger",
+                        })
+                      ) remove.mutate(device.id);
                     }}
                     disabled={remove.isPending}
                   >

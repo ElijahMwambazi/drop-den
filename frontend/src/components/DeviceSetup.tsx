@@ -5,10 +5,12 @@ import { getConfig } from "../api/config";
 import { registerDevice } from "../api/devices";
 import { useDeviceStore } from "../store/deviceStore";
 import { Card } from "./Card";
+import { useToastStore } from "../store/toastStore";
 
 export function DeviceSetup() {
   const queryClient = useQueryClient();
   const { device, setDevice, clearDevice } = useDeviceStore();
+  const addToast = useToastStore((state) => state.addToast);
 
   const [name, setName] = useState(
     () => device?.name ?? localStorage.getItem("drop-den-device-name") ?? "",
@@ -56,9 +58,10 @@ export function DeviceSetup() {
 
   function onSwitchDevice() {
     if (isHostDevice) {
-      window.alert(
-        "This device is the host. Use Reset host in Desktop settings instead.",
-      );
+      addToast({
+        type: "info",
+        message: "This device is host. Use Reset host in Desktop settings.",
+      });
       return;
     }
 

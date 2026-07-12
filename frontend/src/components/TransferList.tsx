@@ -15,6 +15,8 @@ import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import type { Device, Transfer, TransferStatus } from "../types";
 import { Card } from "./Card";
+import { SelectMenu } from "./SelectMenu";
+import { useDialogStore } from "../store/dialogStore";
 
 type TransferFilter =
   | "all"
@@ -179,6 +181,7 @@ export function TransferList() {
   const queryClient = useQueryClient();
   const currentDevice = useDeviceStore((state) => state.device);
   const addToast = useToastStore((state) => state.addToast);
+  const confirm = useDialogStore((state) => state.confirm);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<TransferFilter>("all");
@@ -288,39 +291,37 @@ export function TransferList() {
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
 
-              <select
-                className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-900"
+              <SelectMenu
                 value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as TransferFilter)
-                }
-              >
-                <option value="all">All</option>
-                <option value="available">Available</option>
-                <option value="pending">Pending</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-                <option value="expired">Expired</option>
-                <option value="image">Images</option>
-                <option value="video">Videos</option>
-                <option value="audio">Audio</option>
-                <option value="file">Files</option>
-              </select>
+                onChange={setStatusFilter}
+                ariaLabel="Filter transfers"
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "available", label: "Available" },
+                  { value: "pending", label: "Pending" },
+                  { value: "accepted", label: "Accepted" },
+                  { value: "rejected", label: "Rejected" },
+                  { value: "expired", label: "Expired" },
+                  { value: "image", label: "Images" },
+                  { value: "video", label: "Videos" },
+                  { value: "audio", label: "Audio" },
+                  { value: "file", label: "Files" },
+                ] satisfies { value: TransferFilter; label: string }[]}
+              />
 
-              <select
-                className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-900"
+              <SelectMenu
                 value={sortMode}
-                onChange={(event) =>
-                  setSortMode(event.target.value as TransferSortMode)
-                }
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="name">Name A-Z</option>
-                <option value="largest">Largest</option>
-                <option value="smallest">Smallest</option>
-                <option value="expiring">Expiring soon</option>
-              </select>
+                onChange={setSortMode}
+                ariaLabel="Sort transfers"
+                options={[
+                  { value: "newest", label: "Newest" },
+                  { value: "oldest", label: "Oldest" },
+                  { value: "name", label: "Name A-Z" },
+                  { value: "largest", label: "Largest" },
+                  { value: "smallest", label: "Smallest" },
+                  { value: "expiring", label: "Expiring soon" },
+                ] satisfies { value: TransferSortMode; label: string }[]}
+              />
             </div>
 
             <p className="mt-0.5 text-xs text-neutral-500">
@@ -347,10 +348,16 @@ export function TransferList() {
                 <button
                   className="rounded-xl border border-red-200 px-3 py-2 text-center text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
-                  onClick={() => {
-                    if (window.confirm("Delete all transfers from this den?")) {
-                      removeAll.mutate();
-                    }
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: "Delete all transfers?",
+                        description:
+                          "Every transfer and its stored file will be permanently deleted.",
+                        confirmLabel: "Delete all",
+                        tone: "danger",
+                      })
+                    ) removeAll.mutate();
                   }}
                   disabled={removeAll.isPending}
                 >

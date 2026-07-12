@@ -22,6 +22,7 @@ import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
 import { isTauriRuntime } from "../api/client";
+import { useDialogStore } from "../store/dialogStore";
 
 type DesktopSettingsProps = {
   embedded?: boolean;
@@ -44,6 +45,7 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const device = useDeviceStore((state) => state.device);
   const clearDevice = useDeviceStore((state) => state.clearDevice);
   const addToast = useToastStore((state) => state.addToast);
+  const confirm = useDialogStore((state) => state.confirm);
 
   const { data: config } = useQuery({
     queryKey: ["config", device?.id],
@@ -172,9 +174,12 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
 
   async function restoreDefaultTransferStorageDir() {
     if (
-      !window.confirm(
-        "Restore the default transfer folder? Existing transfer files will not be moved.",
-      )
+      !(await confirm({
+        title: "Restore the default folder?",
+        description:
+          "Existing transfer files will stay in their current locations. New uploads use the default folder after restart.",
+        confirmLabel: "Restore default",
+      }))
     ) {
       return;
     }
@@ -200,14 +205,21 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   }
 
   async function restartDesktopApp() {
-    if (!window.confirm("Restart Drop Den now to apply the transfer folder?")) {
+    if (
+      !(await confirm({
+        title: "Restart Drop Den?",
+        description:
+          "The desktop app will restart now and apply the saved transfer folder.",
+        confirmLabel: "Restart now",
+      }))
+    ) {
       return;
     }
 
     await invoke("restart_app");
   }
 
-  function clearLocalIdentity() {
+  async function clearLocalIdentity() {
     if (config?.is_host_device) {
       addToast({
         type: "error",
@@ -218,9 +230,13 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
     }
 
     if (
-      !window.confirm(
-        "Clear this desktop window's saved device identity? This does not delete the backend database or transfers.",
-      )
+      !(await confirm({
+        title: "Clear local identity?",
+        description:
+          "This removes the saved device identity from this desktop window. Backend data and transfers are not deleted.",
+        confirmLabel: "Clear identity",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -236,7 +252,14 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   }
 
   async function clearAllMessages() {
-    if (!window.confirm("Clear all local messages from this den?")) {
+    if (
+      !(await confirm({
+        title: "Clear all messages?",
+        description: "Every local message in this den will be deleted.",
+        confirmLabel: "Clear messages",
+        tone: "danger",
+      }))
+    ) {
       return;
     }
 
@@ -268,9 +291,13 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
     }
 
     if (
-      !window.confirm(
-        "Permanently delete every transfer and its stored file? This cannot be undone.",
-      )
+      !(await confirm({
+        title: "Clear every transfer?",
+        description:
+          "Every transfer and its stored file will be permanently deleted. This cannot be undone.",
+        confirmLabel: "Clear transfers",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -300,9 +327,13 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
 
   async function resetHost() {
     if (
-      !window.confirm(
-        "Reset the host identity? The next registered device will become the host.",
-      )
+      !(await confirm({
+        title: "Reset host identity?",
+        description:
+          "This desktop will be signed out as host. The next registered device will become the new host.",
+        confirmLabel: "Reset host",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -331,17 +362,16 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   }
 
   async function resetDesktop() {
-    const confirmation = window.prompt(
-      "This permanently deletes every device, message, transfer, stored file, and desktop preference. Drop Den will restart. Type RESET DROP DEN to continue.",
-    );
-
-    if (confirmation !== "RESET DROP DEN") {
-      if (confirmation !== null) {
-        addToast({
-          type: "info",
-          message: "Full reset cancelled: confirmation text did not match.",
-        });
-      }
+    if (
+      !(await confirm({
+        title: "Fully reset Drop Den?",
+        description:
+          "This permanently deletes every device, message, transfer, stored file, and desktop preference. Drop Den will restart.",
+        confirmLabel: "Reset everything",
+        tone: "danger",
+        verificationText: "RESET DROP DEN",
+      }))
+    ) {
       return;
     }
 
@@ -351,14 +381,19 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
       clearDevice();
       await invoke("restart_app");
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : "Could not fully reset Drop Den.";
+
       addToast({
         type: "error",
         message:
-          error instanceof Error
-            ? error.message
-            : typeof error === "string"
-              ? error
-              : "Could not fully reset Drop Den.",
+          message.includes("405")
+            ? "Desktop backend is out of date. Rebuild and restart the sidecar, then try again."
+            : message,
       });
     }
   }

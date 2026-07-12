@@ -8,6 +8,7 @@ import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
 import { isTauriRuntime } from "../api/client";
+import { SelectMenu } from "./SelectMenu";
 
 type UploadStatus = "queued" | "uploading" | "success" | "error";
 
@@ -425,28 +426,24 @@ export function FileUpload() {
       </div>
 
       <div className="mt-3">
-        <label
-          className="text-xs font-medium text-neutral-700"
-          htmlFor="target-device"
-        >
+        <label className="text-xs font-medium text-neutral-700">
           Send to
         </label>
 
-        <select
-          id="target-device"
-          className="mt-1.5 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
+        <div className={`mt-1.5 ${isUploading ? "pointer-events-none opacity-60" : ""}`}>
+          <SelectMenu
           value={targetDeviceId}
-          onChange={(event) => setTargetDeviceId(event.target.value)}
-          disabled={isUploading}
-        >
-          <option value="">Everyone in the den</option>
-
-          {targetDevices.map((targetDevice) => (
-            <option key={targetDevice.id} value={targetDevice.id}>
-              {targetDevice.name}
-            </option>
-          ))}
-        </select>
+            onChange={setTargetDeviceId}
+            ariaLabel="Send files to"
+            options={[
+              { value: "", label: "Everyone in the den" },
+              ...targetDevices.map((targetDevice) => ({
+                value: targetDevice.id,
+                label: targetDevice.name,
+              })),
+            ]}
+          />
+        </div>
 
         <p className="mt-2 text-xs text-neutral-500">
           Targeted files are shown to you and the selected device. Transfers

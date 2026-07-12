@@ -6,6 +6,7 @@ import { FileUpload } from "./components/FileUpload";
 import { JoinCard } from "./components/JoinCard";
 import { MessagePanel } from "./components/MessagePanel";
 import { ToastViewport } from "./components/ToastViewport";
+import { DialogViewport } from "./components/DialogViewport";
 import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
@@ -163,6 +164,7 @@ export function App() {
         )}
 
         <ToastViewport />
+        <DialogViewport />
       </main>
     </>
   );

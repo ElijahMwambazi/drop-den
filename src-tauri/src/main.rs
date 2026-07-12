@@ -259,8 +259,37 @@ fn reset_transfer_storage_dir(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn restart_app(app: AppHandle) {
-    app.restart();
+fn restart_app(app: AppHandle) -> Result<(), String> {
+    stop_backend(&app);
+
+    // Give the operating system a moment to release the backend port before
+    // replacing the sidecar in the same desktop process.
+    thread::sleep(Duration::from_millis(250));
+
+    let child = start_backend_sidecar(&app)
+        .map_err(|error| format!("failed to restart the desktop backend: {error}"))?;
+
+    let state = app
+        .try_state::<BackendChild>()
+        .ok_or_else(|| "desktop backend state is unavailable".to_string())?;
+    let mut managed_child = state
+        .0
+        .lock()
+        .map_err(|_| "desktop backend state is locked".to_string())?;
+    *managed_child = Some(child);
+    drop(managed_child);
+
+    wait_for_backend_health(Duration::from_secs(15))
+        .map_err(|error| format!("restarted backend did not become ready: {error}"))?;
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main desktop window is unavailable".to_string())?;
+    window
+        .eval("window.location.reload()")
+        .map_err(|error| format!("failed to reload the desktop window: {error}"))?;
+
+    Ok(())
 }
 
 fn configured_transfer_storage_dir(app: &AppHandle) -> PathBuf {
