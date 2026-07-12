@@ -87,7 +87,7 @@
 - [x] Add Open data folder action
 - [x] Add Open transfers folder action
 - [x] Add faster desktop dev workflow
-- [ ] Configurable data and storage directories
+- [x] Configurable desktop transfer storage directory
 - [ ] Package Windows build
 - [ ] Package macOS build
 

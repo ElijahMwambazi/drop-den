@@ -6,8 +6,9 @@ import {
   HardDrive,
   MessageSquareX,
   RotateCcw,
+  Save,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getConfig } from "../api/config";
 import { resetHostIdentity } from "../api/devices";
@@ -23,6 +24,9 @@ type DesktopSettingsProps = {
 
 export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const [transferStorageDir, setTransferStorageDir] = useState("");
+  const [savedTransferStorageDir, setSavedTransferStorageDir] = useState("");
+  const [isSavingStorageDir, setIsSavingStorageDir] = useState(false);
 
   const queryClient = useQueryClient();
   const device = useDeviceStore((state) => state.device);
@@ -35,12 +39,26 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
     enabled: isTauriRuntime(),
   });
 
+  useEffect(() => {
+    if (config?.storage_dir && !savedTransferStorageDir) {
+      setTransferStorageDir(config.storage_dir);
+      setSavedTransferStorageDir(config.storage_dir);
+    }
+  }, [config?.storage_dir, savedTransferStorageDir]);
+
   if (!isTauriRuntime()) {
     return null;
   }
 
   const localUrl = config?.local_origin ?? "http://127.0.0.1:18080";
   const joinUrl = config?.recommended_join_origin ?? localUrl;
+  const displayedTransferStorageDir =
+    savedTransferStorageDir || config?.storage_dir || "Unavailable";
+  const storageChangePendingRestart = Boolean(
+    savedTransferStorageDir &&
+      config?.storage_dir &&
+      savedTransferStorageDir !== config.storage_dir,
+  );
 
   async function copyValue(label: string, value: string) {
     await navigator.clipboard.writeText(value);
@@ -73,6 +91,43 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
         message:
           error instanceof Error ? error.message : `Could not open ${label}.`,
       });
+    }
+  }
+
+  async function saveTransferStorageDir() {
+    if (!config?.is_host_device) {
+      addToast({
+        type: "error",
+        message: "Only the host device can change desktop storage settings.",
+      });
+      return;
+    }
+
+    setIsSavingStorageDir(true);
+
+    try {
+      const savedPath = await invoke<string>("set_transfer_storage_dir", {
+        path: transferStorageDir,
+      });
+      setTransferStorageDir(savedPath);
+      setSavedTransferStorageDir(savedPath);
+
+      addToast({
+        type: "success",
+        message: "Transfer folder saved. Restart Drop Den to apply it.",
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          typeof error === "string"
+            ? error
+            : error instanceof Error
+              ? error.message
+              : "Could not save the transfer folder.",
+      });
+    } finally {
+      setIsSavingStorageDir(false);
     }
   }
 
@@ -187,13 +242,61 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
           value={config?.data_dir ?? "Unavailable"}
         />
         <SettingRow
-          label="Transfers"
-          value={config?.storage_dir ?? "Unavailable"}
+          label={
+            storageChangePendingRestart
+              ? "Transfers (after restart)"
+              : "Transfers"
+          }
+          value={displayedTransferStorageDir}
         />
         <SettingRow
           label="Database"
           value={config?.database_path ?? "Unavailable"}
         />
+      </div>
+
+      <div className="mt-3 rounded-xl border border-neutral-200 p-3">
+        <label
+          className="text-xs font-medium text-neutral-800"
+          htmlFor="transfer-storage-dir"
+        >
+          Transfer storage folder
+        </label>
+        <p className="mt-1 text-[11px] leading-4 text-neutral-500">
+          New uploads use this folder after Drop Den restarts. Existing files
+          are not moved.
+        </p>
+        {storageChangePendingRestart && (
+          <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
+            Saved and displayed above. Restart Drop Den to begin storing new
+            transfers there.
+          </p>
+        )}
+        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <input
+            id="transfer-storage-dir"
+            className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 disabled:bg-neutral-100"
+            type="text"
+            value={transferStorageDir}
+            onChange={(event) => setTransferStorageDir(event.target.value)}
+            disabled={!config?.is_host_device || isSavingStorageDir}
+            placeholder="/absolute/path/to/transfers"
+          />
+          <button
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            onClick={saveTransferStorageDir}
+            disabled={
+              !config?.is_host_device ||
+              isSavingStorageDir ||
+              transferStorageDir.trim().length === 0 ||
+              transferStorageDir.trim() === savedTransferStorageDir
+            }
+          >
+            <Save size={14} />
+            {isSavingStorageDir ? "Saving..." : "Save"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-3 grid gap-2">

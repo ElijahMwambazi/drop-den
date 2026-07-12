@@ -234,6 +234,7 @@ The desktop wrapper currently provides:
 - native desktop drag-and-drop upload
 - Desktop Settings panel
 - open data folder and open transfers folder actions
+- configurable transfer storage folder persisted in `desktop-settings.json`
 - collapsible side panels for connected devices, settings, and messages
 
 Build the desktop app:

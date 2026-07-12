@@ -39,6 +39,7 @@ Drop Den is beyond the basic MVP scaffold. It currently supports:
 - Desktop tray actions for opening Drop Den, copying URLs, and quitting.
 - Desktop Settings panel with runtime paths and maintenance actions.
 - Open data folder and open transfers folder shortcuts.
+- Configurable desktop transfer storage folder with writable-path validation.
 - Collapsible desktop side panels for connected devices, settings, and messages.
 - Host-lockout protection for desktop identity actions.
 
@@ -96,6 +97,7 @@ Desktop mode currently includes:
 - Native desktop drag-and-drop upload.
 - Desktop Settings panel for runtime paths and maintenance actions.
 - Open data folder and open transfers folder shortcuts.
+- A configurable transfer storage folder; the database remains in managed app data.
 - Collapsible side panels for connected devices, desktop settings, and messages.
 - Host-lockout protection for local identity switching.
 
