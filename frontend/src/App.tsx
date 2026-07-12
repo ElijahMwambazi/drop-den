@@ -7,6 +7,7 @@ import { JoinCard } from "./components/JoinCard";
 import { MessagePanel } from "./components/MessagePanel";
 import { ToastViewport } from "./components/ToastViewport";
 import { DialogViewport } from "./components/DialogViewport";
+import { AppFooter } from "./components/AppFooter";
 import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
@@ -82,7 +83,7 @@ export function App() {
       <div
         className={
           isDesktopRuntime
-            ? "relative h-full overflow-hidden rounded-3xl bg-neutral-100 shadow-2xl ring-1 ring-black/10"
+            ? "relative flex h-full flex-col overflow-hidden rounded-3xl bg-neutral-100 shadow-2xl ring-1 ring-black/10"
             : "contents"
         }
       >
@@ -91,7 +92,7 @@ export function App() {
         <main
           className={
             isDesktopRuntime
-              ? "flex h-full w-full flex-col gap-3 overflow-y-auto px-3 pb-3 pt-11 text-[13px]"
+              ? "flex min-h-0 w-full flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-11 text-[13px]"
               : "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8"
           }
         >
@@ -193,6 +194,7 @@ export function App() {
           <ToastViewport />
           <DialogViewport />
         </main>
+        <AppFooter />
       </div>
     </div>
   );
