@@ -367,7 +367,7 @@ export function TransferList() {
               Upload files to make them available to nearby devices.
             </p>
           ) : (
-            visibleTransfers.map((transfer) => {
+            filteredTransfers.map((transfer) => {
               const senderName = getDeviceName(
                 devices,
                 transfer.sender_device_id,
