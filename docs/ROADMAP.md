@@ -93,6 +93,7 @@
 
 ## Phase 7: Desktop maintenance and polish
 
+- [x] Streamline Desktop Settings layout and action hierarchy
 - [x] Add desktop titlebar frontend reload action
 - [x] Clear messages maintenance action
 - [x] Reset host maintenance action

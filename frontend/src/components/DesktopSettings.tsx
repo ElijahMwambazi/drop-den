@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
+  ChevronDown,
   Copy,
   FolderOpen,
   HardDrive,
@@ -11,7 +12,7 @@ import {
   ShieldAlert,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getConfig } from "../api/config";
@@ -93,6 +94,9 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
       config?.storage_dir &&
       savedTransferStorageDir !== config.storage_dir,
   );
+  const storageDirChanged =
+    transferStorageDir.trim().length > 0 &&
+    transferStorageDir.trim() !== savedTransferStorageDir;
 
   async function copyValue(label: string, value: string) {
     await navigator.clipboard.writeText(value);
@@ -422,30 +426,120 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
         </div>
       )}
 
-      <div
-        className={embedded ? "grid gap-2 text-xs" : "mt-3 grid gap-2 text-xs"}
-      >
-        <SettingRow label="Mode" value={config?.mode ?? "desktop"} />
-        <SettingRow label="Local URL" value={localUrl} />
-        <SettingRow label="Join URL" value={joinUrl} />
-        <SettingRow
-          label="Data dir"
-          value={config?.data_dir ?? "Unavailable"}
+      <div className={embedded ? "grid grid-cols-3 gap-1.5" : "mt-3 grid grid-cols-3 gap-1.5"}>
+        <StatusPill
+          label="Backend"
+          value={configError ? "Offline" : config ? "Online" : "Checking"}
+          tone={configError ? "danger" : "success"}
         />
-        <SettingRow
-          label={
-            storageFallbackActive
-              ? "Transfers (safe default)"
-              : storageChangePendingRestart
-              ? "Transfers (after restart)"
-              : "Transfers"
-          }
-          value={displayedTransferStorageDir}
+        <StatusPill
+          label="Role"
+          value={config?.is_host_device ? "Host" : device ? "Joined" : "None"}
         />
-        <SettingRow
-          label="Database"
-          value={config?.database_path ?? "Unavailable"}
+        <StatusPill
+          label="Storage"
+          value={storageFallbackActive ? "Fallback" : "Ready"}
+          tone={storageFallbackActive ? "danger" : "default"}
         />
+      </div>
+
+      <SettingsGroup title="Runtime details" description="URLs and managed desktop paths.">
+        <div className="grid gap-1.5 text-xs">
+          <SettingRow label="Mode" value={config?.mode ?? "desktop"} />
+          <SettingRow label="Local URL" value={localUrl} />
+          <SettingRow label="Join URL" value={joinUrl} />
+          <SettingRow label="Data dir" value={config?.data_dir ?? "Unavailable"} />
+          <SettingRow label="Transfers" value={displayedTransferStorageDir} />
+          <SettingRow label="Database" value={config?.database_path ?? "Unavailable"} />
+        </div>
+      </SettingsGroup>
+
+      <div className="mt-3 rounded-xl border border-neutral-200 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold text-neutral-900">Transfer storage</p>
+            <p className="mt-1 text-[11px] leading-4 text-neutral-500">
+              New uploads use this folder after restart.
+            </p>
+          </div>
+          {storageChangePendingRestart && (
+            <span className="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800">
+              Restart needed
+            </span>
+          )}
+        </div>
+        {storageFallbackActive && (
+          <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-2 text-[11px] leading-4 text-red-700">
+            The custom folder is unavailable. Drop Den is using its safe default.
+          </p>
+        )}
+        <input
+          id="transfer-storage-dir"
+          className="mt-2 w-full min-w-0 truncate rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 disabled:bg-neutral-100"
+          type="text"
+          value={transferStorageDir}
+          title={transferStorageDir}
+          onChange={(event) => setTransferStorageDir(event.target.value)}
+          disabled={!config?.is_host_device || isSavingStorageDir}
+          placeholder="/absolute/path/to/transfers"
+        />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            type="button"
+            onClick={chooseTransferStorageDir}
+            disabled={!config?.is_host_device || isSavingStorageDir}
+          >
+            <FolderOpen size={14} /> Browse
+          </button>
+          <button
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+            type="button"
+            onClick={saveTransferStorageDir}
+            disabled={!config?.is_host_device || isSavingStorageDir || !storageDirChanged}
+          >
+            <Save size={14} /> {isSavingStorageDir ? "Saving..." : "Save"}
+          </button>
+          <button
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            type="button"
+            onClick={restoreDefaultTransferStorageDir}
+            disabled={!config?.is_host_device || isSavingStorageDir}
+          >
+            <RotateCcw size={14} /> Restore default
+          </button>
+          {storageChangePendingRestart && (
+            <button
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700"
+              type="button"
+              onClick={restartDesktopApp}
+            >
+              <Power size={14} /> Restart now
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
+          Quick actions
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <QuickAction onClick={() => copyValue("Join URL", joinUrl)} primary>
+            {copiedValue === "Join URL" ? <Check size={13} /> : <Copy size={13} />}
+            Copy join URL
+          </QuickAction>
+          <QuickAction onClick={() => copyValue("Local URL", localUrl)}>
+            {copiedValue === "Local URL" ? <Check size={13} /> : <Copy size={13} />}
+            Copy local URL
+          </QuickAction>
+          <QuickAction onClick={() => openDesktopFolder("Data folder", "open_data_folder")}>
+            <FolderOpen size={13} /> Open data
+          </QuickAction>
+          <QuickAction onClick={() => openDesktopFolder("Transfers folder", "open_transfers_folder")}>
+            <FolderOpen size={13} /> Open transfers
+          </QuickAction>
+        </div>
       </div>
 
       <DesktopDiagnostics
@@ -458,187 +552,36 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
         onRefresh={refreshConfig}
       />
 
-      <div className="mt-3 rounded-xl border border-neutral-200 p-3">
-        <label
-          className="text-xs font-medium text-neutral-800"
-          htmlFor="transfer-storage-dir"
-        >
-          Transfer storage folder
-        </label>
-        <p className="mt-1 text-[11px] leading-4 text-neutral-500">
-          Existing transfer files stay in their original locations and remain
-          available. Only new uploads use the selected folder after restart.
-        </p>
-        {storageFallbackActive && (
-          <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-2 text-[11px] leading-4 text-red-700">
-            The saved custom folder is unavailable. Drop Den started with its
-            safe default folder; choose another location or restore the default.
-          </p>
-        )}
-        {storageChangePendingRestart && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
-            Saved and displayed above. Restart Drop Den to begin storing new
-            transfers there.
-          </p>
-        )}
-        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-          <input
-            id="transfer-storage-dir"
-            className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 disabled:bg-neutral-100"
-            type="text"
-            value={transferStorageDir}
-            onChange={(event) => setTransferStorageDir(event.target.value)}
-            disabled={!config?.is_host_device || isSavingStorageDir}
-            placeholder="/absolute/path/to/transfers"
-          />
-          <button
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-            type="button"
-            onClick={chooseTransferStorageDir}
-            disabled={!config?.is_host_device || isSavingStorageDir}
-          >
-            <FolderOpen size={14} />
-            Browse
-          </button>
-          <button
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            onClick={saveTransferStorageDir}
-            disabled={
-              !config?.is_host_device ||
-              isSavingStorageDir ||
-              transferStorageDir.trim().length === 0 ||
-              transferStorageDir.trim() === savedTransferStorageDir
-            }
-          >
-            <Save size={14} />
-            {isSavingStorageDir ? "Saving..." : "Save"}
-          </button>
-        </div>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <button
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-            type="button"
-            onClick={restoreDefaultTransferStorageDir}
-            disabled={!config?.is_host_device || isSavingStorageDir}
-          >
-            <RotateCcw size={14} />
-            Restore default
-          </button>
-          {storageChangePendingRestart && (
-            <button
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700"
-              type="button"
-              onClick={restartDesktopApp}
-            >
-              <Power size={14} />
-              Restart now
-            </button>
+      <SettingsGroup title="Maintenance" description="Clear local content and identity.">
+        <div className="grid grid-cols-2 gap-2">
+          {!config?.is_host_device && (
+            <QuickAction onClick={clearLocalIdentity} tone="warning">
+              <RotateCcw size={13} /> Clear identity
+            </QuickAction>
           )}
+          <QuickAction onClick={clearAllMessages} tone="warning">
+            <MessageSquareX size={13} /> Clear messages
+          </QuickAction>
+          <QuickAction onClick={clearAllTransfers} tone="warning" disabled={isClearingTransfers}>
+            <Trash2 size={13} /> {isClearingTransfers ? "Clearing..." : "Clear transfers"}
+          </QuickAction>
         </div>
-      </div>
+      </SettingsGroup>
 
-      <div className="mt-3 grid gap-2">
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <SettingsGroup title="Danger zone" description="Host and application reset controls." tone="danger">
+        <div className="grid gap-2">
+          <QuickAction onClick={resetHost} tone="danger">
+            <RotateCcw size={13} /> Reset host
+          </QuickAction>
           <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white"
-            type="button"
-            onClick={() => copyValue("Join URL", joinUrl)}
-          >
-            {copiedValue === "Join URL" ? (
-              <Check size={14} />
-            ) : (
-              <Copy size={14} />
-            )}
-            Copy join URL
-          </button>
-
-          <button
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            type="button"
-            onClick={() => copyValue("Local URL", localUrl)}
-          >
-            {copiedValue === "Local URL" ? (
-              <Check size={14} />
-            ) : (
-              <Copy size={14} />
-            )}
-            Copy local URL
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            type="button"
-            onClick={() => openDesktopFolder("Data folder", "open_data_folder")}
-          >
-            <FolderOpen size={14} />
-            Open data folder
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            type="button"
-            onClick={() =>
-              openDesktopFolder("Transfers folder", "open_transfers_folder")
-            }
-          >
-            <FolderOpen size={14} />
-            Open transfers folder
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            onClick={clearLocalIdentity}
-            disabled={Boolean(config?.is_host_device)}
-            title={
-              config?.is_host_device
-                ? "Host devices should use Reset host instead."
-                : undefined
-            }
-          >
-            <RotateCcw size={14} />
-            Clear local identity
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            onClick={clearAllMessages}
-          >
-            <MessageSquareX size={14} />
-            Clear messages
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            onClick={clearAllTransfers}
-            disabled={!config?.is_host_device || isClearingTransfers}
-          >
-            <Trash2 size={14} />
-            {isClearingTransfers ? "Clearing transfers..." : "Clear transfers"}
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-            type="button"
-            onClick={resetHost}
-          >
-            <RotateCcw size={14} />
-            Reset host
-          </button>
-
-          <button
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-3 py-2 text-xs font-medium text-white hover:bg-red-800"
+            className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-3 py-2 text-xs font-medium text-white hover:bg-red-800"
             type="button"
             onClick={resetDesktop}
           >
-            <ShieldAlert size={14} />
-            Full desktop reset
+            <ShieldAlert size={13} /> Full desktop reset
           </button>
         </div>
-      </div>
+      </SettingsGroup>
     </>
   );
 
@@ -651,11 +594,124 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
 
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 rounded-xl bg-neutral-50 px-3 py-2">
-      <p className="font-medium uppercase tracking-[0.16em] text-neutral-400">
+    <div className="min-w-0 rounded-lg bg-neutral-50 px-2.5 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-400">
         {label}
       </p>
-      <p className="break-all font-medium text-neutral-800">{value}</p>
+      <p className="mt-0.5 truncate font-medium text-neutral-800" title={value}>
+        {value}
+      </p>
     </div>
+  );
+}
+
+function StatusPill({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "success" | "danger";
+}) {
+  const dotClass =
+    tone === "success"
+      ? "bg-emerald-500"
+      : tone === "danger"
+        ? "bg-red-500"
+        : "bg-neutral-400";
+
+  return (
+    <div className="min-w-0 rounded-xl bg-neutral-50 px-2 py-2 text-center">
+      <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-neutral-400">
+        {label}
+      </p>
+      <p className="mt-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-neutral-800">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
+        <span className="truncate">{value}</span>
+      </p>
+    </div>
+  );
+}
+
+function SettingsGroup({
+  title,
+  description,
+  tone = "default",
+  children,
+}: {
+  title: string;
+  description: string;
+  tone?: "default" | "danger";
+  children: ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div
+      className={`mt-3 overflow-hidden rounded-xl border ${
+        tone === "danger" ? "border-red-200" : "border-neutral-200"
+      }`}
+    >
+      <button
+        type="button"
+        className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left ${
+          tone === "danger"
+            ? "bg-red-50 text-red-800 hover:bg-red-100"
+            : "bg-neutral-50 text-neutral-900 hover:bg-neutral-100"
+        }`}
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold">{title}</span>
+          <span
+            className={`mt-0.5 block truncate text-[11px] ${
+              tone === "danger" ? "text-red-600" : "text-neutral-500"
+            }`}
+          >
+            {description}
+          </span>
+        </span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      {isOpen && <div className="border-t border-inherit bg-white p-3">{children}</div>}
+    </div>
+  );
+}
+
+function QuickAction({
+  children,
+  onClick,
+  primary = false,
+  tone = "default",
+  disabled = false,
+}: {
+  children: ReactNode;
+  onClick: () => void | Promise<void>;
+  primary?: boolean;
+  tone?: "default" | "warning" | "danger";
+  disabled?: boolean;
+}) {
+  const colorClass = primary
+    ? "border-neutral-950 bg-neutral-950 text-white hover:bg-neutral-800"
+    : tone === "danger"
+      ? "border-red-200 text-red-700 hover:bg-red-50"
+      : tone === "warning"
+        ? "border-amber-200 text-amber-800 hover:bg-amber-50"
+        : "border-neutral-300 text-neutral-700 hover:bg-neutral-50";
+
+  return (
+    <button
+      className={`inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50 ${colorClass}`}
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
   );
 }
