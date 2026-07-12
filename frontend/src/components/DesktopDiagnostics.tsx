@@ -3,6 +3,7 @@ import { Activity, Check, ChevronDown, Copy, RefreshCw } from "lucide-react";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import type { AppConfig } from "../types";
+import { usePersistentDisclosure } from "../hooks/usePersistentDisclosure";
 
 type DesktopDiagnosticsProps = {
   config?: AppConfig;
@@ -23,7 +24,9 @@ export function DesktopDiagnostics({
   storageFallbackActive,
   onRefresh,
 }: DesktopDiagnosticsProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, toggleOpen] = usePersistentDisclosure(
+    "desktop-settings:diagnostics",
+  );
   const [appVersion, setAppVersion] = useState("Unavailable");
   const [copied, setCopied] = useState(false);
   const device = useDeviceStore((state) => state.device);
@@ -72,7 +75,7 @@ export function DesktopDiagnostics({
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 bg-neutral-50 px-3 py-2.5 text-left hover:bg-neutral-100"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={toggleOpen}
         aria-expanded={isOpen}
       >
         <span className="flex min-w-0 items-center gap-2">

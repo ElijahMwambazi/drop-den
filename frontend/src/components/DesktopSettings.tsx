@@ -25,6 +25,7 @@ import { Card } from "./Card";
 import { isTauriRuntime } from "../api/client";
 import { useDialogStore } from "../store/dialogStore";
 import { DesktopDiagnostics } from "./DesktopDiagnostics";
+import { usePersistentDisclosure } from "../hooks/usePersistentDisclosure";
 
 type DesktopSettingsProps = {
   embedded?: boolean;
@@ -645,7 +646,9 @@ function SettingsGroup({
   tone?: "default" | "danger";
   children: ReactNode;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, toggleOpen] = usePersistentDisclosure(
+    `desktop-settings:${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+  );
 
   return (
     <div
@@ -660,7 +663,7 @@ function SettingsGroup({
             ? "bg-red-50 text-red-800 hover:bg-red-100"
             : "bg-neutral-50 text-neutral-900 hover:bg-neutral-100"
         }`}
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={toggleOpen}
         aria-expanded={isOpen}
       >
         <span className="min-w-0">

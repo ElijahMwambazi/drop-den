@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { Card } from "./Card";
+import { usePersistentDisclosure } from "../hooks/usePersistentDisclosure";
 
 type CollapsibleSectionProps = {
   title: string;
@@ -15,14 +16,17 @@ export function CollapsibleSection({
   defaultOpen = true,
   children,
 }: CollapsibleSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, toggleOpen] = usePersistentDisclosure(
+    `panel:${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    defaultOpen,
+  );
 
   return (
     <Card>
       <button
         className="flex w-full items-start justify-between gap-3 text-left"
         type="button"
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={toggleOpen}
         aria-expanded={isOpen}
       >
         <div className="min-w-0">
