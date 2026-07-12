@@ -5,11 +5,13 @@ import {
   FolderOpen,
   HardDrive,
   MessageSquareX,
+  Power,
   RotateCcw,
   Save,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getConfig } from "../api/config";
 import { resetHostIdentity } from "../api/devices";
 import { clearMessages } from "../api/messages";
@@ -22,11 +24,17 @@ type DesktopSettingsProps = {
   embedded?: boolean;
 };
 
+type TransferStoragePreference = {
+  configured_dir: string;
+  using_fallback: boolean;
+};
+
 export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [transferStorageDir, setTransferStorageDir] = useState("");
   const [savedTransferStorageDir, setSavedTransferStorageDir] = useState("");
   const [isSavingStorageDir, setIsSavingStorageDir] = useState(false);
+  const [storageFallbackActive, setStorageFallbackActive] = useState(false);
 
   const queryClient = useQueryClient();
   const device = useDeviceStore((state) => state.device);
@@ -40,10 +48,20 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   });
 
   useEffect(() => {
-    if (config?.storage_dir && !savedTransferStorageDir) {
-      setTransferStorageDir(config.storage_dir);
-      setSavedTransferStorageDir(config.storage_dir);
-    }
+    if (!isTauriRuntime() || savedTransferStorageDir) return;
+
+    invoke<TransferStoragePreference>("get_transfer_storage_preference")
+      .then((preference) => {
+        setTransferStorageDir(preference.configured_dir);
+        setSavedTransferStorageDir(preference.configured_dir);
+        setStorageFallbackActive(preference.using_fallback);
+      })
+      .catch(() => {
+        if (config?.storage_dir) {
+          setTransferStorageDir(config.storage_dir);
+          setSavedTransferStorageDir(config.storage_dir);
+        }
+      });
   }, [config?.storage_dir, savedTransferStorageDir]);
 
   if (!isTauriRuntime()) {
@@ -53,8 +71,11 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const localUrl = config?.local_origin ?? "http://127.0.0.1:18080";
   const joinUrl = config?.recommended_join_origin ?? localUrl;
   const displayedTransferStorageDir =
-    savedTransferStorageDir || config?.storage_dir || "Unavailable";
+    (storageFallbackActive ? config?.storage_dir : savedTransferStorageDir) ||
+    config?.storage_dir ||
+    "Unavailable";
   const storageChangePendingRestart = Boolean(
+    !storageFallbackActive &&
     savedTransferStorageDir &&
       config?.storage_dir &&
       savedTransferStorageDir !== config.storage_dir,
@@ -111,6 +132,7 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
       });
       setTransferStorageDir(savedPath);
       setSavedTransferStorageDir(savedPath);
+      setStorageFallbackActive(false);
 
       addToast({
         type: "success",
@@ -129,6 +151,56 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
     } finally {
       setIsSavingStorageDir(false);
     }
+  }
+
+  async function chooseTransferStorageDir() {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: transferStorageDir || config?.storage_dir,
+      title: "Choose Drop Den transfer storage folder",
+    });
+
+    if (selected) {
+      setTransferStorageDir(selected);
+    }
+  }
+
+  async function restoreDefaultTransferStorageDir() {
+    if (
+      !window.confirm(
+        "Restore the default transfer folder? Existing transfer files will not be moved.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const defaultPath = await invoke<string>("reset_transfer_storage_dir");
+      setTransferStorageDir(defaultPath);
+      setSavedTransferStorageDir(defaultPath);
+      setStorageFallbackActive(false);
+      addToast({
+        type: "success",
+        message: "Default transfer folder restored. Restart to apply it.",
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          typeof error === "string"
+            ? error
+            : "Could not restore the default transfer folder.",
+      });
+    }
+  }
+
+  async function restartDesktopApp() {
+    if (!window.confirm("Restart Drop Den now to apply the transfer folder?")) {
+      return;
+    }
+
+    await invoke("restart_app");
   }
 
   function clearLocalIdentity() {
@@ -243,7 +315,9 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
         />
         <SettingRow
           label={
-            storageChangePendingRestart
+            storageFallbackActive
+              ? "Transfers (safe default)"
+              : storageChangePendingRestart
               ? "Transfers (after restart)"
               : "Transfers"
           }
@@ -263,16 +337,22 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
           Transfer storage folder
         </label>
         <p className="mt-1 text-[11px] leading-4 text-neutral-500">
-          New uploads use this folder after Drop Den restarts. Existing files
-          are not moved.
+          Existing transfer files stay in their original locations and remain
+          available. Only new uploads use the selected folder after restart.
         </p>
+        {storageFallbackActive && (
+          <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-2 text-[11px] leading-4 text-red-700">
+            The saved custom folder is unavailable. Drop Den started with its
+            safe default folder; choose another location or restore the default.
+          </p>
+        )}
         {storageChangePendingRestart && (
           <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
             Saved and displayed above. Restart Drop Den to begin storing new
             transfers there.
           </p>
         )}
-        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <input
             id="transfer-storage-dir"
             className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 disabled:bg-neutral-100"
@@ -282,6 +362,15 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
             disabled={!config?.is_host_device || isSavingStorageDir}
             placeholder="/absolute/path/to/transfers"
           />
+          <button
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            type="button"
+            onClick={chooseTransferStorageDir}
+            disabled={!config?.is_host_device || isSavingStorageDir}
+          >
+            <FolderOpen size={14} />
+            Browse
+          </button>
           <button
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
@@ -296,6 +385,27 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
             <Save size={14} />
             {isSavingStorageDir ? "Saving..." : "Save"}
           </button>
+        </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <button
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            type="button"
+            onClick={restoreDefaultTransferStorageDir}
+            disabled={!config?.is_host_device || isSavingStorageDir}
+          >
+            <RotateCcw size={14} />
+            Restore default
+          </button>
+          {storageChangePendingRestart && (
+            <button
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700"
+              type="button"
+              onClick={restartDesktopApp}
+            >
+              <Power size={14} />
+              Restart now
+            </button>
+          )}
         </div>
       </div>
 

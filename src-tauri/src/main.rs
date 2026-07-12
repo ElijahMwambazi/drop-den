@@ -27,6 +27,12 @@ struct DesktopSettings {
     transfer_storage_dir: Option<PathBuf>,
 }
 
+#[derive(Debug, Serialize)]
+struct TransferStoragePreference {
+    configured_dir: String,
+    using_fallback: bool,
+}
+
 const BACKEND_PORT: &str = "18080";
 const BACKEND_URL: &str = "http://127.0.0.1:18080";
 const HEALTH_URL: &str = "http://127.0.0.1:18080/api/health";
@@ -37,10 +43,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             open_data_folder,
             open_transfers_folder,
-            set_transfer_storage_dir
+            set_transfer_storage_dir,
+            get_transfer_storage_preference,
+            reset_transfer_storage_dir,
+            restart_app
         ])
         .setup(|app| {
             let child = start_backend_sidecar(app.handle())?;
@@ -224,10 +234,56 @@ fn set_transfer_storage_dir(app: AppHandle, path: String) -> Result<String, Stri
     Ok(storage_dir.to_string_lossy().to_string())
 }
 
-fn configured_transfer_storage_dir(app: &AppHandle) -> PathBuf {
-    read_desktop_settings(app)
+#[tauri::command]
+fn get_transfer_storage_preference(app: AppHandle) -> TransferStoragePreference {
+    let default_dir = default_transfer_storage_dir(&app);
+    let configured_dir = read_desktop_settings(&app)
         .and_then(|settings| settings.transfer_storage_dir)
-        .unwrap_or_else(|| desktop_data_dir(app).join("transfers"))
+        .unwrap_or_else(|| default_dir.clone());
+    let using_fallback =
+        configured_dir != default_dir && validate_writable_directory(&configured_dir).is_err();
+
+    TransferStoragePreference {
+        configured_dir: configured_dir.to_string_lossy().to_string(),
+        using_fallback,
+    }
+}
+
+#[tauri::command]
+fn reset_transfer_storage_dir(app: AppHandle) -> Result<String, String> {
+    let default_dir = default_transfer_storage_dir(&app);
+    validate_writable_directory(&default_dir)?;
+    write_desktop_settings(&app, &DesktopSettings::default())?;
+
+    Ok(default_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
+fn configured_transfer_storage_dir(app: &AppHandle) -> PathBuf {
+    let default_dir = default_transfer_storage_dir(app);
+    let configured_dir = read_desktop_settings(app)
+        .and_then(|settings| settings.transfer_storage_dir)
+        .unwrap_or_else(|| default_dir.clone());
+
+    if let Err(error) = validate_writable_directory(&configured_dir) {
+        eprintln!(
+            "configured transfer storage directory is unavailable ({}): {error}; using {}",
+            configured_dir.display(),
+            default_dir.display()
+        );
+
+        return default_dir;
+    }
+
+    configured_dir
+}
+
+fn default_transfer_storage_dir(app: &AppHandle) -> PathBuf {
+    desktop_data_dir(app).join("transfers")
 }
 
 fn desktop_settings_path(app: &AppHandle) -> PathBuf {
