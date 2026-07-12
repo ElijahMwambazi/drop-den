@@ -25,6 +25,7 @@
 - [x] Polished message panel
 - [x] Hide den features until device joins
 - [x] Host can remove joined devices
+- [x] Transfer search, filtering, and sorting
 
 ## Phase 3: Local security
 
@@ -38,6 +39,7 @@
 - [x] Registered-device checks for private API routes
 - [x] Store join PIN hash
 - [x] Rotate join PIN after successful device join
+- [x] Host-lockout protection for desktop identity actions
 
 ## Phase 4: Production polish
 
@@ -69,22 +71,49 @@
 - [x] Start backend sidecar from Tauri
 - [x] Wait for `/api/health` before loading UI
 - [x] Add tray menu
+- [x] Add “Open Drop Den” action
 - [x] Add “Copy Local URL” action
+- [x] Add “Copy join URL” action
 - [x] Support mobile-width desktop window resizing
 - [x] Use dedicated desktop backend port
 - [x] Package Linux build
+- [x] Add custom frameless titlebar
+- [x] Add compact desktop layout
+- [x] Support native desktop drag-and-drop upload
+- [x] Add desktop RPM cleanup script
+- [x] Add Desktop Settings panel
+- [x] Add collapsible desktop side panels
+- [x] Add embedded panel layout for devices, settings, and messages
+- [x] Add Open data folder action
+- [x] Add Open transfers folder action
+- [x] Add faster desktop dev workflow
 - [ ] Configurable data and storage directories
-- [x] Add “Open Drop Den” action
-- [x] Add “Copy join URL” action
 - [ ] Package Windows build
 - [ ] Package macOS build
+
+## Phase 7: Desktop maintenance and polish
+
+- [x] Clear messages maintenance action
+- [x] Reset host maintenance action
+- [x] Desktop Settings hidden for non-host devices
+- [x] Prevent host devices from clearing local identity directly
+- [x] Prevent host devices from switching device directly
+- [x] Improve maximized desktop layout
+- [ ] Clear transfers from Desktop Settings
+- [ ] Full desktop reset with strong confirmation
+- [ ] Open logs or diagnostics view
+- [ ] Improve empty states after host reset
+- [ ] Add dev/prod desktop troubleshooting checklist
+- [ ] Add release checklist for RPM builds
+- [ ] Add filtered ZIP download or advanced transfer filter drawer if needed
 
 ## Long-term ideas
 
 - Configurable transfer expiry
-- Clear all messages
 - Message targeting
 - Optional encryption-at-rest
-- Better host dashboard/settings page
 - Local DNS/mDNS setup helper
 - Desktop service manager UI
+- Windows desktop packaging
+- macOS desktop packaging
+- Advanced transfer filters or filtered ZIP download

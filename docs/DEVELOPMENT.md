@@ -17,7 +17,7 @@ drop-den/
   docs/          Project documentation
   scripts/       Build, run, installer, and desktop helper scripts
   packaging/     System service files
-  src-tauri/      Optional Tauri desktop wrapper
+  src-tauri/      Tauri desktop wrapper
   storage/       Local development transfer storage
 ```
 
@@ -66,15 +66,8 @@ During development, Vite proxies `/api` and `/ws` to the Rust backend.
 
 Packaged mode builds the React frontend and serves it from the Rust backend.
 
-Build both frontend and backend:
-
 ```bash
 ./scripts/build-packaged.sh
-```
-
-Run Drop Den in packaged mode:
-
-```bash
 ./scripts/run-packaged.sh
 ```
 
@@ -106,34 +99,9 @@ DROP_DEN_PUBLIC_NAME=drop-den.local ./scripts/run-packaged.sh
 
 Drop Den can be installed as a background systemd service on Linux.
 
-Install:
-
 ```bash
 sudo ./scripts/install-linux.sh
 ```
-
-If `cargo` is not found when running under `sudo`, make sure your normal user has a Rust default toolchain:
-
-```bash
-rustup default stable
-```
-
-Then rerun:
-
-```bash
-sudo ./scripts/install-linux.sh
-```
-
-The installer:
-
-- builds the frontend
-- builds the backend release binary
-- installs the binary to `/usr/local/bin/drop-den`
-- installs frontend assets to `/usr/local/share/drop-den/frontend/dist`
-- creates `/etc/drop-den/drop-den.env`
-- creates `/var/lib/drop-den`
-- installs `drop-den.service`
-- enables and starts the service
 
 Default service environment:
 
@@ -166,12 +134,6 @@ Saved data is kept at:
 
 ```txt
 /var/lib/drop-den
-```
-
-To remove saved data manually:
-
-```bash
-sudo rm -rf /var/lib/drop-den
 ```
 
 ## Canonical LAN URL note
@@ -209,29 +171,11 @@ Transfers expire after the configured transfer lifetime and are removed by the c
 
 Uploaded files remain stored on disk under the configured transfer storage directory.
 
-Default development database path:
-
-```txt
-../storage/drop-den.sqlite
-```
-
-Default development transfer storage path:
-
-```txt
-../storage/transfers
-```
-
 Override paths:
 
 ```bash
 DROP_DEN_DATA_DIR=/path/to/drop-den-data cargo run
-```
-
-```bash
 DROP_DEN_DATABASE_PATH=/path/to/drop-den.sqlite cargo run
-```
-
-```bash
 DROP_DEN_STORAGE_DIR=/path/to/transfers cargo run
 ```
 
@@ -263,17 +207,13 @@ Restart:
 sudo systemctl restart drop-den
 ```
 
-Open the canonical LAN URL and register the browser that should become host.
-
-After recovery, remove `DROP_DEN_RESET_HOST=1` from `/etc/drop-den/drop-den.env` and restart the service again.
-
-This keeps existing devices, messages, transfers, and app data. It only clears the persisted `host_device_id`.
+After recovery, remove `DROP_DEN_RESET_HOST=1` and restart again.
 
 ## Desktop wrapper mode
 
-Drop Den has an optional Tauri desktop wrapper.
+Drop Den includes a Tauri desktop wrapper.
 
-Current desktop direction:
+Current desktop flow:
 
 ```txt
 Tauri shell -> starts backend sidecar -> waits for /api/health -> opens React UI
@@ -284,6 +224,17 @@ Desktop sidecar mode uses a dedicated backend port:
 ```txt
 http://127.0.0.1:18080
 ```
+
+The desktop wrapper currently provides:
+
+- compact frameless window
+- custom titlebar
+- tray menu
+- backend sidecar startup/shutdown
+- native desktop drag-and-drop upload
+- Desktop Settings panel
+- open data folder and open transfers folder actions
+- collapsible side panels for connected devices, settings, and messages
 
 Build the desktop app:
 
@@ -317,59 +268,82 @@ If `webkit2gtk4.1-devel` is unavailable, try:
 sudo dnf install webkit2gtk4.0-devel javascriptcoregtk4.0-devel libsoup-devel
 ```
 
-Verify GLib is visible:
-
-```bash
-pkg-config --modversion glib-2.0
-pkg-config --modversion gobject-2.0
-```
-
 ### Prepare Tauri sidecar
-
-Tauri expects the backend sidecar binary to exist under `src-tauri/binaries/` with the current Rust target triple in the filename.
-
-Prepare it with:
 
 ```bash
 ./scripts/prepare-tauri-sidecar.sh
 ```
 
-This script:
+This script detects the target triple, builds the backend release binary, copies it to `src-tauri/binaries/drop-den-backend-<target-triple>`, and marks it executable.
 
-- detects the current Rust target triple
-- builds the backend release binary
-- copies it to `src-tauri/binaries/drop-den-backend-<target-triple>`
-- marks it executable
+### Faster desktop development workflow
 
-On Linux x86_64, the sidecar path is:
-
-```txt
-src-tauri/binaries/drop-den-backend-x86_64-unknown-linux-gnu
-```
-
-### Run desktop dev mode
-
-From the project root:
-
-```bash
-frontend/node_modules/.bin/tauri dev
-```
-
-Or from the frontend folder, if package scripts are configured:
+For most desktop work, use:
 
 ```bash
 cd frontend
 yarn desktop:dev:sidecar
 ```
 
-In desktop sidecar mode, Tauri:
+This script should build the frontend once so `frontend/dist` exists for Tauri resource checks, prepare the backend sidecar binary, and start `tauri dev`.
 
-- starts the backend sidecar
-- sets desktop-specific data/storage paths
-- waits for `/api/health`
-- opens the React UI in a desktop window
+If Tauri reports that `../frontend/dist` does not exist, run:
 
-Tray actions:
+```bash
+cd frontend
+yarn build
+yarn desktop:dev:sidecar
+```
+
+Avoid deleting `src-tauri/target` unless necessary. The first rebuild after deleting it is slow because Tauri, WebKit, and related Rust dependencies must be rebuilt.
+
+### Desktop dev data
+
+For a clean dev desktop run:
+
+```bash
+pkill -f drop-den-backend
+pkill -f drop-den-desktop
+rm -rf /tmp/drop-den-dev
+```
+
+For installed desktop app data reset:
+
+```bash
+pkill -f drop-den-backend
+pkill -f drop-den-desktop
+rm -rf ~/.local/share/com.dropden.desktop ~/.local/share/com.dropden.app ~/.local/share/Drop\ Den
+```
+
+### Desktop host identity rule
+
+Do not allow the host device to clear or switch away from its local identity directly.
+
+If the current desktop device is host:
+
+- disable `Clear local identity`
+- disable `Switch device`
+- use `Reset host` instead
+
+Reason: if the backend still has a persisted `host_device_id` but the WebView loses the matching local device ID, the user can lose access to the host-only join PIN.
+
+### Desktop folder shortcuts
+
+Desktop Settings includes shortcuts for:
+
+- Open data folder
+- Open transfers folder
+
+These are Tauri commands registered in `src-tauri/src/main.rs` and invoked from the frontend with:
+
+```ts
+invoke("open_data_folder");
+invoke("open_transfers_folder");
+```
+
+Do not add these command names to `src-tauri/capabilities/default.json` as custom permissions. They are Rust invoke commands, not capability permission IDs.
+
+### Tray actions
 
 - Open Drop Den: shows and focuses the desktop window.
 - Copy Join URL: copies the LAN join URL from `/api/config`.
@@ -392,13 +366,6 @@ cd backend
 cargo check
 ```
 
-Backend release build:
-
-```bash
-cd backend
-cargo build --release
-```
-
 Tauri shell check:
 
 ```bash
@@ -409,8 +376,8 @@ cargo check
 Full desktop dev check:
 
 ```bash
-./scripts/prepare-tauri-sidecar.sh
-frontend/node_modules/.bin/tauri dev
+cd frontend
+yarn desktop:dev:sidecar
 ```
 
 ## Common issues
@@ -422,42 +389,56 @@ sudo lsof -i :8080
 sudo ss -ltnp | grep :8080
 ```
 
-Then stop it or choose a different port:
+### Desktop backend did not become ready
 
-```bash
-DROP_DEN_PORT=8081 ./scripts/run-packaged.sh
-```
-
-### Permission denied on port 80
-
-Use port `8080` for now:
-
-```bash
-DROP_DEN_PORT=8080 ./scripts/run-packaged.sh
-```
-
-### Phone can open LAN IP but not `drop-den.local`
-
-Use:
+If Tauri fails with:
 
 ```txt
-http://<pc-lan-ip>:8080
+Drop Den backend did not become ready at http://127.0.0.1:18080
 ```
 
-or configure Avahi/local DNS.
-
-### Tauri says sidecar binary does not exist
-
-Prepare the sidecar:
+check for an existing backend process:
 
 ```bash
-./scripts/prepare-tauri-sidecar.sh
+ss -ltnp | grep 18080
+pkill -f drop-den-backend
+pkill -f drop-den-desktop
 ```
 
-Then rerun:
+Then reset dev data if needed:
 
 ```bash
-frontend/node_modules/.bin/tauri dev
+rm -rf /tmp/drop-den-dev
+```
+
+### Tauri says `../frontend/dist` does not exist
+
+Build the frontend once:
+
+```bash
+cd frontend
+yarn build
+yarn desktop:dev:sidecar
+```
+
+### Tauri says custom command permission is not found
+
+Do not add custom invoke command names such as `open-data-folder` or `open-transfers-folder` to `src-tauri/capabilities/default.json`.
+
+Register custom commands in Rust with:
+
+```rust
+.invoke_handler(tauri::generate_handler![
+    open_data_folder,
+    open_transfers_folder
+])
+```
+
+Call them from the frontend with:
+
+```ts
+invoke("open_data_folder");
+invoke("open_transfers_folder");
 ```
 
 ### Tauri says GLib/GObject/WebKit packages are missing
@@ -470,10 +451,4 @@ Generate icons:
 
 ```bash
 frontend/node_modules/.bin/tauri icon frontend/public/favicon.png
-```
-
-Or at minimum make sure this exists:
-
-```txt
-src-tauri/icons/icon.png
 ```
