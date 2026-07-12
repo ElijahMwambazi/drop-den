@@ -229,10 +229,13 @@ The desktop wrapper currently provides:
 
 - compact frameless window
 - custom titlebar
+- titlebar frontend reload action
 - tray menu
 - backend sidecar startup/shutdown
 - native desktop drag-and-drop upload
 - Desktop Settings panel
+- host-only transfer cleanup from Desktop Settings
+- full desktop data reset with typed confirmation and automatic restart
 - open data folder and open transfers folder actions
 - configurable transfer storage folder persisted in `desktop-settings.json`
 - collapsible side panels for connected devices, settings, and messages

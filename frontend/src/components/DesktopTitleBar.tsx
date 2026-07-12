@@ -1,4 +1,4 @@
-import { Minus, Square, X } from "lucide-react";
+import { Minus, RefreshCw, Square, X } from "lucide-react";
 import { isTauriRuntime } from "../api/client";
 
 async function getWindow() {
@@ -31,6 +31,10 @@ export function DesktopTitleBar() {
     await currentWindow.close();
   }
 
+  function reloadFrontend() {
+    window.location.reload();
+  }
+
   return (
     <div
       className="fixed left-0 right-0 top-0 z-50 flex h-9 select-none items-center justify-between border-b border-neutral-800 bg-neutral-950 px-2.5 text-neutral-100"
@@ -45,6 +49,16 @@ export function DesktopTitleBar() {
         className="flex items-center gap-1"
         onMouseDown={(event) => event.stopPropagation()}
       >
+        <button
+          type="button"
+          className="rounded-md p-1.5 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+          onClick={reloadFrontend}
+          aria-label="Reload Drop Den"
+          title="Reload Drop Den"
+        >
+          <RefreshCw size={12} />
+        </button>
+
         <button
           type="button"
           className="rounded-md p-1.5 text-neutral-300 hover:bg-neutral-800 hover:text-white"

@@ -103,6 +103,10 @@ fn build_app(state: AppState, frontend_dist: PathBuf) -> Router {
             axum::routing::post(devices::reset_host_identity),
         )
         .route(
+            "/api/desktop/reset-all",
+            axum::routing::post(devices::reset_desktop_data),
+        )
+        .route(
             "/api/transfers",
             get(transfers::list_transfers).delete(transfers::delete_all_transfers),
         )

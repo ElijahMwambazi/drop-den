@@ -8,13 +8,16 @@ import {
   Power,
   RotateCcw,
   Save,
+  ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getConfig } from "../api/config";
-import { resetHostIdentity } from "../api/devices";
+import { resetDesktopData, resetHostIdentity } from "../api/devices";
 import { clearMessages } from "../api/messages";
+import { deleteAllTransfers } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
@@ -34,6 +37,7 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const [transferStorageDir, setTransferStorageDir] = useState("");
   const [savedTransferStorageDir, setSavedTransferStorageDir] = useState("");
   const [isSavingStorageDir, setIsSavingStorageDir] = useState(false);
+  const [isClearingTransfers, setIsClearingTransfers] = useState(false);
   const [storageFallbackActive, setStorageFallbackActive] = useState(false);
 
   const queryClient = useQueryClient();
@@ -254,6 +258,46 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
     }
   }
 
+  async function clearAllTransfers() {
+    if (!config?.is_host_device) {
+      addToast({
+        type: "error",
+        message: "Only the host device can clear transfers.",
+      });
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Permanently delete every transfer and its stored file? This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setIsClearingTransfers(true);
+
+    try {
+      await deleteAllTransfers();
+      await queryClient.invalidateQueries({ queryKey: ["transfers"] });
+
+      addToast({
+        type: "success",
+        message: "All transfers cleared.",
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not clear transfers.",
+      });
+    } finally {
+      setIsClearingTransfers(false);
+    }
+  }
+
   async function resetHost() {
     if (
       !window.confirm(
@@ -282,6 +326,39 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
           error instanceof Error
             ? error.message
             : "Could not reset host identity.",
+      });
+    }
+  }
+
+  async function resetDesktop() {
+    const confirmation = window.prompt(
+      "This permanently deletes every device, message, transfer, stored file, and desktop preference. Drop Den will restart. Type RESET DROP DEN to continue.",
+    );
+
+    if (confirmation !== "RESET DROP DEN") {
+      if (confirmation !== null) {
+        addToast({
+          type: "info",
+          message: "Full reset cancelled: confirmation text did not match.",
+        });
+      }
+      return;
+    }
+
+    try {
+      await resetDesktopData();
+      await invoke("reset_transfer_storage_dir");
+      clearDevice();
+      await invoke("restart_app");
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : "Could not fully reset Drop Den.",
       });
     }
   }
@@ -482,12 +559,31 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
           </button>
 
           <button
+            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            onClick={clearAllTransfers}
+            disabled={!config?.is_host_device || isClearingTransfers}
+          >
+            <Trash2 size={14} />
+            {isClearingTransfers ? "Clearing transfers..." : "Clear transfers"}
+          </button>
+
+          <button
             className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
             type="button"
             onClick={resetHost}
           >
             <RotateCcw size={14} />
             Reset host
+          </button>
+
+          <button
+            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-3 py-2 text-xs font-medium text-white hover:bg-red-800"
+            type="button"
+            onClick={resetDesktop}
+          >
+            <ShieldAlert size={14} />
+            Full desktop reset
           </button>
         </div>
       </div>

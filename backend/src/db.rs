@@ -248,6 +248,32 @@ pub async fn delete_all_transfers(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub async fn reset_all_data(pool: &SqlitePool, join_pin_hash: &str) -> anyhow::Result<()> {
+    let mut transaction = pool.begin().await?;
+
+    sqlx::query("DELETE FROM transfers")
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("DELETE FROM messages")
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("DELETE FROM devices")
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("DELETE FROM app_settings")
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query(
+        "INSERT INTO app_settings (key, value, updated_at) VALUES ('join_pin_hash', ?, CURRENT_TIMESTAMP)",
+    )
+    .bind(join_pin_hash)
+    .execute(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+    Ok(())
+}
+
 pub async fn delete_expired_transfers(
     pool: &SqlitePool,
     now: DateTime<Utc>,

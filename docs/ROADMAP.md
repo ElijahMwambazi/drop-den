@@ -93,16 +93,17 @@
 
 ## Phase 7: Desktop maintenance and polish
 
+- [x] Add desktop titlebar frontend reload action
 - [x] Clear messages maintenance action
 - [x] Reset host maintenance action
 - [x] Desktop Settings hidden for non-host devices
 - [x] Prevent host devices from clearing local identity directly
 - [x] Prevent host devices from switching device directly
 - [x] Improve maximized desktop layout
-- [ ] Clear transfers from Desktop Settings
-- [ ] Full desktop reset with strong confirmation
+- [x] Clear transfers from Desktop Settings
+- [x] Full desktop reset with strong confirmation
 - [ ] Open logs or diagnostics view
-- [ ] Improve empty states after host reset
+- [x] Improve empty states after host reset
 - [ ] Add dev/prod desktop troubleshooting checklist
 - [ ] Add release checklist for RPM builds
 - [ ] Add filtered ZIP download or advanced transfer filter drawer if needed

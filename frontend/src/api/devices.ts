@@ -24,3 +24,7 @@ export function removeDevice(deviceId: string) {
 export function resetHostIdentity() {
   return postJson<void, Record<string, never>>("/api/desktop/reset-host", {});
 }
+
+export function resetDesktopData() {
+  return postJson<void, Record<string, never>>("/api/desktop/reset-all", {});
+}

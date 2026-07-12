@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Crown } from "lucide-react";
 import { getConfig } from "../api/config";
 import { registerDevice } from "../api/devices";
 import { useDeviceStore } from "../store/deviceStore";
@@ -112,6 +113,19 @@ export function DeviceSetup() {
           </button>
         )}
       </div>
+
+      {!device && config && !hasHostDevice && (
+        <div className="mt-3 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-900">
+          <Crown className="mt-0.5 shrink-0" size={16} />
+          <div>
+            <p className="text-xs font-semibold">This den needs a host</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">
+              The previous host may have been reset. Register this desktop to
+              become the new host and reveal a fresh join PIN.
+            </p>
+          </div>
+        </div>
+      )}
 
       {!device && (
         <form

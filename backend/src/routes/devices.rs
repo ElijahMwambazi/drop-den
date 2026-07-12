@@ -159,6 +159,60 @@ pub async fn reset_host_identity(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn reset_desktop_data(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<StatusCode, StatusCode> {
+    if std::env::var("DROP_DEN_MODE").ok().as_deref() != Some("desktop") {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let host_device_id = state.host_device_id.read().await.clone();
+
+    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let new_pin = db::generate_join_pin();
+    let new_pin_hash = db::hash_join_pin(&new_pin).map_err(|error| {
+        tracing::error!(error = %error, "failed to hash join pin during desktop reset");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    db::reset_all_data(&state.db, &new_pin_hash)
+        .await
+        .map_err(|error| {
+            tracing::error!(error = %error, "failed to reset desktop data");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let removed_transfers = state
+        .transfers
+        .write()
+        .await
+        .drain()
+        .map(|(_, transfer)| transfer)
+        .collect::<Vec<_>>();
+
+    state.messages.write().await.clear();
+    state.devices.write().await.clear();
+    *state.host_device_id.write().await = None;
+    *state.join_pin.write().await = new_pin;
+    *state.join_pin_hash.write().await = new_pin_hash;
+
+    for transfer in removed_transfers {
+        super::transfers::remove_transfer_files(&transfer).await;
+    }
+
+    state.broadcast_json(&WsEvent {
+        event_type: "desktop_reset".to_string(),
+        payload: serde_json::json!({}),
+    });
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn rotate_join_pin(state: &AppState) -> Result<(), StatusCode> {
     let new_pin = db::generate_join_pin();
     let new_hash = db::hash_join_pin(&new_pin).map_err(|error| {

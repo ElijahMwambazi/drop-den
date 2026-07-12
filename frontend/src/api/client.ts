@@ -81,6 +81,10 @@ export async function postJson<TResponse, TBody>(
     throw new Error(`POST ${path} failed: ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as TResponse;
+  }
+
   return response.json();
 }
 

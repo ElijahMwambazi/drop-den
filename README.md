@@ -36,8 +36,11 @@ Drop Den is beyond the basic MVP scaffold. It currently supports:
 - Linux systemd service installer.
 - Tauri desktop wrapper with backend sidecar.
 - Compact frameless desktop window with custom titlebar.
+- Desktop titlebar frontend reload action.
 - Desktop tray actions for opening Drop Den, copying URLs, and quitting.
 - Desktop Settings panel with runtime paths and maintenance actions.
+- Host-only transfer cleanup from Desktop Settings.
+- Full desktop data reset with typed confirmation.
 - Open data folder and open transfers folder shortcuts.
 - Configurable desktop transfer storage folder with writable-path validation.
 - Collapsible desktop side panels for connected devices, settings, and messages.

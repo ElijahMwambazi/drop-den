@@ -527,7 +527,7 @@ fn zip_filename(index: usize, filename: &str) -> String {
     format!("{:03}-{}", index + 1, sanitized)
 }
 
-async fn remove_transfer_files(transfer: &Transfer) {
+pub(crate) async fn remove_transfer_files(transfer: &Transfer) {
     let path = PathBuf::from(&transfer.stored_path);
 
     if let Some(parent) = path.parent() {
