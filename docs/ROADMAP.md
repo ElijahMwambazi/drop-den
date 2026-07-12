@@ -107,7 +107,7 @@
 - [x] Full desktop reset with strong confirmation
 - [x] Open logs or diagnostics view
 - [x] Improve empty states after host reset
-- [ ] Add dev/prod desktop troubleshooting checklist
+- [x] Add dev/prod desktop troubleshooting checklist
 - [ ] Add release checklist for RPM builds
 - [ ] Add filtered ZIP download or advanced transfer filter drawer if needed
 
