@@ -54,6 +54,13 @@ export function DeviceSetup() {
   }
 
   function onSwitchDevice() {
+    if (isHostDevice) {
+      window.alert(
+        "This device is the host. Use Reset host in Desktop settings instead.",
+      );
+      return;
+    }
+
     clearDevice();
     setName("");
     setJoinPin("");
@@ -91,9 +98,15 @@ export function DeviceSetup() {
 
         {device && (
           <button
-            className="rounded-xl border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+            className="rounded-xl border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             onClick={onSwitchDevice}
+            disabled={isHostDevice}
+            title={
+              isHostDevice
+                ? "Host devices should use Reset host in Desktop settings."
+                : undefined
+            }
           >
             Switch device
           </button>

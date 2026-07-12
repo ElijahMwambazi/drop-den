@@ -64,7 +64,7 @@ export function App() {
       <main
         className={[
           "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8",
-          isDesktopRuntime ? "gap-3 px-2.5 py-3 pt-11 text-[13px]" : "",
+          isDesktopRuntime ? "max-w-5xl gap-3 px-3 py-3 pt-11 text-[13px]" : "",
         ].join(" ")}
       >
         <header

@@ -2,6 +2,8 @@
 
 use serde::Deserialize;
 use std::{
+    path::Path,
+    process::Command,
     sync::Mutex,
     thread,
     time::{Duration, Instant},
@@ -30,6 +32,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .invoke_handler(tauri::generate_handler![
+            open_data_folder,
+            open_transfers_folder
+        ])
         .setup(|app| {
             let child = start_backend_sidecar(app)?;
             app.manage(BackendChild(Mutex::new(Some(child))));
@@ -163,6 +169,69 @@ fn desktop_data_dir(app: &tauri::App) -> std::path::PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| std::env::temp_dir().join("drop-den-desktop"))
+}
+
+#[tauri::command]
+fn open_data_folder(app: AppHandle) -> Result<(), String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("failed to resolve app data directory: {error}"))?;
+
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|error| format!("failed to create data directory: {error}"))?;
+
+    open_path(&data_dir)
+}
+
+#[tauri::command]
+fn open_transfers_folder(app: AppHandle) -> Result<(), String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("failed to resolve app data directory: {error}"))?;
+
+    let transfers_dir = data_dir.join("transfers");
+
+    std::fs::create_dir_all(&transfers_dir)
+        .map_err(|error| format!("failed to create transfers directory: {error}"))?;
+
+    open_path(&transfers_dir)
+}
+
+fn open_path(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|error| format!("failed to open folder: {error}"))?;
+
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|error| format!("failed to open folder: {error}"))?;
+
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|error| format!("failed to open folder: {error}"))?;
+
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("opening folders is not supported on this platform".to_string())
 }
 
 fn bundled_frontend_dist(app: &tauri::App) -> tauri::Result<std::path::PathBuf> {
