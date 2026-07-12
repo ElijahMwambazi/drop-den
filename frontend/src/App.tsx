@@ -58,16 +58,43 @@ export function App() {
   const canShowDesktopSettings =
     isDesktopRuntime && Boolean(device) && Boolean(config?.is_host_device);
 
-  return (
-    <>
-      <DesktopTitleBar />
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      "desktop-runtime",
+      isDesktopRuntime,
+    );
+    document.body.classList.toggle("desktop-runtime", isDesktopRuntime);
 
-      <main
-        className={[
-          "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8",
-          isDesktopRuntime ? "max-w-5xl gap-3 px-3 py-3 pt-11 text-[13px]" : "",
-        ].join(" ")}
+    return () => {
+      document.documentElement.classList.remove("desktop-runtime");
+      document.body.classList.remove("desktop-runtime");
+    };
+  }, [isDesktopRuntime]);
+
+  return (
+    <div
+      className={
+        isDesktopRuntime
+          ? "h-screen overflow-hidden bg-transparent p-2"
+          : "contents"
+      }
+    >
+      <div
+        className={
+          isDesktopRuntime
+            ? "relative h-full overflow-hidden rounded-3xl bg-neutral-100 shadow-2xl ring-1 ring-black/10"
+            : "contents"
+        }
       >
+        <DesktopTitleBar />
+
+        <main
+          className={
+            isDesktopRuntime
+              ? "flex h-full w-full flex-col gap-3 overflow-y-auto px-3 pb-3 pt-11 text-[13px]"
+              : "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8"
+          }
+        >
         <header
           className={[
             "rounded-4xl bg-neutral-950 p-6 text-white shadow-sm md:p-8",
@@ -163,9 +190,10 @@ export function App() {
           </div>
         )}
 
-        <ToastViewport />
-        <DialogViewport />
-      </main>
-    </>
+          <ToastViewport />
+          <DialogViewport />
+        </main>
+      </div>
+    </div>
   );
 }

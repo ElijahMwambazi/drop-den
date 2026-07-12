@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Drop Den",
         "width": 360,
         "height": 580,
@@ -20,7 +21,9 @@
         "resizable": true,
         "visible": false,
         "dragDropEnabled": true,
-        "decorations": false
+        "decorations": false,
+        "transparent": true,
+        "shadow": false
       }
     ],
     "security": {

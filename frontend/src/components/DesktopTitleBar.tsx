@@ -37,7 +37,7 @@ export function DesktopTitleBar() {
 
   return (
     <div
-      className="fixed left-0 right-0 top-0 z-50 flex h-9 select-none items-center justify-between border-b border-neutral-800 bg-neutral-950 px-2.5 text-neutral-100"
+      className="absolute left-0 right-0 top-0 z-50 flex h-9 select-none items-center justify-between border-b border-neutral-800 bg-neutral-950 px-2.5 text-neutral-100"
       onMouseDown={startDragging}
     >
       <div className="flex items-center gap-2">
