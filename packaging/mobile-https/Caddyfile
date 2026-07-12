@@ -1,0 +1,8 @@
+{
+  auto_https disable_redirects
+}
+
+https://{$DROP_DEN_HTTPS_HOST}:{$DROP_DEN_HTTPS_PORT} {
+  tls internal
+  reverse_proxy {$DROP_DEN_UPSTREAM}
+}

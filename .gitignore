@@ -69,3 +69,6 @@ Thumbs.db
 tmp/
 temp/
 .cache/
+
+# Generated local CA and Caddy state for the mobile HTTPS feasibility test
+.mobile-https/

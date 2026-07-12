@@ -391,6 +391,8 @@ For the complete development and installed-RPM checklist, see [Desktop troublesh
 
 For release-candidate validation and publication, see the [RPM release checklist](./RPM_RELEASE_CHECKLIST.md).
 
+For the Android PWA/native-wrapper decision and secure-LAN constraints, see [Mobile integration feasibility](./MOBILE_INTEGRATION.md).
+
 ### Port already in use
 
 ```bash

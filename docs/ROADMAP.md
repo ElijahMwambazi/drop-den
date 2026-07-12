@@ -111,6 +111,33 @@
 - [x] Add release checklist for RPM builds
 - [ ] Add filtered ZIP download or advanced transfer filter drawer if needed
 
+## Phase 8: Mobile integration
+
+### Feasibility and foundation
+
+- [x] Investigate secure LAN origin and HTTPS options
+- [x] Add a local HTTPS reverse-proxy test harness
+- [ ] Test Android PWA installation from the real LAN URL
+- [ ] Decide between PWA Share Target and an Android native wrapper
+- [ ] Define shared-file inbox, limits, cleanup, and recovery behavior
+
+### PWA path, if feasible
+
+- [ ] Add PWA manifest and install icons
+- [ ] Add static-app-shell service worker
+- [ ] Add install and update UX
+- [ ] Add pending shared-file import screen
+- [ ] Add Android Share Target support
+- [ ] Add shared-file validation, quota handling, and cleanup
+- [ ] Test host-IP changes and offline/reconnection behavior
+
+### Native fallback
+
+- [ ] Prototype Android wrapper discovery and host connection
+- [ ] Add native Android share-intent handling
+- [ ] Compare reliability with the PWA implementation
+- [ ] Choose and document the supported mobile delivery path
+
 ## Long-term ideas
 
 - Configurable transfer expiry
