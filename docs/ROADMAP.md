@@ -102,7 +102,7 @@
 - [x] Improve maximized desktop layout
 - [x] Clear transfers from Desktop Settings
 - [x] Full desktop reset with strong confirmation
-- [ ] Open logs or diagnostics view
+- [x] Open logs or diagnostics view
 - [x] Improve empty states after host reset
 - [ ] Add dev/prod desktop troubleshooting checklist
 - [ ] Add release checklist for RPM builds

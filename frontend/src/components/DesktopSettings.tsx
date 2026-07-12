@@ -23,6 +23,7 @@ import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
 import { isTauriRuntime } from "../api/client";
 import { useDialogStore } from "../store/dialogStore";
+import { DesktopDiagnostics } from "./DesktopDiagnostics";
 
 type DesktopSettingsProps = {
   embedded?: boolean;
@@ -47,7 +48,13 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const addToast = useToastStore((state) => state.addToast);
   const confirm = useDialogStore((state) => state.confirm);
 
-  const { data: config } = useQuery({
+  const {
+    data: config,
+    dataUpdatedAt: configUpdatedAt,
+    isError: configError,
+    isFetching: isRefreshingConfig,
+    refetch: refreshConfig,
+  } = useQuery({
     queryKey: ["config", device?.id],
     queryFn: () => getConfig(device?.id),
     enabled: isTauriRuntime(),
@@ -440,6 +447,16 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
           value={config?.database_path ?? "Unavailable"}
         />
       </div>
+
+      <DesktopDiagnostics
+        config={config}
+        configError={configError}
+        isRefreshing={isRefreshingConfig}
+        lastUpdatedAt={configUpdatedAt}
+        storageDir={displayedTransferStorageDir}
+        storageFallbackActive={storageFallbackActive}
+        onRefresh={refreshConfig}
+      />
 
       <div className="mt-3 rounded-xl border border-neutral-200 p-3">
         <label

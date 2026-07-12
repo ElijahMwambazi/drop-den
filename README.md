@@ -41,6 +41,7 @@ Drop Den is beyond the basic MVP scaffold. It currently supports:
 - Desktop Settings panel with runtime paths and maintenance actions.
 - Host-only transfer cleanup from Desktop Settings.
 - Full desktop data reset with typed confirmation.
+- Desktop diagnostics view with a copyable runtime report.
 - Open data folder and open transfers folder shortcuts.
 - Configurable desktop transfer storage folder with writable-path validation.
 - Collapsible desktop side panels for connected devices, settings, and messages.
