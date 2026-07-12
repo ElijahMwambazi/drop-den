@@ -389,6 +389,8 @@ yarn desktop:dev:sidecar
 
 For the complete development and installed-RPM checklist, see [Desktop troubleshooting](./DESKTOP_TROUBLESHOOTING.md).
 
+For release-candidate validation and publication, see the [RPM release checklist](./RPM_RELEASE_CHECKLIST.md).
+
 ### Port already in use
 
 ```bash

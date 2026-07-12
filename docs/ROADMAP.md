@@ -108,7 +108,7 @@
 - [x] Open logs or diagnostics view
 - [x] Improve empty states after host reset
 - [x] Add dev/prod desktop troubleshooting checklist
-- [ ] Add release checklist for RPM builds
+- [x] Add release checklist for RPM builds
 - [ ] Add filtered ZIP download or advanced transfer filter drawer if needed
 
 ## Long-term ideas
