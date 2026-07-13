@@ -134,14 +134,14 @@ desktop runtime may become host when no host is assigned.
 
 ## Phase 8: Android wrapper foundation
 
-- [ ] Confirm Android SDK 35, Gradle, and JDK 17 setup
-- [ ] Make `android-wrapper` a buildable Android project
-- [ ] Add host selection screen
-- [ ] Validate LAN host URL with `/api/config`
-- [ ] Remember last working host
-- [ ] Load Drop Den UI in Android WebView
-- [ ] Add retry/change-host flow
-- [ ] Build debug APK
+- [x] Confirm latest stable Android toolchain setup (SDK 36.1, AGP 9.2.1, Gradle 9.6.1, JDK 17+)
+- [x] Make `android-wrapper` a buildable Android project
+- [x] Add host selection screen
+- [x] Validate LAN host URL with `/api/config`
+- [x] Remember last working host
+- [x] Load Drop Den UI in Android WebView
+- [x] Add retry/change-host flow
+- [x] Build debug APK
 
 Android wrapper work must use the shared inbox model. It must not bypass the
 inbox by uploading shared files directly as public transfers.

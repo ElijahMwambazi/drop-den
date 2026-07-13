@@ -74,4 +74,5 @@ temp/
 .mobile-https/
 android-wrapper/.gradle/
 android-wrapper/local.properties
+android-wrapper/build/
 android-wrapper/app/build/
