@@ -1,6 +1,13 @@
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  LoaderCircle,
+  RotateCcw,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
 import { uploadLocalPaths, uploadTransfer } from "../api/transfers";
@@ -15,6 +22,8 @@ type UploadStatus = "queued" | "uploading" | "success" | "error";
 type UploadItem = {
   id: string;
   file: File;
+  localPath?: string;
+  size: number | null;
   progress: number;
   status: UploadStatus;
   error?: string;
@@ -74,11 +83,39 @@ export function FileUpload() {
   const isUploading = uploads.some(
     (upload) => upload.status === "queued" || upload.status === "uploading",
   );
+  const activeUploads = uploads.filter(
+    (upload) => upload.status === "queued" || upload.status === "uploading",
+  );
+  const failedUploads = uploads.filter((upload) => upload.status === "error");
+  const completedUploads = uploads.filter(
+    (upload) => upload.status === "success",
+  );
+  const batchProgress = uploads.length
+    ? Math.round(
+        uploads.reduce((total, upload) => total + upload.progress, 0) /
+          uploads.length,
+      )
+    : 0;
+  const completedUploadSignature = completedUploads
+    .map((upload) => upload.id)
+    .join(":");
 
   useEffect(() => {
     deviceIdRef.current = device?.id;
     targetDeviceIdRef.current = targetDeviceId;
   }, [device?.id, targetDeviceId]);
+
+  useEffect(() => {
+    if (!completedUploadSignature) return;
+
+    const timeout = window.setTimeout(() => {
+      setUploads((currentUploads) =>
+        currentUploads.filter((upload) => upload.status !== "success"),
+      );
+    }, 8000);
+
+    return () => window.clearTimeout(timeout);
+  }, [completedUploadSignature]);
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -154,6 +191,8 @@ export function FileUpload() {
     return paths.map((path) => ({
       id: createUploadId(),
       file: createSyntheticFileFromPath(path),
+      localPath: path,
+      size: null,
       progress: 0,
       status: "queued",
     }));
@@ -197,8 +236,9 @@ export function FileUpload() {
       });
 
       setUploads((currentUploads) =>
-        currentUploads.map((upload) => ({
+        currentUploads.map((upload, index) => ({
           ...upload,
+          size: transfers[index]?.size ?? upload.size,
           status: "success",
           progress: 100,
         })),
@@ -242,10 +282,13 @@ export function FileUpload() {
     );
     const blockedFiles = files.filter((file) => file.size > maxUploadSizeBytes);
 
-    for (const file of blockedFiles) {
+    if (blockedFiles.length > 0) {
       addToast({
         type: "error",
-        message: `${file.name} is larger than ${formatBytes(maxUploadSizeBytes)}.`,
+        message:
+          blockedFiles.length === 1
+            ? `${blockedFiles[0].name} is larger than ${formatBytes(maxUploadSizeBytes)}.`
+            : `${blockedFiles.length} files exceed the ${formatBytes(maxUploadSizeBytes)} limit.`,
       });
     }
 
@@ -256,11 +299,14 @@ export function FileUpload() {
     const uploadItems: UploadItem[] = allowedFiles.map((file) => ({
       id: createUploadId(),
       file,
+      size: file.size,
       progress: 0,
       status: "queued",
     }));
 
     setUploads(uploadItems);
+    let successCount = 0;
+    let failureCount = 0;
 
     for (const uploadItem of uploadItems) {
       setUploads((currentUploads) =>
@@ -292,10 +338,7 @@ export function FileUpload() {
           ),
         );
 
-        addToast({
-          type: "success",
-          message: `${uploadItem.file.name} uploaded.`,
-        });
+        successCount += 1;
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Upload failed.";
@@ -312,14 +355,29 @@ export function FileUpload() {
           ),
         );
 
-        addToast({
-          type: "error",
-          message: errorMessage,
-        });
+        failureCount += 1;
       }
     }
 
     queryClient.invalidateQueries({ queryKey: ["transfers"] });
+
+    if (failureCount === 0) {
+      addToast({
+        type: "success",
+        message:
+          successCount === 1
+            ? `${uploadItems[0].file.name} uploaded.`
+            : `${successCount} files uploaded.`,
+      });
+    } else {
+      addToast({
+        type: "error",
+        message:
+          successCount > 0
+            ? `${failureCount} of ${uploadItems.length} uploads failed. Review the upload queue.`
+            : "Uploads failed. Review the upload queue and try again.",
+      });
+    }
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -394,6 +452,21 @@ export function FileUpload() {
     );
   }
 
+  function retryFailedUploads() {
+    if (isUploading || failedUploads.length === 0) return;
+
+    const localPaths = failedUploads
+      .map((upload) => upload.localPath)
+      .filter((path): path is string => Boolean(path));
+
+    if (localPaths.length === failedUploads.length) {
+      uploadDroppedLocalPaths(localPaths);
+      return;
+    }
+
+    uploadFiles(failedUploads.map((upload) => upload.file));
+  }
+
   return (
     <Card>
       <div className="flex items-start justify-between gap-3">
@@ -416,7 +489,7 @@ export function FileUpload() {
 
         <div className={`mt-1.5 ${isUploading ? "pointer-events-none opacity-60" : ""}`}>
           <SelectMenu
-          value={targetDeviceId}
+            value={targetDeviceId}
             onChange={setTargetDeviceId}
             ariaLabel="Send files to"
             options={[
@@ -467,64 +540,122 @@ export function FileUpload() {
       </label>
 
       {uploads.length > 0 && (
-        <div className="mt-3 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-neutral-700">Upload queue</p>
-
-            {uploads.some((upload) => upload.status === "success") && (
-              <button
-                className="text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-                onClick={clearCompletedUploads}
-                disabled={isUploading}
-              >
-                Clear completed
-              </button>
-            )}
-          </div>
-
-          {uploads.map((upload) => (
-            <div
-              key={upload.id}
-              className="rounded-xl border border-neutral-200 bg-white p-3"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-neutral-900">
-                    {upload.file.name}
-                  </p>
-
-                  <p className="mt-1 text-xs text-neutral-500">
-                    {formatBytes(upload.file.size)} ·{" "}
-                    {formatUploadStatus(upload.status)}
-                  </p>
+        <section className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50/70">
+          <div className="border-b border-neutral-200 bg-white px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-neutral-900">Upload queue</p>
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+                    {uploads.length}
+                  </span>
                 </div>
-
-                <p className="text-sm font-medium text-neutral-700">
-                  {upload.progress}%
+                <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                  {formatBatchStatus(
+                    uploads.length,
+                    activeUploads.length,
+                    completedUploads.length,
+                    failedUploads.length,
+                  )}
                 </p>
               </div>
 
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+              <div className="flex shrink-0 items-center gap-1">
+                {failedUploads.length > 0 && !isUploading && (
+                  <button
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
+                    type="button"
+                    onClick={retryFailedUploads}
+                  >
+                    <RotateCcw size={12} /> Retry
+                  </button>
+                )}
+                {completedUploads.length > 0 && (
+                  <button
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                    type="button"
+                    onClick={clearCompletedUploads}
+                  >
+                    <Trash2 size={12} /> Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {isUploading && (
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-100">
                 <div
-                  className={[
-                    "h-full rounded-full transition-all",
-                    upload.status === "error"
-                      ? "bg-red-600"
-                      : upload.status === "success"
-                        ? "bg-green-700"
-                        : "bg-neutral-900",
-                  ].join(" ")}
-                  style={{ width: `${upload.progress}%` }}
+                  className="h-full rounded-full bg-neutral-900 transition-all"
+                  style={{ width: `${batchProgress}%` }}
                 />
               </div>
+            )}
+          </div>
 
-              {upload.error && (
-                <p className="mt-2 text-sm text-red-600">{upload.error}</p>
-              )}
-            </div>
-          ))}
-        </div>
+          <div className="drop-den-scrollbar max-h-60 space-y-1.5 overflow-y-auto p-2">
+            {activeUploads.map((upload) => (
+              <div
+                key={upload.id}
+                className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+              >
+                <div className="flex items-start gap-2.5">
+                  <LoaderCircle
+                    className="mt-0.5 shrink-0 animate-spin text-neutral-500"
+                    size={14}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-neutral-900">
+                      {upload.file.name}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                      {formatUploadDetail(upload)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-neutral-600">
+                    {upload.progress}%
+                  </span>
+                </div>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-100">
+                  <div
+                    className="h-full rounded-full bg-neutral-900 transition-all"
+                    style={{ width: `${upload.progress}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+
+            {failedUploads.map((upload) => (
+              <div
+                key={upload.id}
+                className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5"
+              >
+                <CircleAlert className="mt-0.5 shrink-0 text-red-600" size={14} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-red-900">
+                    {upload.file.name}
+                  </p>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-red-700">
+                    {upload.error ?? "Upload failed."}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {completedUploads.length > 0 && (
+              <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-800">
+                <CheckCircle2 className="shrink-0" size={14} />
+                <p className="min-w-0 flex-1 text-[11px] font-medium">
+                  {completedUploads.length === 1
+                    ? `${completedUploads[0].file.name} uploaded`
+                    : `${completedUploads.length} files uploaded`}
+                </p>
+                <span className="shrink-0 text-[10px] text-emerald-700/70">
+                  Auto-clears
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
       )}
     </Card>
   );
@@ -555,17 +686,40 @@ function formatDuration(seconds: number) {
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-function formatUploadStatus(status: UploadStatus) {
-  switch (status) {
-    case "queued":
-      return "Queued";
-    case "uploading":
-      return "Uploading";
-    case "success":
-      return "Uploaded";
-    case "error":
-      return "Failed";
+function formatBatchStatus(
+  total: number,
+  active: number,
+  completed: number,
+  failed: number,
+) {
+  if (active > 1) {
+    return `Uploading ${active} files · ${completed} complete`;
   }
+
+  if (active === 1) {
+    return `Uploading ${Math.min(completed + failed + 1, total)} of ${total}`;
+  }
+
+  if (failed > 0) {
+    return `${completed} uploaded · ${failed} failed`;
+  }
+
+  return completed === 1 ? "Upload complete" : `${completed} uploads complete`;
+}
+
+function formatUploadDetail(upload: UploadItem) {
+  if (upload.size === null) {
+    return upload.status === "queued"
+      ? "Desktop file · Queued"
+      : "Desktop file · Uploading";
+  }
+
+  if (upload.status === "uploading") {
+    const uploadedBytes = Math.round(upload.size * (upload.progress / 100));
+    return `${formatBytes(uploadedBytes)} of ${formatBytes(upload.size)}`;
+  }
+
+  return `${formatBytes(upload.size)} · Queued`;
 }
 
 function createUploadId() {

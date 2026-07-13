@@ -6,32 +6,81 @@ export type Toast = {
   id: string;
   type: ToastType;
   message: string;
+  count: number;
+  updatedAt: number;
 };
 
 type ToastState = {
   toasts: Toast[];
-  addToast: (toast: Omit<Toast, "id">) => void;
+  addToast: (toast: Pick<Toast, "type" | "message">) => void;
   removeToast: (id: string) => void;
 };
+
+const DEDUPE_WINDOW_MS = 2000;
+const MAX_STORED_TOASTS = 8;
+const toastTimers = new Map<string, number>();
 
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
 
   addToast: (toast) => {
-    const id = createToastId();
+    const now = Date.now();
+    let toastId = "";
 
-    set((state) => ({
-      toasts: [...state.toasts, { ...toast, id }],
-    }));
+    set((state) => {
+      const duplicate = [...state.toasts]
+        .reverse()
+        .find(
+          (currentToast) =>
+            currentToast.type === toast.type &&
+            currentToast.message === toast.message &&
+            now - currentToast.updatedAt <= DEDUPE_WINDOW_MS,
+        );
 
-    window.setTimeout(() => {
+      if (duplicate) {
+        toastId = duplicate.id;
+        const updatedToast = {
+          ...duplicate,
+          count: duplicate.count + 1,
+          updatedAt: now,
+        };
+
+        return {
+          toasts: [
+            ...state.toasts.filter((currentToast) => currentToast.id !== duplicate.id),
+            updatedToast,
+          ],
+        };
+      }
+
+      toastId = createToastId();
+      return {
+        toasts: [
+          ...state.toasts,
+          { ...toast, id: toastId, count: 1, updatedAt: now },
+        ].slice(-MAX_STORED_TOASTS),
+      };
+    });
+
+    const existingTimer = toastTimers.get(toastId);
+    if (existingTimer) window.clearTimeout(existingTimer);
+
+    const duration = toast.type === "error" ? 6000 : 3500;
+    const timer = window.setTimeout(() => {
       set((state) => ({
-        toasts: state.toasts.filter((currentToast) => currentToast.id !== id),
+        toasts: state.toasts.filter((currentToast) => currentToast.id !== toastId),
       }));
-    }, 3500);
+      toastTimers.delete(toastId);
+    }, duration);
+
+    toastTimers.set(toastId, timer);
   },
 
   removeToast: (id) => {
+    const timer = toastTimers.get(id);
+    if (timer) window.clearTimeout(timer);
+    toastTimers.delete(id);
+
     set((state) => ({
       toasts: state.toasts.filter((toast) => toast.id !== id),
     }));

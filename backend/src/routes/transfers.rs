@@ -436,14 +436,19 @@ pub async fn delete_all_transfers(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    let deleted_count = removed_transfers.len();
+
     for transfer in removed_transfers {
         remove_transfer_files(&transfer).await;
-
-        state.broadcast_json(&WsEvent {
-            event_type: "transfer_deleted".to_string(),
-            payload: transfer,
-        });
     }
+
+    state.broadcast_json(&WsEvent {
+        event_type: "transfers_cleared".to_string(),
+        payload: serde_json::json!({
+            "deleted_count": deleted_count,
+            "device_id": requesting_device_id,
+        }),
+    });
 
     Ok(StatusCode::NO_CONTENT)
 }

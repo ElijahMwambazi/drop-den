@@ -200,20 +200,24 @@ function handleWebSocketToast(
   }
 
   if (wsEvent.event_type === "transfer_deleted") {
-    const transfer = wsEvent.payload as Transfer;
+    return;
+  }
 
-    const isBroadcastTransfer = !transfer.target_device_id;
-    const isRelatedToCurrentDevice =
-      transfer.sender_device_id === currentDeviceId ||
-      transfer.target_device_id === currentDeviceId;
+  if (wsEvent.event_type === "transfers_cleared") {
+    const payload = wsEvent.payload as {
+      deleted_count?: number;
+      device_id?: string;
+    };
 
-    if (!isBroadcastTransfer && !isRelatedToCurrentDevice) {
-      return;
-    }
+    if (payload.device_id === currentDeviceId) return;
 
+    const deletedCount = payload.deleted_count ?? 0;
     addToast({
       type: "info",
-      message: "Transfer deleted.",
+      message:
+        deletedCount === 1
+          ? "The host cleared 1 transfer."
+          : `The host cleared ${deletedCount} transfers.`,
     });
   }
 }
