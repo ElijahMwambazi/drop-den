@@ -88,11 +88,6 @@
 - [x] Add Open transfers folder action
 - [x] Add faster desktop dev workflow
 - [x] Configurable desktop transfer storage directory
-- [ ] Package Windows build
-- [ ] Package macOS build
-
-## Phase 7: Desktop maintenance and polish
-
 - [x] Streamline Desktop Settings layout and action hierarchy
 - [x] Compact joined-device hero, invite flow, and transfer controls across clients
 - [x] Add bounded scrolling and compact rows to the transfer list
@@ -109,35 +104,79 @@
 - [x] Improve empty states after host reset
 - [x] Add dev/prod desktop troubleshooting checklist
 - [x] Add release checklist for RPM builds
-- [ ] Add filtered ZIP download or advanced transfer filter drawer if needed
 
-## Phase 8: Mobile integration
-
-### Feasibility and foundation
+## Completed mobile feasibility work
 
 - [x] Investigate secure LAN origin and HTTPS options
 - [x] Add a local HTTPS reverse-proxy test harness
 - [x] Test Android PWA installation from the real LAN URL
-- [x] Decide between PWA Share Target and an Android native wrapper
-- [x] Define shared-file inbox, limits, cleanup, and recovery behavior
-
-### PWA path, if feasible
-
-- [x] Add PWA manifest and install icons
-- [x] Add static-app-shell service worker
+- [x] Add PWA manifest, install icons, and static-shell service worker
 - [x] Add Chrome/Firefox install and service-worker update UX
-- [ ] Add pending shared-file import screen
-- [ ] Add Android Share Target support
-- [ ] Add shared-file validation, quota handling, and cleanup
-- [ ] Test host-IP changes and offline/reconnection behavior
+- [x] Select a native Android wrapper as the reliable share-target direction
+- [x] Define shared-file inbox limits, cleanup, and recovery behavior
+- [x] Add Android wrapper and shared-file inbox planning documents
 
-### Native fallback
+## Phase 7: Core UX/Auth cleanup
 
-- [x] Select the native wrapper as the reliable Android share-target direction
-- [x] Prototype Android wrapper discovery and host connection
-- [ ] Add native Android share-intent handling
-- [ ] Compare reliability with the PWA implementation
-- [ ] Choose and document the supported mobile delivery path
+- [ ] Suppress private toasts before device registration
+- [ ] Split host settings from desktop runtime settings
+- [ ] Show host settings to any host device
+- [ ] Keep desktop runtime settings desktop-only
+- [ ] Prevent host identity lockout across all runtimes
+- [ ] Improve device setup copy
+- [ ] Add better suggested device names
+- [ ] Add segmented 6-digit join PIN input
+- [ ] Improve wrong-PIN and failed-join error states
+- [ ] Review whether non-desktop devices should remain allowed as host
+
+## Phase 8: Android wrapper foundation
+
+- [ ] Confirm Android SDK 35, Gradle, and JDK 17 setup
+- [ ] Make `android-wrapper` a buildable Android project
+- [ ] Add host selection screen
+- [ ] Validate LAN host URL with `/api/config`
+- [ ] Remember last working host
+- [ ] Load Drop Den UI in Android WebView
+- [ ] Add retry/change-host flow
+- [ ] Build debug APK
+
+Android wrapper work must use the shared inbox model. It must not bypass the
+inbox by uploading shared files directly as public transfers.
+
+## Phase 9: Shared-file inbox
+
+- [ ] Implement bounded private backend inbox
+- [ ] Add SQLite inbox metadata
+- [ ] Add inbox storage folder separate from transfers
+- [ ] Add inbox expiry and cleanup
+- [ ] Add inbox size/count limits
+- [ ] Add frontend Shared Inbox panel
+- [ ] Add delete and clear inbox actions
+- [ ] Keep inbox private to current registered device
+
+## Phase 10: Android share integration
+
+- [ ] Add `ACTION_SEND` handling
+- [ ] Add `ACTION_SEND_MULTIPLE` handling
+- [ ] Stream Android `content://` URI files safely
+- [ ] Validate shared file names, MIME types, and sizes
+- [ ] Upload shared Android files to `/api/inbox`
+- [ ] Add upload result screen
+- [ ] Add retry/change-host behavior for failed share uploads
+- [ ] Test from Gallery, Files, WhatsApp, and browser share flows
+
+## Phase 11: Inbox publishing
+
+- [ ] Add publish inbox item as transfer
+- [ ] Add send-to-all from inbox
+- [ ] Add send-to-device from inbox
+- [ ] Decide whether publishing removes or keeps inbox item
+- [ ] Add filtered ZIP/download behavior if needed
+
+## Future packaging
+
+- [ ] Package Windows build
+- [ ] Package macOS build
 
 ## Long-term ideas
 
@@ -146,6 +185,3 @@
 - Optional encryption-at-rest
 - Local DNS/mDNS setup helper
 - Desktop service manager UI
-- Windows desktop packaging
-- macOS desktop packaging
-- Advanced transfer filters or filtered ZIP download

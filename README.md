@@ -520,4 +520,3 @@ See:
 - [Development](docs/DEVELOPMENT.md)
 - [Security](docs/SECURITY.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Codex Handoff](docs/CODEX_HANDOFF.md)
