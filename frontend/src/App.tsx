@@ -8,6 +8,7 @@ import { MessagePanel } from "./components/MessagePanel";
 import { ToastViewport } from "./components/ToastViewport";
 import { DialogViewport } from "./components/DialogViewport";
 import { AppFooter } from "./components/AppFooter";
+import { PwaInstallCard } from "./components/PwaInstallCard";
 import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
@@ -152,6 +153,8 @@ export function App() {
             </p>
           </header>
         )}
+
+        <PwaInstallCard />
 
         <JoinCard />
 

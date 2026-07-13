@@ -117,15 +117,15 @@
 
 - [x] Investigate secure LAN origin and HTTPS options
 - [x] Add a local HTTPS reverse-proxy test harness
-- [ ] Test Android PWA installation from the real LAN URL
-- [ ] Decide between PWA Share Target and an Android native wrapper
+- [x] Test Android PWA installation from the real LAN URL
+- [x] Decide between PWA Share Target and an Android native wrapper
 - [ ] Define shared-file inbox, limits, cleanup, and recovery behavior
 
 ### PWA path, if feasible
 
-- [ ] Add PWA manifest and install icons
-- [ ] Add static-app-shell service worker
-- [ ] Add install and update UX
+- [x] Add PWA manifest and install icons
+- [x] Add static-app-shell service worker
+- [x] Add Chrome/Firefox install and service-worker update UX
 - [ ] Add pending shared-file import screen
 - [ ] Add Android Share Target support
 - [ ] Add shared-file validation, quota handling, and cleanup
@@ -133,6 +133,7 @@
 
 ### Native fallback
 
+- [x] Select the native wrapper as the reliable Android share-target direction
 - [ ] Prototype Android wrapper discovery and host connection
 - [ ] Add native Android share-intent handling
 - [ ] Compare reliability with the PWA implementation

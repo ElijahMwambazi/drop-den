@@ -213,6 +213,36 @@ Choose the PWA path only if all of these are true:
 
 Choose the native wrapper path if any core requirement depends on certificate installation, browser-specific workarounds, an unstable origin, or unreliable share-sheet registration.
 
+## Physical test result: private-CA LAN PWA
+
+Test date: July 13, 2026.
+
+Environment:
+
+- trusted Caddy local CA installed on Android;
+- HTTPS origin `https://192.168.1.167:8443`;
+- packaged Drop Den backend behind the reverse proxy;
+- valid manifest, install icons, and static-shell service worker;
+- Chrome accepted installation without a certificate warning.
+
+Observed result:
+
+- browser mode loaded and operated normally;
+- installation completed and produced a home-screen application;
+- opening the installed standalone application immediately returned to Android;
+- repeated reinstall and service-worker update attempts produced the same behavior.
+
+Server evidence from the standalone launch showed:
+
+- application HTML and hashed JavaScript/CSS loaded successfully;
+- configuration, devices, transfers, and messages returned HTTP `200`;
+- the WebSocket upgraded successfully with HTTP `101`;
+- no frontend resource, API, TLS, proxy, or backend startup failure was observed.
+
+Conclusion:
+
+The application itself boots successfully, but the Android installed-app wrapper is not reliable with this private-CA LAN origin. This fails the PWA decision gate. Drop Den will keep standards-based Chrome and Firefox browser/PWA assets, but the supported Android share-target direction is now a native wrapper. Web Share Target may remain an experimental Chromium feature for deployments that provide a stable publicly trusted HTTPS origin.
+
 ## Next action
 
-Set up one trusted HTTPS reverse-proxy test origin and run the physical Android matrix. Do not add the production service worker or Share Target manifest until that result is recorded.
+Define the pending shared-file inbox contract, then prototype an Android wrapper that can discover or remember a Drop Den host, receive Android share intents, and upload through the existing API.
