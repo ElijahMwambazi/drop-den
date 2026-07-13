@@ -245,4 +245,4 @@ The application itself boots successfully, but the Android installed-app wrapper
 
 ## Next action
 
-Define the pending shared-file inbox contract, then prototype an Android wrapper that can discover or remember a Drop Den host, receive Android share intents, and upload through the existing API.
+The shared-file inbox contract is defined in `docs/SHARED_FILE_INBOX.md`. A native Android wrapper prototype in `android-wrapper` remembers a host, validates it through `/api/config`, and opens the existing responsive interface. The next step is implementing the private staged inbox before registering Android share intents.

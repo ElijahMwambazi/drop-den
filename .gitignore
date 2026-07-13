@@ -72,3 +72,6 @@ temp/
 
 # Generated local CA and Caddy state for the mobile HTTPS feasibility test
 .mobile-https/
+android-wrapper/.gradle/
+android-wrapper/local.properties
+android-wrapper/app/build/

@@ -119,7 +119,7 @@
 - [x] Add a local HTTPS reverse-proxy test harness
 - [x] Test Android PWA installation from the real LAN URL
 - [x] Decide between PWA Share Target and an Android native wrapper
-- [ ] Define shared-file inbox, limits, cleanup, and recovery behavior
+- [x] Define shared-file inbox, limits, cleanup, and recovery behavior
 
 ### PWA path, if feasible
 
@@ -134,7 +134,7 @@
 ### Native fallback
 
 - [x] Select the native wrapper as the reliable Android share-target direction
-- [ ] Prototype Android wrapper discovery and host connection
+- [x] Prototype Android wrapper discovery and host connection
 - [ ] Add native Android share-intent handling
 - [ ] Compare reliability with the PWA implementation
 - [ ] Choose and document the supported mobile delivery path
