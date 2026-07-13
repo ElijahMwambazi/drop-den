@@ -90,6 +90,21 @@ pub async fn reset_host_device(pool: &SqlitePool) -> anyhow::Result<()> {
     delete_setting(pool, "host_device_id").await
 }
 
+pub async fn release_host_device(pool: &SqlitePool, device_id: &str) -> anyhow::Result<()> {
+    let mut transaction = pool.begin().await?;
+
+    sqlx::query("DELETE FROM app_settings WHERE key = 'host_device_id'")
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("DELETE FROM devices WHERE id = ?")
+        .bind(device_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    transaction.commit().await?;
+    Ok(())
+}
+
 pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> anyhow::Result<()> {
     sqlx::query(
         r#"

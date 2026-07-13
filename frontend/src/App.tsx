@@ -12,6 +12,7 @@ import { PwaInstallCard } from "./components/PwaInstallCard";
 import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
+import { HostSettings } from "./components/HostSettings";
 import { CollapsibleSection } from "./components/CollapsibleSection";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 import { useDeviceStore } from "./store/deviceStore";
@@ -205,10 +206,20 @@ export function App() {
                 <DeviceList embedded />
               </CollapsibleSection>
 
-              {isDesktopRuntime && config?.is_host_device && (
+              {config?.is_host_device && (
                 <CollapsibleSection
-                  title="Desktop settings"
-                  description="Runtime paths, quick actions, and maintenance."
+                  title="Host settings"
+                  description="Den-wide maintenance and host identity."
+                  defaultOpen={false}
+                >
+                  <HostSettings embedded />
+                </CollapsibleSection>
+              )}
+
+              {isDesktopRuntime && (
+                <CollapsibleSection
+                  title="Desktop runtime"
+                  description="Local paths, diagnostics, and desktop actions."
                   defaultOpen={false}
                 >
                   <DesktopSettings embedded />

@@ -103,6 +103,10 @@ fn build_app(state: AppState, frontend_dist: PathBuf) -> Router {
             axum::routing::post(devices::reset_host_identity),
         )
         .route(
+            "/api/host/reset",
+            axum::routing::post(devices::reset_host_identity),
+        )
+        .route(
             "/api/desktop/reset-all",
             axum::routing::post(devices::reset_desktop_data),
         )
@@ -373,6 +377,89 @@ mod tests {
         assert_ne!(first_pin, second_pin);
         let (status, _) = register(&test.app, "Replay attempt", Some(&first_pin)).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn host_identity_can_be_reset_from_any_runtime_by_the_host_only() {
+        let test = test_app().await;
+        let (_, host) = register(&test.app, "Host", None).await;
+        let host = host.unwrap();
+        let pin = test.state.join_pin.read().await.clone();
+        let (_, joined) = register(&test.app, "Joined", Some(&pin)).await;
+        let joined = joined.unwrap();
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request("POST", "/api/host/reset", &joined.id))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request("POST", "/api/host/reset", &host.id))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert!(test.state.host_device_id.read().await.is_none());
+        assert!(!test.state.devices.read().await.contains_key(&host.id));
+        assert!(test.state.devices.read().await.contains_key(&joined.id));
+
+        let (status, replacement_host) = register(&test.app, "Replacement host", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let replacement_host = replacement_host.unwrap();
+        assert_eq!(
+            test.state.host_device_id.read().await.as_deref(),
+            Some(replacement_host.id.as_str())
+        );
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn joined_device_can_remove_itself_but_not_another_device() {
+        let test = test_app().await;
+        let (_, host) = register(&test.app, "Host", None).await;
+        let host = host.unwrap();
+        let pin = test.state.join_pin.read().await.clone();
+        let (_, joined) = register(&test.app, "Joined", Some(&pin)).await;
+        let joined = joined.unwrap();
+        let pin = test.state.join_pin.read().await.clone();
+        let (_, other) = register(&test.app, "Other", Some(&pin)).await;
+        let other = other.unwrap();
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request(
+                "DELETE",
+                &format!("/api/devices/{}", other.id),
+                &joined.id,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request(
+                "DELETE",
+                &format!("/api/devices/{}", joined.id),
+                &joined.id,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert!(!test.state.devices.read().await.contains_key(&joined.id));
+        assert!(test.state.devices.read().await.contains_key(&host.id));
+        assert!(test.state.devices.read().await.contains_key(&other.id));
 
         test.state.db.close().await;
         tokio::fs::remove_dir_all(test.root).await.unwrap();

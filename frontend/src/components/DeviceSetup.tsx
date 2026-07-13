@@ -1,19 +1,25 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crown } from "lucide-react";
 import { getConfig } from "../api/config";
-import { registerDevice } from "../api/devices";
+import { leaveDevice, registerDevice } from "../api/devices";
 import { useDeviceStore } from "../store/deviceStore";
 import { Card } from "./Card";
 import { useToastStore } from "../store/toastStore";
+import { ApiError, isTauriRuntime } from "../api/client";
+import { JoinPinInput } from "./JoinPinInput";
 
 export function DeviceSetup() {
   const queryClient = useQueryClient();
   const { device, setDevice, clearDevice } = useDeviceStore();
   const addToast = useToastStore((state) => state.addToast);
 
-  const [name, setName] = useState(
-    () => device?.name ?? localStorage.getItem("drop-den-device-name") ?? "",
+  const nameSuggestions = useMemo(getDeviceNameSuggestions, []);
+  const [name, setName] = useState(() =>
+    device?.name ??
+    localStorage.getItem("drop-den-device-name") ??
+    nameSuggestions[0] ??
+    "This device",
   );
   const [joinPin, setJoinPin] = useState("");
 
@@ -35,6 +41,42 @@ export function DeviceSetup() {
       queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });
+  const leaveMutation = useMutation({
+    mutationFn: async () => {
+      if (!device) return;
+      await leaveDevice(device.id);
+    },
+    onSuccess: () => {
+      clearDevice();
+      setName(nameSuggestions[0] ?? "This device");
+      setJoinPin("");
+      queryClient.removeQueries({ queryKey: ["devices"] });
+      queryClient.removeQueries({ queryKey: ["transfers"] });
+      queryClient.removeQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["config"] });
+      addToast({ type: "info", message: "This device left the den." });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && [401, 404].includes(error.status)) {
+        clearDevice();
+        queryClient.removeQueries({ queryKey: ["devices"] });
+        queryClient.removeQueries({ queryKey: ["transfers"] });
+        queryClient.removeQueries({ queryKey: ["messages"] });
+        queryClient.invalidateQueries({ queryKey: ["config"] });
+        addToast({
+          type: "info",
+          message: "The saved identity was already disconnected and has been cleared.",
+        });
+        return;
+      }
+
+      addToast({
+        type: "error",
+        message: "Could not leave the den. Check the connection and try again.",
+      });
+    },
+  });
+  const joinError = getJoinError(mutation.error, requiresPin);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -46,7 +88,7 @@ export function DeviceSetup() {
       return;
     }
 
-    if (requiresPin && !trimmedJoinPin) {
+    if (requiresPin && trimmedJoinPin.length !== 6) {
       return;
     }
 
@@ -60,15 +102,12 @@ export function DeviceSetup() {
     if (isHostDevice) {
       addToast({
         type: "info",
-        message: "This device is host. Use Reset host in Desktop settings.",
+        message: "This device is host. Reset its identity from Host settings first.",
       });
       return;
     }
 
-    clearDevice();
-    setName("");
-    setJoinPin("");
-    queryClient.invalidateQueries({ queryKey: ["config"] });
+    leaveMutation.mutate();
   }
 
   return (
@@ -87,15 +126,15 @@ export function DeviceSetup() {
               </p>
               <p className="mt-1 text-xs leading-5 text-neutral-600">
                 {isHostDevice
-                  ? "This is the host device. The join PIN is visible here by default."
-                  : "This is a joined device. The join PIN is hidden from this browser."}
+                  ? "This device manages membership and den-wide maintenance."
+                  : "This device can send and receive files and messages in this den."}
               </p>
             </div>
           ) : (
             <p className="mt-2 text-sm text-neutral-600">
               {hasHostDevice
-                ? "Name this device and enter the host join PIN."
-                : "Name this first device to start the den as host."}
+                ? "Choose a recognizable name, then enter the six-digit PIN shown on the host."
+                : "Set up this device as host. You can invite other devices after it connects."}
             </p>
           )}
         </div>
@@ -105,14 +144,14 @@ export function DeviceSetup() {
             className="rounded-xl border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             onClick={onSwitchDevice}
-            disabled={isHostDevice}
+            disabled={isHostDevice || leaveMutation.isPending}
             title={
               isHostDevice
-                ? "Host devices should use Reset host in Desktop settings."
+                ? "Reset the host identity from Host settings before switching."
                 : undefined
             }
           >
-            Switch device
+            {leaveMutation.isPending ? "Leaving…" : "Leave den"}
           </button>
         )}
       </div>
@@ -123,49 +162,72 @@ export function DeviceSetup() {
           <div>
             <p className="text-xs font-semibold">This den needs a host</p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
-              The previous host may have been reset. Register this desktop to
-              become the new host and reveal a fresh join PIN.
+              No host is assigned right now. This device can become host from
+              the browser or desktop app and create a fresh join PIN.
             </p>
           </div>
         </div>
       )}
 
       {!device && (
-        <form
-          className={
-            requiresPin
-              ? "mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]"
-              : "mt-3 flex flex-col gap-2 sm:flex-row"
-          }
-          onSubmit={onSubmit}
-        >
-          <input
-            className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900 sm:flex-1"
-            placeholder="e.g. John's laptop"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
+        <form className="mt-4 space-y-4" onSubmit={onSubmit}>
+          <div>
+            <label className="text-xs font-medium text-neutral-700" htmlFor="device-name">
+              Device name
+            </label>
+            <input
+              id="device-name"
+              className="mt-1.5 w-full min-w-0 rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none focus:border-neutral-900"
+              placeholder="e.g. Living-room laptop"
+              value={name}
+              autoComplete="off"
+              onChange={(event) => {
+                setName(event.target.value);
+                mutation.reset();
+              }}
+            />
+            <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Suggested device names">
+              {nameSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
+                  onClick={() => {
+                    setName(suggestion);
+                    mutation.reset();
+                  }}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {requiresPin && (
-            <input
-              className="min-w-0 rounded-xl border border-neutral-300 px-3 py-2 font-mono text-xs tracking-[0.18em] outline-none focus:border-neutral-900"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="PIN"
-              value={joinPin}
-              onChange={(event) =>
-                setJoinPin(event.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-            />
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <label className="text-xs font-medium text-neutral-700">Join PIN</label>
+                <span className="text-[11px] text-neutral-400">6 digits</span>
+              </div>
+              <JoinPinInput
+                value={joinPin}
+                onChange={(value) => {
+                  setJoinPin(value);
+                  mutation.reset();
+                }}
+                disabled={mutation.isPending}
+                invalid={mutation.isError}
+              />
+            </div>
           )}
 
           <button
-            className="rounded-xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-neutral-900 px-3 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             type="submit"
             disabled={
               mutation.isPending ||
               !name.trim() ||
-              (requiresPin && !joinPin.trim())
+              (requiresPin && joinPin.length !== 6)
             }
           >
             {mutation.isPending
@@ -178,12 +240,60 @@ export function DeviceSetup() {
       )}
 
       {mutation.isError && (
-        <p className="mt-3 text-sm text-red-600">
-          {mutation.error instanceof Error
-            ? mutation.error.message
-            : "Could not register this device."}
-        </p>
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5" role="alert">
+          <p className="text-xs font-semibold text-red-800">Couldn’t connect this device</p>
+          <p className="mt-1 text-xs leading-5 text-red-700">{joinError}</p>
+        </div>
       )}
     </Card>
   );
+}
+
+function getJoinError(error: unknown, requiresPin: boolean) {
+  if (error instanceof ApiError) {
+    if (error.status === 401 && requiresPin) {
+      return "That PIN didn’t match. Check the current PIN on the host and try again.";
+    }
+    if (error.status === 400) {
+      return "Check the device name and PIN, then try again.";
+    }
+    if (error.status >= 500) {
+      return "The Drop Den host could not finish setup. Try again in a moment.";
+    }
+  }
+
+  return "The host could not be reached. Make sure both devices are on the same network and try again.";
+}
+
+function getDeviceNameSuggestions() {
+  const userAgent = navigator.userAgent;
+  const browser = /firefox/i.test(userAgent)
+    ? "Firefox"
+    : /edg/i.test(userAgent)
+      ? "Edge"
+      : /chrome|crios/i.test(userAgent)
+        ? "Chrome"
+        : /safari/i.test(userAgent)
+          ? "Safari"
+          : "Browser";
+
+  const deviceType = isTauriRuntime()
+    ? "Desktop app"
+    : /android/i.test(userAgent)
+      ? /mobile/i.test(userAgent)
+        ? "Android phone"
+        : "Android tablet"
+      : /iphone/i.test(userAgent)
+        ? "iPhone"
+        : /ipad/i.test(userAgent)
+          ? "iPad"
+          : /windows/i.test(userAgent)
+            ? "Windows computer"
+            : /macintosh|mac os/i.test(userAgent)
+              ? "Mac"
+              : /linux/i.test(userAgent)
+                ? "Linux computer"
+                : "This device";
+
+  return [...new Set([deviceType, `${browser} on this device`, "Personal device"])];
 }

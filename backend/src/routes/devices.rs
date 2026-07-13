@@ -99,8 +99,10 @@ pub async fn remove_device(
 ) -> Result<StatusCode, StatusCode> {
     let requesting_device_id = require_registered_device(&state, &headers).await?;
     let host_device_id = state.host_device_id.read().await.clone();
+    let requester_is_host = host_device_id.as_deref() == Some(requesting_device_id.as_str());
+    let removing_self = requesting_device_id == device_id;
 
-    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
+    if !requester_is_host && !removing_self {
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -133,10 +135,6 @@ pub async fn reset_host_identity(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<StatusCode, StatusCode> {
-    if std::env::var("DROP_DEN_MODE").ok().as_deref() != Some("desktop") {
-        return Err(StatusCode::FORBIDDEN);
-    }
-
     let requesting_device_id = require_registered_device(&state, &headers).await?;
     let host_device_id = state.host_device_id.read().await.clone();
 
@@ -144,16 +142,19 @@ pub async fn reset_host_identity(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    db::reset_host_device(&state.db).await.map_err(|error| {
-        tracing::error!(error = %error, "failed to reset host device");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    db::release_host_device(&state.db, &requesting_device_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(error = %error, "failed to reset host device");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     *state.host_device_id.write().await = None;
+    state.devices.write().await.remove(&requesting_device_id);
 
     state.broadcast_json(&WsEvent {
         event_type: "host_reset".to_string(),
-        payload: serde_json::json!({}),
+        payload: serde_json::json!({ "device_id": requesting_device_id }),
     });
 
     Ok(StatusCode::NO_CONTENT)

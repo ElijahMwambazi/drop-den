@@ -5,24 +5,20 @@ import {
   Copy,
   FolderOpen,
   HardDrive,
-  MessageSquareX,
   Power,
   RotateCcw,
   Save,
   ShieldAlert,
-  Trash2,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { ApiError, isTauriRuntime } from "../api/client";
 import { getConfig } from "../api/config";
-import { resetDesktopData, resetHostIdentity } from "../api/devices";
-import { clearMessages } from "../api/messages";
-import { deleteAllTransfers } from "../api/transfers";
+import { leaveDevice, resetDesktopData } from "../api/devices";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
-import { isTauriRuntime } from "../api/client";
 import { useDialogStore } from "../store/dialogStore";
 import { DesktopDiagnostics } from "./DesktopDiagnostics";
 import { usePersistentDisclosure } from "../hooks/usePersistentDisclosure";
@@ -41,7 +37,6 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
   const [transferStorageDir, setTransferStorageDir] = useState("");
   const [savedTransferStorageDir, setSavedTransferStorageDir] = useState("");
   const [isSavingStorageDir, setIsSavingStorageDir] = useState(false);
-  const [isClearingTransfers, setIsClearingTransfers] = useState(false);
   const [storageFallbackActive, setStorageFallbackActive] = useState(false);
 
   const queryClient = useQueryClient();
@@ -243,132 +238,43 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
 
     if (
       !(await confirm({
-        title: "Clear local identity?",
+        title: "Leave this den?",
         description:
-          "This removes the saved device identity from this desktop window. Backend data and transfers are not deleted.",
-        confirmLabel: "Clear identity",
+          "This removes the desktop from connected devices and clears its saved identity. Den data and transfers are not deleted.",
+        confirmLabel: "Leave den",
         tone: "danger",
       }))
     ) {
       return;
     }
 
-    clearDevice();
-    queryClient.invalidateQueries({ queryKey: ["config"] });
-    queryClient.invalidateQueries({ queryKey: ["devices"] });
-
-    addToast({
-      type: "info",
-      message: "Local device identity cleared.",
-    });
-  }
-
-  async function clearAllMessages() {
-    if (
-      !(await confirm({
-        title: "Clear all messages?",
-        description: "Every local message in this den will be deleted.",
-        confirmLabel: "Clear messages",
-        tone: "danger",
-      }))
-    ) {
-      return;
-    }
+    if (!device) return;
 
     try {
-      await clearMessages();
-
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-
-      addToast({
-        type: "success",
-        message: "Messages cleared.",
-      });
-    } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Could not clear messages.",
-      });
-    }
-  }
-
-  async function clearAllTransfers() {
-    if (!config?.is_host_device) {
-      addToast({
-        type: "error",
-        message: "Only the host device can clear transfers.",
-      });
-      return;
-    }
-
-    if (
-      !(await confirm({
-        title: "Clear every transfer?",
-        description:
-          "Every transfer and its stored file will be permanently deleted. This cannot be undone.",
-        confirmLabel: "Clear transfers",
-        tone: "danger",
-      }))
-    ) {
-      return;
-    }
-
-    setIsClearingTransfers(true);
-
-    try {
-      await deleteAllTransfers();
-      await queryClient.invalidateQueries({ queryKey: ["transfers"] });
-
-      addToast({
-        type: "success",
-        message: "All transfers cleared.",
-      });
-    } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not clear transfers.",
-      });
-    } finally {
-      setIsClearingTransfers(false);
-    }
-  }
-
-  async function resetHost() {
-    if (
-      !(await confirm({
-        title: "Reset host identity?",
-        description:
-          "This desktop will be signed out as host. The next registered device will become the new host.",
-        confirmLabel: "Reset host",
-        tone: "danger",
-      }))
-    ) {
-      return;
-    }
-
-    try {
-      await resetHostIdentity();
-
+      await leaveDevice(device.id);
       clearDevice();
-
+      queryClient.removeQueries({ queryKey: ["devices"] });
+      queryClient.removeQueries({ queryKey: ["transfers"] });
+      queryClient.removeQueries({ queryKey: ["messages"] });
       queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-
-      addToast({
-        type: "success",
-        message: "Host identity reset.",
-      });
+      addToast({ type: "info", message: "This desktop left the den." });
     } catch (error) {
+      if (error instanceof ApiError && [401, 404].includes(error.status)) {
+        clearDevice();
+        queryClient.removeQueries({ queryKey: ["devices"] });
+        queryClient.removeQueries({ queryKey: ["transfers"] });
+        queryClient.removeQueries({ queryKey: ["messages"] });
+        queryClient.invalidateQueries({ queryKey: ["config"] });
+        addToast({
+          type: "info",
+          message: "The saved identity was already disconnected and has been cleared.",
+        });
+        return;
+      }
+
       addToast({
         type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not reset host identity.",
+        message: "Could not leave the den. Check the connection and try again.",
       });
     }
   }
@@ -415,9 +321,9 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
       {!embedded && (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold">Desktop settings</h2>
+            <h2 className="text-base font-semibold">Desktop runtime</h2>
             <p className="mt-1 text-xs leading-5 text-neutral-600">
-              Local desktop runtime details and quick actions.
+              Local paths, diagnostics, and desktop-only actions.
             </p>
           </div>
 
@@ -553,27 +459,18 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
         onRefresh={refreshConfig}
       />
 
-      <SettingsGroup title="Maintenance" description="Clear local content and identity.">
-        <div className="grid grid-cols-2 gap-2">
-          {!config?.is_host_device && (
+      {device && !config?.is_host_device && (
+        <SettingsGroup title="Local identity" description="Manage this desktop window identity.">
+          <div className="grid gap-2">
             <QuickAction onClick={clearLocalIdentity} tone="warning">
-              <RotateCcw size={13} /> Clear identity
+              <RotateCcw size={13} /> Leave den
             </QuickAction>
-          )}
-          <QuickAction onClick={clearAllMessages} tone="warning">
-            <MessageSquareX size={13} /> Clear messages
-          </QuickAction>
-          <QuickAction onClick={clearAllTransfers} tone="warning" disabled={isClearingTransfers}>
-            <Trash2 size={13} /> {isClearingTransfers ? "Clearing..." : "Clear transfers"}
-          </QuickAction>
-        </div>
-      </SettingsGroup>
+          </div>
+        </SettingsGroup>
+      )}
 
-      <SettingsGroup title="Danger zone" description="Host and application reset controls." tone="danger">
-        <div className="grid gap-2">
-          <QuickAction onClick={resetHost} tone="danger">
-            <RotateCcw size={13} /> Reset host
-          </QuickAction>
+      {config?.is_host_device && (
+        <SettingsGroup title="Desktop reset" description="Reset this desktop installation." tone="danger">
           <button
             className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-3 py-2 text-xs font-medium text-white hover:bg-red-800"
             type="button"
@@ -581,8 +478,8 @@ export function DesktopSettings({ embedded = false }: DesktopSettingsProps) {
           >
             <ShieldAlert size={13} /> Full desktop reset
           </button>
-        </div>
-      </SettingsGroup>
+        </SettingsGroup>
+      )}
     </>
   );
 

@@ -4,6 +4,16 @@ const DESKTOP_API_ORIGIN = "http://127.0.0.1:18080";
 
 export const DEVICE_ID_HEADER = "X-Drop-Den-Device-Id";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
 };
@@ -61,7 +71,7 @@ export async function getJson<T>(path: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`GET ${path} failed: ${response.status}`);
+    throw new ApiError(`GET ${path} failed: ${response.status}`, response.status);
   }
 
   return response.json();
@@ -78,7 +88,7 @@ export async function postJson<TResponse, TBody>(
   });
 
   if (!response.ok) {
-    throw new Error(`POST ${path} failed: ${response.status}`);
+    throw new ApiError(`POST ${path} failed: ${response.status}`, response.status);
   }
 
   if (response.status === 204) {
@@ -101,7 +111,7 @@ export async function patchJson<TResponse, TBody = undefined>(
   });
 
   if (!response.ok) {
-    throw new Error(`PATCH ${path} failed: ${response.status}`);
+    throw new ApiError(`PATCH ${path} failed: ${response.status}`, response.status);
   }
 
   return response.json();
@@ -114,6 +124,6 @@ export async function deleteRequest(path: string): Promise<void> {
   });
 
   if (!response.ok && response.status !== 204) {
-    throw new Error(`DELETE ${path} failed: ${response.status}`);
+    throw new ApiError(`DELETE ${path} failed: ${response.status}`, response.status);
   }
 }

@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { websocketUrl } from "../api/client";
+import { consumeVoluntaryLeave } from "../api/devices";
 import type { Device, Transfer, WsEvent } from "../types";
 
 export function useWebSocketRefresh() {
@@ -22,6 +23,10 @@ export function useWebSocketRefresh() {
 
     socket.onmessage = (event) => {
       const wsEvent = parseWsEvent(event.data);
+      const currentDeviceIsRegistered = isRegisteredDevice(
+        queryClient,
+        currentDevice?.id,
+      );
 
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       queryClient.invalidateQueries({ queryKey: ["config"] });
@@ -30,7 +35,12 @@ export function useWebSocketRefresh() {
 
       if (!wsEvent) return;
 
-      handleWebSocketToast(wsEvent, currentDevice?.id, addToast, clearDevice);
+      handleWebSocketToast(
+        wsEvent,
+        currentDeviceIsRegistered ? currentDevice?.id : undefined,
+        addToast,
+        clearDevice,
+      );
     };
 
     socket.onerror = () => {
@@ -39,7 +49,12 @@ export function useWebSocketRefresh() {
     };
 
     socket.onclose = () => {
-      if (!shouldShowDisconnectToast) return;
+      if (
+        !shouldShowDisconnectToast ||
+        !isRegisteredDevice(queryClient, currentDevice?.id)
+      ) {
+        return;
+      }
 
       addToast({
         type: "error",
@@ -54,6 +69,16 @@ export function useWebSocketRefresh() {
   }, [addToast, clearDevice, currentDevice?.id, queryClient]);
 }
 
+function isRegisteredDevice(
+  queryClient: QueryClient,
+  currentDeviceId: string | undefined,
+) {
+  if (!currentDeviceId) return false;
+
+  const devices = queryClient.getQueryData<Device[]>(["devices"]);
+  return Boolean(devices?.some((device) => device.id === currentDeviceId));
+}
+
 function handleWebSocketToast(
   wsEvent: WsEvent,
   currentDeviceId: string | undefined,
@@ -63,6 +88,10 @@ function handleWebSocketToast(
   }) => void,
   clearDevice: () => void,
 ) {
+  if (!currentDeviceId) {
+    return;
+  }
+
   if (wsEvent.event_type === "device_registered") {
     const device = wsEvent.payload as Device;
 
@@ -82,12 +111,15 @@ function handleWebSocketToast(
     const device = wsEvent.payload as Device;
 
     if (device.id === currentDeviceId) {
+      const leftVoluntarily = consumeVoluntaryLeave(device.id);
       clearDevice();
 
-      addToast({
-        type: "error",
-        message: "This device was removed from the den.",
-      });
+      if (!leftVoluntarily) {
+        addToast({
+          type: "error",
+          message: "This device was removed from the den.",
+        });
+      }
 
       return;
     }
@@ -95,6 +127,22 @@ function handleWebSocketToast(
     addToast({
       type: "info",
       message: `${device.name} was removed from the den.`,
+    });
+
+    return;
+  }
+
+  if (wsEvent.event_type === "host_reset") {
+    const payload = wsEvent.payload as { device_id?: string };
+
+    if (payload.device_id === currentDeviceId) {
+      clearDevice();
+      return;
+    }
+
+    addToast({
+      type: "info",
+      message: "The host identity was reset. This den needs a new host.",
     });
 
     return;

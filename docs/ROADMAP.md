@@ -94,7 +94,7 @@
 - [x] Add desktop titlebar frontend reload action
 - [x] Clear messages maintenance action
 - [x] Reset host maintenance action
-- [x] Desktop Settings hidden for non-host devices
+- [x] Add host-gated maintenance actions
 - [x] Prevent host devices from clearing local identity directly
 - [x] Prevent host devices from switching device directly
 - [x] Improve maximized desktop layout
@@ -118,16 +118,19 @@
 
 ## Phase 7: Core UX/Auth cleanup
 
-- [ ] Suppress private toasts before device registration
-- [ ] Split host settings from desktop runtime settings
-- [ ] Show host settings to any host device
-- [ ] Keep desktop runtime settings desktop-only
-- [ ] Prevent host identity lockout across all runtimes
-- [ ] Improve device setup copy
-- [ ] Add better suggested device names
-- [ ] Add segmented 6-digit join PIN input
-- [ ] Improve wrong-PIN and failed-join error states
-- [ ] Review whether non-desktop devices should remain allowed as host
+- [x] Suppress private toasts before device registration
+- [x] Split host settings from desktop runtime settings
+- [x] Show host settings to any host device
+- [x] Keep desktop runtime settings desktop-only
+- [x] Prevent host identity lockout across all runtimes
+- [x] Improve device setup copy
+- [x] Add better suggested device names
+- [x] Add segmented 6-digit join PIN input
+- [x] Improve wrong-PIN and failed-join error states
+- [x] Review whether non-desktop devices should remain allowed as host
+
+Decision: keep host assignment runtime-neutral for now. Any supported browser or
+desktop runtime may become host when no host is assigned.
 
 ## Phase 8: Android wrapper foundation
 
