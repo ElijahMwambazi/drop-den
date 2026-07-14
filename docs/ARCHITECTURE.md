@@ -36,8 +36,10 @@ Responsibilities:
 - Store transfer metadata.
 - Expose individual and ZIP download endpoints.
 - Store local text messages.
+- Store device-private shared inbox files and metadata.
 - Broadcast WebSocket events.
 - Clean up expired transfers.
+- Clean up expired or missing inbox items.
 - Detect LAN/friendly join URLs.
 
 ### React frontend
@@ -53,6 +55,7 @@ Responsibilities:
 - Show connected devices.
 - Allow the host to remove joined devices.
 - Show available transfers.
+- Show the current device's private shared inbox.
 - Support media previews.
 - Support transfer targeting and accept/reject.
 - Show realtime updates and toast notifications.
@@ -96,6 +99,16 @@ POST /api/transfers/upload
 ```
 
 The sender uploads a multipart file to the backend. The backend stores it, creates transfer metadata, and broadcasts a `transfer_created` event.
+
+### Shared inbox staging
+
+```txt
+POST /api/inbox
+```
+
+Android shares are first reviewed in the wrapper, then staged in a private
+backend inbox owned by the registered device. Inbox staging never creates a
+public transfer. Publishing from the inbox is a separate flow.
 
 ### File download
 
@@ -141,12 +154,17 @@ The backend now persists:
 - join PIN hash
 - messages
 - transfer metadata
+- shared inbox metadata
 
 The plaintext join PIN is kept only in runtime memory so it can be shown to the host device. SQLite stores the hash. A fresh PIN is generated on backend startup, and the PIN rotates after every successful joined-device registration.
 
 Messages expire after 24 hours and are removed by the cleanup job.
 
 Transfers expire after the configured transfer lifetime and are removed by the cleanup job. On startup, non-expired transfer metadata is restored from SQLite. Expired transfers and transfer records whose files are missing are removed from SQLite.
+
+Inbox items expire after 24 hours. Their files live under a separate managed
+`inbox` directory and are removed on expiry, deletion, device removal, or full
+reset. Inbox queries are always scoped to the requesting registered device.
 
 Uploaded files are stored on disk.
 

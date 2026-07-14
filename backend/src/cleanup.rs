@@ -4,7 +4,7 @@ use crate::{
     state::AppState,
 };
 use chrono::Utc;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 use tokio::time::{self, Duration};
 
 const CLEANUP_INTERVAL_SECONDS: u64 = 5 * 60;
@@ -17,8 +17,98 @@ pub fn spawn_expired_transfer_cleanup(state: AppState) {
             interval.tick().await;
             cleanup_expired_transfers(state.clone()).await;
             cleanup_expired_messages(state.clone()).await;
+            cleanup_inbox(&state).await;
         }
     });
+}
+
+pub async fn cleanup_inbox(state: &AppState) {
+    let _write_guard = state.inbox_write_lock.lock().await;
+    let items = match db::list_all_inbox_items(&state.db).await {
+        Ok(items) => items,
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to inspect shared inbox during cleanup");
+            return;
+        }
+    };
+    let now = Utc::now();
+    let mut retained_item_directories = HashSet::new();
+
+    for item in items {
+        let file_is_missing = tokio::fs::metadata(&item.stored_path).await.is_err();
+
+        if now < item.expires_at && !file_is_missing {
+            if let Some(parent) = std::path::Path::new(&item.stored_path).parent() {
+                retained_item_directories.insert(parent.to_path_buf());
+            }
+            continue;
+        }
+
+        if let Err(error) = db::delete_inbox_metadata(&state.db, &item.id).await {
+            tracing::warn!(
+                error = %error,
+                inbox_item_id = %item.id,
+                "failed to delete stale inbox metadata"
+            );
+            if let Some(parent) = std::path::Path::new(&item.stored_path).parent() {
+                retained_item_directories.insert(parent.to_path_buf());
+            }
+            continue;
+        }
+
+        super::routes::inbox::remove_inbox_item_files(&state.inbox_dir, &item).await;
+    }
+
+    cleanup_orphaned_inbox_paths(state, &retained_item_directories).await;
+}
+
+async fn cleanup_orphaned_inbox_paths(state: &AppState, retained: &HashSet<PathBuf>) {
+    let mut owner_entries = match tokio::fs::read_dir(&state.inbox_dir).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to scan inbox directory for orphaned files");
+            return;
+        }
+    };
+
+    while let Ok(Some(owner_entry)) = owner_entries.next_entry().await {
+        let owner_path = owner_entry.path();
+        let file_type = match owner_entry.file_type().await {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
+
+        if !file_type.is_dir() {
+            let _ = tokio::fs::remove_file(owner_path).await;
+            continue;
+        }
+
+        let mut item_entries = match tokio::fs::read_dir(&owner_path).await {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+
+        while let Ok(Some(item_entry)) = item_entries.next_entry().await {
+            let item_path = item_entry.path();
+
+            if retained.contains(&item_path) {
+                continue;
+            }
+
+            match item_entry.file_type().await {
+                Ok(item_type) if item_type.is_dir() => {
+                    let _ = tokio::fs::remove_dir_all(item_path).await;
+                }
+                Ok(_) => {
+                    let _ = tokio::fs::remove_file(item_path).await;
+                }
+                Err(_) => {}
+            }
+        }
+
+        let _ = tokio::fs::remove_dir(owner_path).await;
+    }
 }
 
 async fn cleanup_expired_transfers(state: AppState) {

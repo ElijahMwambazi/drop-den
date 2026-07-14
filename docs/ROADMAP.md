@@ -136,7 +136,7 @@ desktop runtime may become host when no host is assigned.
 
 - [x] Confirm latest stable Android toolchain setup (SDK 36.1, AGP 9.2.1, Gradle 9.6.1, JDK 17+)
 - [x] Make `android-wrapper` a buildable Android project
-- [x] Add host selection screen
+- [x] Add host selection screenf
 - [x] Validate LAN host URL with `/api/config`
 - [x] Remember last working host
 - [x] Load Drop Den UI in Android WebView
@@ -148,14 +148,14 @@ inbox by uploading shared files directly as public transfers.
 
 ## Phase 9: Shared-file inbox
 
-- [ ] Implement bounded private backend inbox
-- [ ] Add SQLite inbox metadata
-- [ ] Add inbox storage folder separate from transfers
-- [ ] Add inbox expiry and cleanup
-- [ ] Add inbox size/count limits
-- [ ] Add frontend Shared Inbox panel
-- [ ] Add delete and clear inbox actions
-- [ ] Keep inbox private to current registered device
+- [x] Implement bounded private backend inbox
+- [x] Add SQLite inbox metadata
+- [x] Add inbox storage folder separate from transfers
+- [x] Add inbox expiry and cleanup
+- [x] Add inbox size/count limits
+- [x] Add frontend Shared Inbox panel
+- [x] Add delete and clear inbox actions
+- [x] Keep inbox private to current registered device
 
 ## Phase 10: Android share integration
 

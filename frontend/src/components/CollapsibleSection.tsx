@@ -7,6 +7,8 @@ type CollapsibleSectionProps = {
   title: string;
   description?: string;
   defaultOpen?: boolean;
+  badge?: ReactNode;
+  storageKey?: string;
   children: ReactNode;
 };
 
@@ -14,10 +16,12 @@ export function CollapsibleSection({
   title,
   description,
   defaultOpen = true,
+  badge,
+  storageKey,
   children,
 }: CollapsibleSectionProps) {
   const [isOpen, toggleOpen] = usePersistentDisclosure(
-    `panel:${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    storageKey ?? `panel:${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     defaultOpen,
   );
 
@@ -30,7 +34,14 @@ export function CollapsibleSection({
         aria-expanded={isOpen}
       >
         <div className="min-w-0">
-          <h2 className="text-base font-semibold">{title}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold">{title}</h2>
+            {badge !== undefined && (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">
+                {badge}
+              </span>
+            )}
+          </div>
 
           {description && (
             <p className="mt-1 text-xs leading-5 text-neutral-600">

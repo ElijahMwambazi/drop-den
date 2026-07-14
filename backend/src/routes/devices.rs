@@ -110,6 +110,8 @@ pub async fn remove_device(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    let _inbox_guard = state.inbox_write_lock.lock().await;
+
     db::delete_device(&state.db, &device_id)
         .await
         .map_err(|error| {
@@ -120,6 +122,8 @@ pub async fn remove_device(
     let removed = state.devices.write().await.remove(&device_id);
 
     if let Some(device) = removed {
+        super::inbox::remove_device_inbox_directory(&state, &device_id).await;
+
         state.broadcast_json(&WsEvent {
             event_type: "device_removed".to_string(),
             payload: device,
@@ -142,6 +146,8 @@ pub async fn reset_host_identity(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    let _inbox_guard = state.inbox_write_lock.lock().await;
+
     db::release_host_device(&state.db, &requesting_device_id)
         .await
         .map_err(|error| {
@@ -151,6 +157,7 @@ pub async fn reset_host_identity(
 
     *state.host_device_id.write().await = None;
     state.devices.write().await.remove(&requesting_device_id);
+    super::inbox::remove_device_inbox_directory(&state, &requesting_device_id).await;
 
     state.broadcast_json(&WsEvent {
         event_type: "host_reset".to_string(),
@@ -174,6 +181,8 @@ pub async fn reset_desktop_data(
     if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
         return Err(StatusCode::FORBIDDEN);
     }
+
+    let _inbox_guard = state.inbox_write_lock.lock().await;
 
     let new_pin = db::generate_join_pin();
     let new_pin_hash = db::hash_join_pin(&new_pin).map_err(|error| {
@@ -205,6 +214,8 @@ pub async fn reset_desktop_data(
     for transfer in removed_transfers {
         super::transfers::remove_transfer_files(&transfer).await;
     }
+
+    super::inbox::clear_all_inbox_files(&state).await;
 
     state.broadcast_json(&WsEvent {
         event_type: "desktop_reset".to_string(),

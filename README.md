@@ -30,6 +30,8 @@ Drop Den is beyond the basic MVP scaffold. It currently supports:
 - Toast notifications and WebSocket refresh events.
 - Registered-device header checks for private API routes.
 - SQLite persistence for devices, messages, transfer metadata, app settings, and host identity.
+- Device-private shared inbox persistence with bounded storage and automatic cleanup.
+- Shared Inbox UI with per-item deletion and clear-all controls.
 - Rust serving the built React frontend in packaged mode.
 - Local IP detection and better join URLs.
 - Packaged-mode build/run scripts.

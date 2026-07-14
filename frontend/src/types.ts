@@ -47,6 +47,15 @@ export type LocalMessage = {
   created_at: string;
 };
 
+export type InboxItem = {
+  id: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  created_at: string;
+  expires_at: string;
+};
+
 export type WsEvent<T = unknown> = {
   event_type: string;
   payload: T;

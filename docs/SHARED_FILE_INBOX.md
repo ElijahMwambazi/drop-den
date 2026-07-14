@@ -1,101 +1,104 @@
 # Shared-file inbox contract
 
-This contract defines how the Android wrapper temporarily holds files received
-from the Android share sheet before the user uploads them to a Drop Den host.
-It applies to the native wrapper. The existing Drop Den transfer API and server
-storage behavior remain unchanged.
+The shared-file inbox is a two-stage private workflow between the Android
+wrapper and the Drop Den host. It deliberately keeps Android shares out of the
+public transfer list until the user publishes them.
 
-## Product rules
+## Data flow
 
-- Receiving a share never uploads automatically.
-- The wrapper opens a review screen showing every pending file.
-- The user can remove individual files, cancel the whole import, choose a
-  destination, and explicitly start the upload.
-- A pending share survives activity recreation, app backgrounding, and a
-  temporary loss of the host connection.
-- Pending files are private application data and must not be exposed through a
-  public filesystem path.
+1. Android receives one or more share URIs and stages them in private app data.
+2. The wrapper opens a review screen. Receiving a share never uploads it
+   automatically.
+3. After explicit confirmation, the wrapper uploads each file to `POST
+   /api/inbox` using the registered device header.
+4. The host stores each item in that device's private inbox.
+5. A later publishing action creates a public or targeted transfer from an
+   inbox item. Publishing is not part of the staging upload.
 
-## Inbox item
+The wrapper must never bypass the inbox by sending Android shares directly to
+`/api/transfers/upload`.
 
-Each item has:
+## Item metadata
+
+Each backend item has:
 
 - an application-generated UUID;
-- the Android source URI, retained only while its permission is valid;
-- a private staged-file path when the URI cannot be reopened reliably;
-- display name, MIME type, byte size, and received timestamp;
-- import state: `pending`, `uploading`, `failed`, or `uploaded`;
-- an optional failure message and upload-attempt timestamp.
+- the owning registered device ID;
+- a sanitized display name and MIME type;
+- byte size, received timestamp, and expiry timestamp;
+- a private server-side staged-file path that is never returned by the API.
 
-The source application filename is display metadata only. It must never be
-used directly as a filesystem path.
+The Android wrapper may additionally retain its original `content://` URI,
+persisted permission state, local staged path, import state, failure message,
+and upload-attempt timestamp. URI details must never be sent to the backend or
+written to logs.
 
 ## Limits
 
-- Maximum item size: the lower of the host's `max_upload_size_bytes` value and
-  250 MiB.
-- Maximum files per received share: 50.
-- Maximum total staged inbox size: 500 MiB.
+- Maximum item size: 250 MiB.
+- Maximum files per received Android share: 50.
+- Maximum retained backend items per device: 50.
+- Maximum total backend inbox storage: 500 MiB.
 - Maximum retained age: 24 hours.
-- Zero-byte files are allowed when the backend accepts them.
+- Zero-byte files are allowed.
 - Unknown MIME types use `application/octet-stream`.
 
-The review screen rejects an over-limit item before upload and explains which
-limit was exceeded. A partial share may be reviewed only after rejected items
-are clearly identified; it must never silently omit them.
+Limit failures must be visible to the user. A partial Android share must never
+silently omit rejected files.
 
-## Storage and permissions
+## Backend API
 
-1. Inspect every incoming `content://` URI through `ContentResolver`.
-2. Take persistable read permission when the provider grants it.
-3. Otherwise copy the stream into the wrapper's private cache/inbox directory.
-4. Generate the staged filename independently from source metadata.
-5. Store inbox metadata transactionally before showing the review screen.
-6. Do not log URI query strings, file contents, join PINs, or device IDs.
+All inbox routes require `X-Drop-Den-Device-Id` for a currently registered
+device:
 
-The wrapper must not request broad storage permissions. It uses only the URIs
-granted by the Android share intent.
+```txt
+GET    /api/inbox
+POST   /api/inbox
+DELETE /api/inbox/:id
+DELETE /api/inbox
+```
 
-## Upload behavior
+`POST /api/inbox` accepts one multipart field named `file`. Listing, deleting,
+and clearing are scoped to the authenticated device. An item owned by another
+device is treated as not found. There is intentionally no public inbox file
+URL or download route.
 
-- Resolve the current host and fetch `/api/config` before upload.
-- Require a registered Drop Den device identity before calling private routes.
-- Upload through the existing transfer endpoint and device header.
-- Process files sequentially initially so progress and recovery are predictable.
-- Mark an item uploaded only after the server returns success.
-- Retain failed and not-yet-attempted items for retry.
-- Never retry a failed upload indefinitely in the background.
+## Storage
 
-## Cleanup
+Backend files live separately from transfers under the managed data directory:
 
-Delete a staged file and its metadata when:
+```txt
+inbox/<device-uuid>/<item-uuid>/content
+```
 
-- the user removes it or cancels the import;
-- its upload succeeds and the response is committed;
-- it is older than 24 hours;
-- startup recovery finds corrupt metadata or a missing staged file.
+The source filename is display metadata only and is never used as the stored
+filename. SQLite stores the metadata and private path transactionally after the
+file has been written successfully.
 
-Run bounded cleanup on application startup and after every completed import.
-Release any persistable URI permission when no inbox item references it.
+On Android:
 
-## Recovery
+1. Inspect each `content://` URI through `ContentResolver`.
+2. Take persistable read permission when granted.
+3. Otherwise copy the stream into the wrapper's private inbox directory.
+4. Generate staged filenames independently from source metadata.
+5. Do not request broad storage permissions.
 
-- Activity recreation resumes the same review state.
-- If the host is offline, keep the inbox and offer retry or host selection.
-- If the host address changes, retain the inbox while the user reconnects.
-- If device registration expires, retain the inbox while registration is
-  restored.
-- If the process stops during upload, return `uploading` items to `pending` on
-  the next launch; the user chooses whether to retry.
-- If storage becomes full, stop staging, preserve already committed items, and
-  report the shortage without deleting unrelated application data.
+## Cleanup and recovery
+
+The backend removes file data and metadata when an item is deleted, its device
+is removed, the den is fully reset, or the item expires. Cleanup runs at
+startup and periodically, and removes metadata whose staged file is missing.
+
+The Android wrapper keeps reviewed files across activity recreation, process
+restart, temporary host failure, host changes, and expired registration. An
+interrupted upload returns to a user-controlled retry state and must never
+retry forever in the background.
 
 ## Acceptance checks
 
-- Single and multi-file shares arrive with correct metadata.
-- Files remain reviewable after rotation, backgrounding, and process restart.
-- Cancel, expiry, and successful upload leave no staged file behind.
-- Oversized and quota-exceeding shares are rejected visibly.
-- Interrupted uploads do not disappear or upload twice automatically.
-- Host changes and expired device identity do not discard pending files.
-
+- Inbox routes reject unregistered devices.
+- A device cannot list or delete another device's items.
+- Stored paths and owner IDs are absent from API responses.
+- Item count, item size, total size, and expiry limits are enforced.
+- Delete, clear, device removal, reset, and expiry leave no staged file behind.
+- Android shares reach the private inbox before any transfer is published.
