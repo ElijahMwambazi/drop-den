@@ -171,15 +171,15 @@ Inbox code will be removed only after the replacement flow passes device tests.
 - [x] Add `ACTION_SEND_MULTIPLE` handling
 - [x] Stream Android `content://` URI files safely
 - [x] Validate shared file names, MIME types, and sizes
-- [x] Upload shared Android files to `/api/inbox`
+- [x] Prototype upload of shared Android files to `/api/inbox` (superseded)
 - [x] Add upload result screen
 - [x] Add retry/change-host behavior for failed share uploads
 - [x] Make the WebView resize around the Android keyboard
 - [x] Add adaptive launcher icon resources
 - [x] Correct launcher foreground safe-zone sizing
 - [x] Add QR scanning to the host connection screen
-- [ ] Upload staged Android files to `/api/transfers/upload`
-- [ ] Default Android share-sheet uploads to Everyone in the den
+- [x] Upload staged Android files to `/api/transfers/upload`
+- [x] Default Android share-sheet uploads to Everyone in the den
 - [ ] Verify direct transfer progress, result, retry, and host-change states
 - [ ] Remove the frontend Shared Inbox panel
 - [ ] Remove backend inbox routes, metadata, storage, and cleanup

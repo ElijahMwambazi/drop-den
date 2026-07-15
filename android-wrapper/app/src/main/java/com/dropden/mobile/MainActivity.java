@@ -1,7 +1,6 @@
 package com.dropden.mobile;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -49,6 +48,8 @@ public final class MainActivity extends Activity {
     private static final String PREFERENCES = "drop_den_mobile";
     private static final String HOST_KEY = "host_url";
     private static final String DEVICE_ID_PREFIX = "device_id:";
+    private static final String DIRECT_SHARE_STAGING_MIGRATED_KEY =
+            "direct_share_staging_migrated_v1";
     private static final long IDENTITY_POLL_MS = 1_000L;
 
     private static final int INK = Color.rgb(23, 23, 23);
@@ -56,7 +57,6 @@ public final class MainActivity extends Activity {
     private static final int PAGE = Color.rgb(245, 245, 245);
     private static final int BORDER = Color.rgb(224, 224, 224);
     private static final int ERROR = Color.rgb(185, 28, 28);
-    private static final int SUCCESS = Color.rgb(21, 128, 61);
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -95,6 +95,7 @@ public final class MainActivity extends Activity {
         preferences = getSharedPreferences(PREFERENCES, MODE_PRIVATE);
         migrateLegacyHostPreference();
         inboxStore = new SharedInboxStore(this);
+        migrateLegacyInboxStaging();
         registerPredictiveBackHandler();
 
         if (isShareIntent(getIntent())) {
@@ -129,6 +130,16 @@ public final class MainActivity extends Activity {
         if (!legacyHost.isEmpty()) {
             preferences.edit().putString(HOST_KEY, legacyHost).apply();
         }
+    }
+
+    private void migrateLegacyInboxStaging() {
+        if (preferences.getBoolean(DIRECT_SHARE_STAGING_MIGRATED_KEY, false)) {
+            return;
+        }
+
+        // Never auto-publish files staged by an older inbox-based build.
+        inboxStore.clear();
+        preferences.edit().putBoolean(DIRECT_SHARE_STAGING_MIGRATED_KEY, true).apply();
     }
 
     private void registerPredictiveBackHandler() {
@@ -198,7 +209,7 @@ public final class MainActivity extends Activity {
         card.addView(title(forShare ? "Choose a den" : "Connect to Drop Den"));
         card.addView(paragraph(
                 forShare
-                        ? "Select the Drop Den host that should receive these files in your private inbox."
+                        ? "Select the Drop Den host that should publish these files for everyone in the den."
                         : "Enter the address shown on the host device. This wrapper remembers the last working den."
         ));
 
@@ -311,7 +322,7 @@ public final class MainActivity extends Activity {
         setConnecting(true, "Checking host…");
         executor.execute(() -> {
             try {
-                InboxUploader.HostConfig config = InboxUploader.verifyHost(host);
+                TransferUploader.HostConfig config = TransferUploader.verifyHost(host);
                 runOnUiThread(() -> {
                     currentHost = host;
                     hostUploadLimit = config.maxUploadBytes;
@@ -363,7 +374,7 @@ public final class MainActivity extends Activity {
     private void ensureRegisteredDevice(String host) {
         String savedDeviceId = preferences.getString(deviceKey(host), "");
         if (isUuid(savedDeviceId)) {
-            showShareReview();
+            uploadPendingItems();
             return;
         }
         openHost(host, true);
@@ -422,7 +433,7 @@ public final class MainActivity extends Activity {
         if (waitForIdentity) {
             Toast.makeText(
                     this,
-                    "Join this den on the page. Your share review will open automatically.",
+                    "Join this den on the page. Your transfer upload will start automatically.",
                     Toast.LENGTH_LONG
             ).show();
         }
@@ -454,7 +465,7 @@ public final class MainActivity extends Activity {
                     preferences.edit().putString(deviceKey(host), deviceId).apply();
                     if (continueShare && awaitingIdentity && shareFlowActive) {
                         stopIdentityPolling();
-                        showShareReview();
+                        uploadPendingItems();
                     }
                 }
         );
@@ -482,67 +493,6 @@ public final class MainActivity extends Activity {
         return DEVICE_ID_PREFIX + host;
     }
 
-    private void showShareReview() {
-        stopIdentityPolling();
-        destroyWebView();
-        screen = Screen.REVIEW;
-        List<SharedInboxStore.SharedItem> items = inboxStore.loadItems();
-        if (items.isEmpty()) {
-            showUploadResult(0, 0, false);
-            return;
-        }
-
-        LinearLayout content = pageContent();
-        content.addView(eyebrow("PRIVATE SHARED INBOX"));
-        content.addView(title("Review shared files"));
-        content.addView(paragraph(
-                "These files are stored privately on this device. Uploading sends them only to this registered device's inbox."
-        ));
-        content.addView(infoBox(
-                "Destination",
-                currentHost + "\n" + items.size() + " file(s) · " + formatBytes(totalBytes(items)),
-                false
-        ));
-
-        if (!stageWarnings.isEmpty()) {
-            StringBuilder warning = new StringBuilder();
-            for (String value : stageWarnings) {
-                if (warning.length() > 0) {
-                    warning.append("\n");
-                }
-                warning.append("• ").append(value);
-            }
-            content.addView(infoBox("Some files were skipped", warning.toString(), true));
-        }
-
-        for (SharedInboxStore.SharedItem item : items) {
-            content.addView(sharedItemRow(item));
-        }
-
-        Button upload = actionButton(
-                items.size() == 1 ? "Upload to private inbox" : "Upload all to private inbox",
-                true
-        );
-        upload.setEnabled(!uploading);
-        upload.setOnClickListener(view -> uploadPendingItems());
-        content.addView(upload, buttonParams());
-
-        Button changeHost = actionButton("Change host", false);
-        changeHost.setOnClickListener(view -> {
-            showConnectionScreen(true);
-            hostInput.setText(currentHost);
-        });
-        content.addView(changeHost, buttonParams());
-
-        Button cancel = actionButton("Cancel share", false);
-        cancel.setTextColor(ERROR);
-        cancel.setOnClickListener(view -> confirmCancelShare());
-        content.addView(cancel, buttonParams());
-
-        setContentView(scrollPage(content));
-        stageWarnings.clear();
-    }
-
     private View sharedItemRow(SharedInboxStore.SharedItem item) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
@@ -567,7 +517,7 @@ public final class MainActivity extends Activity {
         remove.setTextColor(ERROR);
         remove.setOnClickListener(view -> {
             inboxStore.removeItem(item);
-            showShareReview();
+            showUploadResult(0, inboxStore.loadItems().size(), false);
         });
         LinearLayout.LayoutParams removeParams = wrapWrap();
         removeParams.gravity = Gravity.END;
@@ -605,7 +555,7 @@ public final class MainActivity extends Activity {
             long effectiveLimit = hostUploadLimit;
 
             try {
-                effectiveLimit = InboxUploader.verifyHost(currentHost).maxUploadBytes;
+                effectiveLimit = TransferUploader.verifyHost(currentHost).maxUploadBytes;
             } catch (Exception ignored) {
                 // Individual uploads below provide the retryable failure state.
             }
@@ -622,7 +572,7 @@ public final class MainActivity extends Activity {
                 }
 
                 inboxStore.markUploading(item);
-                InboxUploader.UploadResult result = InboxUploader.upload(
+                TransferUploader.UploadResult result = TransferUploader.upload(
                         currentHost,
                         deviceId,
                         item
@@ -656,9 +606,11 @@ public final class MainActivity extends Activity {
         screen = Screen.UPLOADING;
         LinearLayout card = card();
         card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.addView(eyebrow("PRIVATE SHARED INBOX"));
+        card.addView(eyebrow("PUBLISHING TRANSFERS"));
         card.addView(title("Uploading files"));
-        card.addView(paragraph("Keep Drop Den open while files are sent one at a time."));
+        card.addView(paragraph(
+                "Keep Drop Den open while files are published for everyone one at a time."
+        ));
 
         ProgressBar indicator = new ProgressBar(this);
         indicator.setIndeterminate(false);
@@ -692,15 +644,29 @@ public final class MainActivity extends Activity {
         List<SharedInboxStore.SharedItem> remaining = inboxStore.loadItems();
         LinearLayout content = pageContent();
         content.addView(eyebrow("UPLOAD RESULT"));
-        content.addView(title(failures == 0 ? "Files are in your inbox" : "Some files need attention"));
+        content.addView(title(
+                failures == 0 ? "Transfers are available" : "Some files need attention"
+        ));
 
         String summary;
         if (successes == 0 && failures == 0) {
             summary = "There are no files waiting to upload.";
         } else {
-            summary = successes + " uploaded · " + failures + " failed";
+            summary = successes + " published · " + failures + " failed";
         }
         content.addView(paragraph(summary));
+
+        if (!stageWarnings.isEmpty()) {
+            StringBuilder warning = new StringBuilder();
+            for (String value : stageWarnings) {
+                if (warning.length() > 0) {
+                    warning.append("\n");
+                }
+                warning.append("• ").append(value);
+            }
+            content.addView(infoBox("Some files were skipped", warning.toString(), true));
+            stageWarnings.clear();
+        }
 
         if (registrationExpired) {
             content.addView(infoBox(
@@ -765,19 +731,6 @@ public final class MainActivity extends Activity {
         close.setOnClickListener(view -> finish());
         card.addView(close, buttonParams());
         setContentView(centeredPage(card));
-    }
-
-    private void confirmCancelShare() {
-        new AlertDialog.Builder(this)
-                .setTitle("Cancel this share?")
-                .setMessage("The privately staged copies will be deleted from this device.")
-                .setNegativeButton("Keep files", null)
-                .setPositiveButton("Delete staged files", (dialog, which) -> {
-                    inboxStore.clear();
-                    shareFlowActive = false;
-                    finish();
-                })
-                .show();
     }
 
     private void showBusyScreen(String heading, String description) {
@@ -926,14 +879,6 @@ public final class MainActivity extends Activity {
         return left == null ? right == null : left.equalsIgnoreCase(right);
     }
 
-    private static long totalBytes(List<SharedInboxStore.SharedItem> items) {
-        long total = 0L;
-        for (SharedInboxStore.SharedItem item : items) {
-            total += item.size;
-        }
-        return total;
-    }
-
     private static String formatBytes(long bytes) {
         if (bytes < 1024L) {
             return bytes + " B";
@@ -981,7 +926,7 @@ public final class MainActivity extends Activity {
             hostInput.setText(preferences.getString(HOST_KEY, ""));
             return true;
         }
-        if ((screen == Screen.REVIEW || screen == Screen.RESULT)
+        if (screen == Screen.RESULT
                 && !inboxStore.loadItems().isEmpty()) {
             showConnectionScreen(true);
             hostInput.setText(currentHost);
@@ -1001,7 +946,6 @@ public final class MainActivity extends Activity {
     private enum Screen {
         CONNECTION,
         WEBVIEW,
-        REVIEW,
         UPLOADING,
         RESULT
     }

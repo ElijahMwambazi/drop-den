@@ -16,20 +16,24 @@ Status values:
 ### DD-003: Android shares should publish directly to Transfers
 
 - Priority: High
-- Status: Open
+- Status: Verify
 - Area: Android sharing and backend simplification
 
 The Shared Inbox adds an unnecessary user-visible step. Android share-sheet
 files should become normal broadcast Transfers after safe local staging.
 
+Direct publishing is implemented and awaiting physical-device verification.
+Backend and frontend Shared Inbox removal remains intentionally blocked on that
+test so the working fallback is not removed prematurely.
+
 Acceptance checks:
 
-- Keep bounded private Android staging for `content://` safety, offline retry,
+- [x] Keep bounded private Android staging for `content://` safety, offline retry,
   and process recovery.
-- Upload staged files to `POST /api/transfers/upload` with the registered
+- [x] Upload staged files to `POST /api/transfers/upload` with the registered
   Android device identity.
-- Default Android share-sheet uploads to **Everyone in the den**.
-- Retain clear progress, result, retry, and change-host states.
+- [x] Default Android share-sheet uploads to **Everyone in the den**.
+- [x] Retain clear progress, result, retry, and change-host states.
 - Verify direct sharing before removing the frontend Shared Inbox panel and
   backend inbox routes, storage, metadata, cleanup, and migration references.
 

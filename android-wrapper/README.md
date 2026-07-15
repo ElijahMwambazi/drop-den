@@ -13,15 +13,14 @@ The wrapper currently:
 - opens the existing responsive Drop Den UI in a WebView;
 - returns to host selection when the main navigation cannot connect;
 - receives single and multiple file shares from Android apps;
-- copies `content://` files into bounded private app storage before review;
-- uploads confirmed files sequentially to the registered device's private
-  `/api/inbox`;
+- copies `content://` files into bounded private app storage before upload;
+- publishes staged files sequentially as broadcast Transfers for Everyone;
 - keeps failed files available for retry or a host change.
 
-The current prototype uploads Android shares into the private Shared Inbox.
-That workflow is being replaced: the wrapper will keep its bounded private
-on-device staging but publish confirmed shares directly to normal Transfers.
-See `../docs/ISSUES.md` and `../docs/ROADMAP.md` for the transition order.
+The wrapper no longer sends new Android shares to the Shared Inbox. Existing
+inbox backend and frontend code remains temporarily as a fallback and will be
+removed only after direct sharing passes physical-device verification. See
+`../docs/ISSUES.md` and `../docs/ROADMAP.md` for the transition order.
 
 ## Supported build stack
 
@@ -67,8 +66,7 @@ host is LAN-only HTTP. Do not navigate it to untrusted internet addresses.
 
 ## Test Android sharing
 
-These steps describe the current inbox-based prototype. Repeat the matrix
-against Transfers after the direct-publishing change is complete.
+These steps verify the current direct-to-Transfers flow.
 
 1. Start Drop Den on a computer and make sure the Android device is on the same
    local network.
@@ -76,8 +74,8 @@ against Transfers after the direct-publishing change is complete.
 3. Register the Android device in the WebView if it is not already joined.
 4. From Android Gallery, Files, a browser, or another app, select one or more
    files and choose **Share > Drop Den**.
-5. Review the staged files, choose **Upload to private inbox**, and confirm they
-   appear in **Shared inbox** for that Android device only.
+5. Confirm upload progress begins without a separate review step and each file
+   appears once in **Transfers** with destination **Everyone**.
 6. Repeat with the host offline, then use retry and change-host after restoring
    the connection.
 
@@ -87,7 +85,6 @@ limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
 
 ## Next development slice
 
-1. Verify QR scanning and adaptive-icon sizing on a physical device.
-2. Upload staged files directly to `/api/transfers/upload` for Everyone.
-3. Verify Gallery, Files, WhatsApp, Chrome, and Firefox share flows.
-4. Remove Shared Inbox code only after direct publishing is verified.
+1. Verify direct sharing from Gallery, Files, WhatsApp, Chrome, and Firefox.
+2. Exercise offline-host, expired-registration, retry, and host-change states.
+3. Remove Shared Inbox code only after direct publishing is verified.

@@ -60,7 +60,7 @@ final class SharedInboxStore {
 
         List<SharedItem> existing = loadItems();
         if (existing.size() + uris.size() > MAX_ITEMS) {
-            rejected.add("Remove pending files before adding more than 50 inbox items.");
+            rejected.add("Remove pending files before adding more than 50 staged items.");
             return new StageResult(staged, rejected);
         }
 
@@ -128,7 +128,7 @@ final class SharedInboxStore {
                 if (!persistItems(existing)) {
                     existing.remove(item);
                     deleteRecursively(itemDirectory);
-                    throw new IllegalStateException("Could not save private inbox metadata.");
+                    throw new IllegalStateException("Could not save private staging metadata.");
                 }
 
                 retainedBytes += size;

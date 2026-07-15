@@ -17,13 +17,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.UUID;
 
-final class InboxUploader {
+final class TransferUploader {
     private static final String DEVICE_ID_HEADER = "X-Drop-Den-Device-Id";
     private static final int CONNECT_TIMEOUT_MS = 8_000;
     private static final int READ_TIMEOUT_MS = 120_000;
     private static final int MAX_RESPONSE_BYTES = 64 * 1024;
 
-    private InboxUploader() {
+    private TransferUploader() {
     }
 
     static HostConfig verifyHost(String host) throws Exception {
@@ -70,7 +70,7 @@ final class InboxUploader {
             }
 
             String boundary = "DropDen-" + UUID.randomUUID();
-            connection = open(host + "/api/inbox");
+            connection = open(host + "/api/transfers/upload");
             connection.setRequestMethod("POST");
             connection.setDoOutput(true);
             connection.setChunkedStreamingMode(64 * 1024);
@@ -109,6 +109,12 @@ final class InboxUploader {
             int status = connection.getResponseCode();
             String body = readResponse(connection, status);
             if (status >= 200 && status < 300) {
+                if (!isBroadcastTransferResponse(body)) {
+                    return UploadResult.failure(
+                            status,
+                            "The host returned an unexpected transfer response."
+                    );
+                }
                 return UploadResult.success(status);
             }
             return UploadResult.failure(status, responseMessage(body, status));
@@ -118,6 +124,17 @@ final class InboxUploader {
             if (connection != null) {
                 connection.disconnect();
             }
+        }
+    }
+
+    private static boolean isBroadcastTransferResponse(String body) {
+        try {
+            JSONObject transfer = new JSONObject(body);
+            return !transfer.optString("id").trim().isEmpty()
+                    && "available".equals(transfer.optString("status"))
+                    && transfer.isNull("target_device_id");
+        } catch (Exception error) {
+            return false;
         }
     }
 
@@ -174,11 +191,14 @@ final class InboxUploader {
         if (status == HttpURLConnection.HTTP_UNAUTHORIZED) {
             return "Register this Android device with the den, then retry.";
         }
-        if (status == HttpURLConnection.HTTP_CONFLICT) {
-            return "This device's shared inbox is full.";
-        }
         if (status == HttpURLConnection.HTTP_ENTITY_TOO_LARGE) {
             return "This file exceeds the host upload limit.";
+        }
+        if (status == HttpURLConnection.HTTP_BAD_REQUEST) {
+            return "The host could not read this transfer upload.";
+        }
+        if (status >= 500) {
+            return "The host could not save this transfer. Retry in a moment.";
         }
         return "The host rejected this upload (HTTP " + status + ").";
     }
