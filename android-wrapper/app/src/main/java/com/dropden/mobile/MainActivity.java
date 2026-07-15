@@ -1,11 +1,22 @@
 package com.dropden.mobile;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
@@ -14,91 +25,211 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final String PREFERENCES = "drop_den_mobile";
     private static final String HOST_KEY = "host_url";
+    private static final String DEVICE_ID_PREFIX = "device_id:";
+    private static final long IDENTITY_POLL_MS = 1_000L;
+
+    private static final int INK = Color.rgb(23, 23, 23);
+    private static final int MUTED = Color.rgb(92, 92, 92);
+    private static final int PAGE = Color.rgb(245, 245, 245);
+    private static final int BORDER = Color.rgb(224, 224, 224);
+    private static final int ERROR = Color.rgb(185, 28, 28);
+    private static final int SUCCESS = Color.rgb(21, 128, 61);
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final List<String> stageWarnings = new ArrayList<>();
+
+    private SharedPreferences preferences;
+    private SharedInboxStore inboxStore;
     private EditText hostInput;
     private TextView status;
     private ProgressBar progress;
     private Button connectButton;
     private WebView webView;
+    private String currentHost = "";
+    private long hostUploadLimit = SharedInboxStore.MAX_ITEM_BYTES;
+    private boolean shareFlowActive;
+    private boolean awaitingIdentity;
+    private boolean uploading;
+    private Screen screen = Screen.CONNECTION;
+
+    private final Runnable identityPoll = new Runnable() {
+        @Override
+        public void run() {
+            if (!awaitingIdentity || webView == null || currentHost.isEmpty()) {
+                return;
+            }
+            captureWebIdentity(currentHost, true);
+            handler.postDelayed(this, IDENTITY_POLL_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        showConnectionScreen();
+        preferences = getSharedPreferences(PREFERENCES, MODE_PRIVATE);
+        migrateLegacyHostPreference();
+        inboxStore = new SharedInboxStore(this);
+        registerPredictiveBackHandler();
 
-        String rememberedHost = getPreferences(MODE_PRIVATE).getString(HOST_KEY, "");
+        if (isShareIntent(getIntent())) {
+            handleShareIntent(getIntent());
+            return;
+        }
+
+        if (!inboxStore.loadItems().isEmpty()) {
+            shareFlowActive = true;
+            connectRememberedHostOrPrompt();
+            return;
+        }
+
+        showConnectionScreen(false);
+        connectRememberedHostIfPresent();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (isShareIntent(intent)) {
+            handleShareIntent(intent);
+        }
+    }
+
+    private void migrateLegacyHostPreference() {
+        if (preferences.contains(HOST_KEY)) {
+            return;
+        }
+        String legacyHost = getPreferences(MODE_PRIVATE).getString(HOST_KEY, "");
+        if (!legacyHost.isEmpty()) {
+            preferences.edit().putString(HOST_KEY, legacyHost).apply();
+        }
+    }
+
+    private void registerPredictiveBackHandler() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    () -> {
+                        if (!handleBack()) {
+                            finish();
+                        }
+                    }
+            );
+        }
+    }
+
+    private void handleShareIntent(Intent intent) {
+        shareFlowActive = true;
+        awaitingIdentity = false;
+        handler.removeCallbacks(identityPoll);
+        showBusyScreen("Preparing shared files…", "Copying files into private app storage.");
+
+        executor.execute(() -> {
+            SharedInboxStore.StageResult result = inboxStore.stage(intent);
+            runOnUiThread(() -> {
+                stageWarnings.addAll(result.rejected);
+                if (result.staged.isEmpty() && inboxStore.loadItems().isEmpty()) {
+                    showShareFailure();
+                    return;
+                }
+                connectRememberedHostOrPrompt();
+            });
+        });
+    }
+
+    private static boolean isShareIntent(Intent intent) {
+        if (intent == null) {
+            return false;
+        }
+        return Intent.ACTION_SEND.equals(intent.getAction())
+                || Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction());
+    }
+
+    private void connectRememberedHostOrPrompt() {
+        String rememberedHost = preferences.getString(HOST_KEY, "");
+        showConnectionScreen(true);
         hostInput.setText(rememberedHost);
         if (!rememberedHost.isEmpty()) {
             connect(rememberedHost);
         }
     }
 
-    private void showConnectionScreen() {
-        webView = null;
+    private void connectRememberedHostIfPresent() {
+        String rememberedHost = preferences.getString(HOST_KEY, "");
+        hostInput.setText(rememberedHost);
+        if (!rememberedHost.isEmpty()) {
+            connect(rememberedHost);
+        }
+    }
 
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setGravity(Gravity.CENTER);
-        page.setPadding(dp(24), dp(24), dp(24), dp(24));
-        page.setBackgroundColor(Color.rgb(245, 245, 245));
+    private void showConnectionScreen(boolean forShare) {
+        stopIdentityPolling();
+        destroyWebView();
+        screen = Screen.CONNECTION;
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(22), dp(24), dp(22), dp(24));
-        card.setBackgroundColor(Color.WHITE);
-
-        TextView eyebrow = text("LOCAL-ONLY TRANSFER HUB", 11, Color.DKGRAY);
-        TextView title = text("Connect to Drop Den", 28, Color.rgb(20, 20, 20));
-        title.setPadding(0, dp(8), 0, dp(8));
-        TextView explanation = text(
-                "Enter the address shown on the host device. This wrapper remembers the last working den.",
-                14,
-                Color.DKGRAY
-        );
-        explanation.setPadding(0, 0, 0, dp(18));
+        LinearLayout card = card();
+        card.addView(eyebrow("LOCAL-ONLY TRANSFER HUB"));
+        card.addView(title(forShare ? "Choose a den" : "Connect to Drop Den"));
+        card.addView(paragraph(
+                forShare
+                        ? "Select the Drop Den host that should receive these files in your private inbox."
+                        : "Enter the address shown on the host device. This wrapper remembers the last working den."
+        ));
 
         hostInput = new EditText(this);
         hostInput.setSingleLine(true);
         hostInput.setHint("192.168.1.25:8080");
-        hostInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        hostInput.setTextColor(INK);
+        hostInput.setHintTextColor(Color.rgb(150, 150, 150));
+        hostInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        hostInput.setBackground(rounded(Color.WHITE, dp(12), BORDER));
+        hostInput.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams inputParams = matchWrap();
+        inputParams.setMargins(0, dp(10), 0, dp(10));
+        card.addView(hostInput, inputParams);
 
-        connectButton = new Button(this);
-        connectButton.setText("Connect");
+        connectButton = actionButton(forShare ? "Continue" : "Connect", true);
         connectButton.setOnClickListener(view -> connect(hostInput.getText().toString()));
+        card.addView(connectButton, matchWrap());
 
         progress = new ProgressBar(this);
         progress.setVisibility(View.GONE);
-
-        status = text("", 13, Color.DKGRAY);
-        status.setPadding(0, dp(10), 0, 0);
-
-        card.addView(eyebrow);
-        card.addView(title);
-        card.addView(explanation);
-        card.addView(hostInput, matchWrap());
-        card.addView(connectButton, matchWrap());
         card.addView(progress, matchWrap());
+
+        status = text("", 13, MUTED);
+        status.setPadding(0, dp(10), 0, 0);
         card.addView(status, matchWrap());
-        page.addView(card, matchWrap());
-        setContentView(page);
+
+        if (forShare) {
+            TextView pending = text(
+                    inboxStore.loadItems().size() + " file(s) waiting in private staging",
+                    12,
+                    MUTED
+            );
+            pending.setPadding(0, dp(12), 0, 0);
+            card.addView(pending);
+        }
+
+        setContentView(centeredPage(card));
     }
 
     private void connect(String rawHost) {
@@ -107,16 +238,23 @@ public final class MainActivity extends Activity {
             host = normalizeHost(rawHost);
         } catch (IllegalArgumentException error) {
             status.setText(error.getMessage());
+            status.setTextColor(ERROR);
             return;
         }
 
         setConnecting(true, "Checking host…");
         executor.execute(() -> {
             try {
-                verifyHost(host);
+                InboxUploader.HostConfig config = InboxUploader.verifyHost(host);
                 runOnUiThread(() -> {
-                    getPreferences(MODE_PRIVATE).edit().putString(HOST_KEY, host).apply();
-                    openHost(host);
+                    currentHost = host;
+                    hostUploadLimit = config.maxUploadBytes;
+                    preferences.edit().putString(HOST_KEY, host).apply();
+                    if (shareFlowActive && !inboxStore.loadItems().isEmpty()) {
+                        ensureRegisteredDevice(host);
+                    } else {
+                        openHost(host, false);
+                    }
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> setConnecting(
@@ -127,8 +265,8 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private static String normalizeHost(String rawHost) {
-        String value = rawHost.trim();
+    static String normalizeHost(String rawHost) {
+        String value = rawHost == null ? "" : rawHost.trim();
         if (value.isEmpty()) {
             throw new IllegalArgumentException("Enter a Drop Den host address.");
         }
@@ -143,7 +281,10 @@ public final class MainActivity extends Activity {
                     : uri.getScheme().toLowerCase(Locale.ROOT);
             if (!(scheme.equals("http") || scheme.equals("https"))
                     || uri.getHost() == null
-                    || uri.getUserInfo() != null) {
+                    || uri.getUserInfo() != null
+                    || (uri.getPath() != null && !uri.getPath().isEmpty() && !"/".equals(uri.getPath()))
+                    || uri.getQuery() != null
+                    || uri.getFragment() != null) {
                 throw new IllegalArgumentException();
             }
             int port = uri.getPort();
@@ -153,34 +294,21 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private static void verifyHost(String host) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(host + "/api/config").openConnection();
-        connection.setConnectTimeout(4_000);
-        connection.setReadTimeout(4_000);
-        connection.setRequestProperty("Accept", "application/json");
-        try {
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                throw new IllegalStateException("Unexpected response");
-            }
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(connection.getInputStream())
-            );
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            reader.close();
-            JSONObject config = new JSONObject(response.toString());
-            if (!"Drop Den".equals(config.optString("app_name"))) {
-                throw new IllegalStateException("Not a Drop Den host");
-            }
-        } finally {
-            connection.disconnect();
+    private void ensureRegisteredDevice(String host) {
+        String savedDeviceId = preferences.getString(deviceKey(host), "");
+        if (isUuid(savedDeviceId)) {
+            showShareReview();
+            return;
         }
+        openHost(host, true);
     }
 
-    private void openHost(String host) {
+    private void openHost(String host, boolean waitForIdentity) {
+        stopIdentityPolling();
+        destroyWebView();
+        screen = Screen.WEBVIEW;
+        currentHost = host;
+
         WebView view = new WebView(this);
         webView = view;
         view.setBackgroundColor(Color.WHITE);
@@ -189,36 +317,500 @@ public final class MainActivity extends Activity {
         view.getSettings().setDatabaseEnabled(true);
         view.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest request) {
+            public boolean shouldOverrideUrlLoading(WebView source, WebResourceRequest request) {
                 Uri target = request.getUrl();
                 Uri allowed = Uri.parse(host);
-                boolean sameOrigin = target.getScheme().equals(allowed.getScheme())
-                        && target.getHost().equals(allowed.getHost())
+                boolean sameOrigin = safeEquals(target.getScheme(), allowed.getScheme())
+                        && safeEquals(target.getHost(), allowed.getHost())
                         && target.getPort() == allowed.getPort();
                 return !sameOrigin;
             }
 
             @Override
+            public void onPageFinished(WebView source, String url) {
+                if (waitForIdentity) {
+                    startIdentityPolling();
+                } else {
+                    captureWebIdentity(host, false);
+                }
+            }
+
+            @Override
             public void onReceivedError(
-                    WebView webView,
+                    WebView source,
                     WebResourceRequest request,
                     WebResourceError error
             ) {
                 if (request.isForMainFrame()) {
-                    showConnectionScreen();
+                    stopIdentityPolling();
+                    showConnectionScreen(shareFlowActive);
                     hostInput.setText(host);
                     status.setText("The saved host is unavailable. Choose another address or retry.");
+                    status.setTextColor(ERROR);
                 }
             }
         });
         setContentView(view);
         view.loadUrl(host);
+
+        if (waitForIdentity) {
+            Toast.makeText(
+                    this,
+                    "Join this den on the page. Your share review will open automatically.",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void startIdentityPolling() {
+        awaitingIdentity = true;
+        handler.removeCallbacks(identityPoll);
+        handler.post(identityPoll);
+    }
+
+    private void stopIdentityPolling() {
+        awaitingIdentity = false;
+        handler.removeCallbacks(identityPoll);
+    }
+
+    private void captureWebIdentity(String host, boolean continueShare) {
+        WebView view = webView;
+        if (view == null) {
+            return;
+        }
+        view.evaluateJavascript(
+                "(function(){return window.localStorage.getItem('drop-den-device') || '';})()",
+                encodedValue -> {
+                    String deviceId = decodeDeviceId(encodedValue);
+                    if (!isUuid(deviceId)) {
+                        return;
+                    }
+                    preferences.edit().putString(deviceKey(host), deviceId).apply();
+                    if (continueShare && awaitingIdentity && shareFlowActive) {
+                        stopIdentityPolling();
+                        showShareReview();
+                    }
+                }
+        );
+    }
+
+    private static String decodeDeviceId(String encodedValue) {
+        try {
+            String storedDevice = new JSONArray("[" + encodedValue + "]").getString(0);
+            return new JSONObject(storedDevice).optString("id", "").trim();
+        } catch (Exception error) {
+            return "";
+        }
+    }
+
+    private static boolean isUuid(String value) {
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    private static String deviceKey(String host) {
+        return DEVICE_ID_PREFIX + host;
+    }
+
+    private void showShareReview() {
+        stopIdentityPolling();
+        destroyWebView();
+        screen = Screen.REVIEW;
+        List<SharedInboxStore.SharedItem> items = inboxStore.loadItems();
+        if (items.isEmpty()) {
+            showUploadResult(0, 0, false);
+            return;
+        }
+
+        LinearLayout content = pageContent();
+        content.addView(eyebrow("PRIVATE SHARED INBOX"));
+        content.addView(title("Review shared files"));
+        content.addView(paragraph(
+                "These files are stored privately on this device. Uploading sends them only to this registered device's inbox."
+        ));
+        content.addView(infoBox(
+                "Destination",
+                currentHost + "\n" + items.size() + " file(s) · " + formatBytes(totalBytes(items)),
+                false
+        ));
+
+        if (!stageWarnings.isEmpty()) {
+            StringBuilder warning = new StringBuilder();
+            for (String value : stageWarnings) {
+                if (warning.length() > 0) {
+                    warning.append("\n");
+                }
+                warning.append("• ").append(value);
+            }
+            content.addView(infoBox("Some files were skipped", warning.toString(), true));
+        }
+
+        for (SharedInboxStore.SharedItem item : items) {
+            content.addView(sharedItemRow(item));
+        }
+
+        Button upload = actionButton(
+                items.size() == 1 ? "Upload to private inbox" : "Upload all to private inbox",
+                true
+        );
+        upload.setEnabled(!uploading);
+        upload.setOnClickListener(view -> uploadPendingItems());
+        content.addView(upload, buttonParams());
+
+        Button changeHost = actionButton("Change host", false);
+        changeHost.setOnClickListener(view -> {
+            showConnectionScreen(true);
+            hostInput.setText(currentHost);
+        });
+        content.addView(changeHost, buttonParams());
+
+        Button cancel = actionButton("Cancel share", false);
+        cancel.setTextColor(ERROR);
+        cancel.setOnClickListener(view -> confirmCancelShare());
+        content.addView(cancel, buttonParams());
+
+        setContentView(scrollPage(content));
+        stageWarnings.clear();
+    }
+
+    private View sharedItemRow(SharedInboxStore.SharedItem item) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(14), dp(13), dp(14), dp(13));
+        row.setBackground(rounded(Color.WHITE, dp(14), BORDER));
+
+        TextView filename = text(item.displayName, 15, INK);
+        filename.setMaxLines(2);
+        row.addView(filename, matchWrap());
+
+        TextView details = text(formatBytes(item.size) + " · " + item.mimeType, 12, MUTED);
+        details.setPadding(0, dp(4), 0, 0);
+        row.addView(details, matchWrap());
+
+        if (item.isFailed() && item.failureMessage != null) {
+            TextView failure = text(item.failureMessage, 12, ERROR);
+            failure.setPadding(0, dp(7), 0, 0);
+            row.addView(failure, matchWrap());
+        }
+
+        Button remove = actionButton("Remove", false);
+        remove.setTextColor(ERROR);
+        remove.setOnClickListener(view -> {
+            inboxStore.removeItem(item);
+            showShareReview();
+        });
+        LinearLayout.LayoutParams removeParams = wrapWrap();
+        removeParams.gravity = Gravity.END;
+        removeParams.setMargins(0, dp(8), 0, 0);
+        row.addView(remove, removeParams);
+
+        LinearLayout.LayoutParams rowParams = matchWrap();
+        rowParams.setMargins(0, 0, 0, dp(10));
+        row.setLayoutParams(rowParams);
+        return row;
+    }
+
+    private void uploadPendingItems() {
+        if (uploading) {
+            return;
+        }
+        List<SharedInboxStore.SharedItem> items = inboxStore.loadItems();
+        if (items.isEmpty()) {
+            showUploadResult(0, 0, false);
+            return;
+        }
+
+        String deviceId = preferences.getString(deviceKey(currentHost), "");
+        if (!isUuid(deviceId)) {
+            ensureRegisteredDevice(currentHost);
+            return;
+        }
+
+        uploading = true;
+        showUploadProgress(items.size());
+        executor.execute(() -> {
+            int successes = 0;
+            int failures = 0;
+            boolean authExpired = false;
+            long effectiveLimit = hostUploadLimit;
+
+            try {
+                effectiveLimit = InboxUploader.verifyHost(currentHost).maxUploadBytes;
+            } catch (Exception ignored) {
+                // Individual uploads below provide the retryable failure state.
+            }
+
+            for (int index = 0; index < items.size(); index += 1) {
+                SharedInboxStore.SharedItem item = items.get(index);
+                int position = index + 1;
+                runOnUiThread(() -> updateUploadProgress(position, items.size(), item.displayName));
+
+                if (item.size > effectiveLimit) {
+                    inboxStore.markFailed(item, "This file exceeds the host upload limit.");
+                    failures += 1;
+                    continue;
+                }
+
+                inboxStore.markUploading(item);
+                InboxUploader.UploadResult result = InboxUploader.upload(
+                        currentHost,
+                        deviceId,
+                        item
+                );
+                if (result.success) {
+                    inboxStore.removeItem(item);
+                    successes += 1;
+                } else {
+                    inboxStore.markFailed(item, result.message);
+                    failures += 1;
+                    if (result.status == 401) {
+                        authExpired = true;
+                    }
+                }
+            }
+
+            int completedSuccesses = successes;
+            int completedFailures = failures;
+            boolean registrationExpired = authExpired;
+            runOnUiThread(() -> {
+                uploading = false;
+                if (registrationExpired) {
+                    preferences.edit().remove(deviceKey(currentHost)).apply();
+                }
+                showUploadResult(completedSuccesses, completedFailures, registrationExpired);
+            });
+        });
+    }
+
+    private void showUploadProgress(int count) {
+        screen = Screen.UPLOADING;
+        LinearLayout card = card();
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.addView(eyebrow("PRIVATE SHARED INBOX"));
+        card.addView(title("Uploading files"));
+        card.addView(paragraph("Keep Drop Den open while files are sent one at a time."));
+
+        ProgressBar indicator = new ProgressBar(this);
+        indicator.setIndeterminate(false);
+        indicator.setMax(count);
+        indicator.setProgress(0);
+        indicator.setTag("upload-progress");
+        card.addView(indicator, matchWrap());
+
+        TextView uploadStatus = text("Starting…", 13, MUTED);
+        uploadStatus.setGravity(Gravity.CENTER);
+        uploadStatus.setPadding(0, dp(12), 0, 0);
+        uploadStatus.setTag("upload-status");
+        card.addView(uploadStatus, matchWrap());
+        setContentView(centeredPage(card));
+    }
+
+    private void updateUploadProgress(int position, int count, String filename) {
+        View root = findViewById(android.R.id.content);
+        ProgressBar uploadProgress = root.findViewWithTag("upload-progress");
+        TextView uploadStatus = root.findViewWithTag("upload-status");
+        if (uploadProgress != null) {
+            uploadProgress.setProgress(position - 1);
+        }
+        if (uploadStatus != null) {
+            uploadStatus.setText(position + " of " + count + " · " + filename);
+        }
+    }
+
+    private void showUploadResult(int successes, int failures, boolean registrationExpired) {
+        screen = Screen.RESULT;
+        List<SharedInboxStore.SharedItem> remaining = inboxStore.loadItems();
+        LinearLayout content = pageContent();
+        content.addView(eyebrow("UPLOAD RESULT"));
+        content.addView(title(failures == 0 ? "Files are in your inbox" : "Some files need attention"));
+
+        String summary;
+        if (successes == 0 && failures == 0) {
+            summary = "There are no files waiting to upload.";
+        } else {
+            summary = successes + " uploaded · " + failures + " failed";
+        }
+        content.addView(paragraph(summary));
+
+        if (registrationExpired) {
+            content.addView(infoBox(
+                    "Registration expired",
+                    "Join this den again before retrying the remaining files.",
+                    true
+            ));
+        }
+
+        for (SharedInboxStore.SharedItem item : remaining) {
+            content.addView(sharedItemRow(item));
+        }
+
+        if (!remaining.isEmpty()) {
+            Button retry = actionButton("Retry remaining files", true);
+            retry.setOnClickListener(view -> retryPendingItems());
+            content.addView(retry, buttonParams());
+
+            Button changeHost = actionButton("Change host", false);
+            changeHost.setOnClickListener(view -> {
+                showConnectionScreen(true);
+                hostInput.setText(currentHost);
+            });
+            content.addView(changeHost, buttonParams());
+        }
+
+        Button open = actionButton("Open Drop Den", remaining.isEmpty());
+        open.setOnClickListener(view -> {
+            shareFlowActive = false;
+            openHost(currentHost, false);
+        });
+        content.addView(open, buttonParams());
+
+        if (remaining.isEmpty()) {
+            Button done = actionButton("Done", false);
+            done.setOnClickListener(view -> finish());
+            content.addView(done, buttonParams());
+        }
+
+        setContentView(scrollPage(content));
+    }
+
+    private void retryPendingItems() {
+        String deviceId = preferences.getString(deviceKey(currentHost), "");
+        if (isUuid(deviceId)) {
+            uploadPendingItems();
+        } else {
+            openHost(currentHost, true);
+        }
+    }
+
+    private void showShareFailure() {
+        screen = Screen.RESULT;
+        LinearLayout card = card();
+        card.addView(eyebrow("SHARE COULD NOT BE PREPARED"));
+        card.addView(title("No files were added"));
+        String message = stageWarnings.isEmpty()
+                ? "The sending app did not provide a readable file."
+                : String.join("\n", stageWarnings);
+        card.addView(paragraph(message));
+        Button close = actionButton("Close", true);
+        close.setOnClickListener(view -> finish());
+        card.addView(close, buttonParams());
+        setContentView(centeredPage(card));
+    }
+
+    private void confirmCancelShare() {
+        new AlertDialog.Builder(this)
+                .setTitle("Cancel this share?")
+                .setMessage("The privately staged copies will be deleted from this device.")
+                .setNegativeButton("Keep files", null)
+                .setPositiveButton("Delete staged files", (dialog, which) -> {
+                    inboxStore.clear();
+                    shareFlowActive = false;
+                    finish();
+                })
+                .show();
+    }
+
+    private void showBusyScreen(String heading, String description) {
+        screen = Screen.UPLOADING;
+        LinearLayout card = card();
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.addView(title(heading));
+        card.addView(paragraph(description));
+        card.addView(new ProgressBar(this));
+        setContentView(centeredPage(card));
     }
 
     private void setConnecting(boolean connecting, String message) {
         connectButton.setEnabled(!connecting);
         progress.setVisibility(connecting ? View.VISIBLE : View.GONE);
         status.setText(message);
+        status.setTextColor(connecting ? MUTED : ERROR);
+    }
+
+    private LinearLayout centeredPage(View child) {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setGravity(Gravity.CENTER);
+        page.setPadding(dp(20), dp(24), dp(20), dp(24));
+        page.setBackgroundColor(PAGE);
+        page.addView(child, matchWrap());
+        return page;
+    }
+
+    private ScrollView scrollPage(View child) {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(PAGE);
+        scroll.addView(child, matchWrap());
+        return scroll;
+    }
+
+    private LinearLayout pageContent() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(28), dp(20), dp(28));
+        return content;
+    }
+
+    private LinearLayout card() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(22), dp(24), dp(22), dp(24));
+        card.setBackground(rounded(Color.WHITE, dp(20), BORDER));
+        return card;
+    }
+
+    private TextView eyebrow(String value) {
+        TextView view = text(value, 11, MUTED);
+        view.setLetterSpacing(0.16f);
+        return view;
+    }
+
+    private TextView title(String value) {
+        TextView view = text(value, 27, INK);
+        view.setPadding(0, dp(8), 0, dp(8));
+        return view;
+    }
+
+    private TextView paragraph(String value) {
+        TextView view = text(value, 14, MUTED);
+        view.setLineSpacing(0, 1.18f);
+        view.setPadding(0, 0, 0, dp(14));
+        return view;
+    }
+
+    private View infoBox(String label, String value, boolean warning) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(14), dp(12), dp(14), dp(12));
+        box.setBackground(rounded(
+                warning ? Color.rgb(255, 247, 237) : Color.WHITE,
+                dp(14),
+                warning ? Color.rgb(253, 186, 116) : BORDER
+        ));
+        box.addView(text(label.toUpperCase(Locale.ROOT), 11, warning ? ERROR : MUTED));
+        TextView details = text(value, 13, warning ? ERROR : INK);
+        details.setPadding(0, dp(5), 0, 0);
+        box.addView(details, matchWrap());
+        LinearLayout.LayoutParams params = matchWrap();
+        params.setMargins(0, 0, 0, dp(12));
+        box.setLayoutParams(params);
+        return box;
+    }
+
+    private Button actionButton(String value, boolean primary) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(value);
+        button.setTextSize(14);
+        button.setTextColor(primary ? Color.WHITE : INK);
+        button.setBackgroundTintList(ColorStateList.valueOf(primary ? INK : Color.WHITE));
+        button.setMinHeight(dp(48));
+        return button;
     }
 
     private TextView text(String value, int sp, int color) {
@@ -229,6 +821,14 @@ public final class MainActivity extends Activity {
         return view;
     }
 
+    private GradientDrawable rounded(int color, int radius, int stroke) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(color);
+        shape.setCornerRadius(radius);
+        shape.setStroke(dp(1), stroke);
+        return shape;
+    }
+
     private LinearLayout.LayoutParams matchWrap() {
         return new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -236,27 +836,104 @@ public final class MainActivity extends Activity {
         );
     }
 
+    private LinearLayout.LayoutParams wrapWrap() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private LinearLayout.LayoutParams buttonParams() {
+        LinearLayout.LayoutParams params = matchWrap();
+        params.setMargins(0, dp(4), 0, dp(5));
+        return params;
+    }
+
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
+    private static boolean safeEquals(String left, String right) {
+        return left == null ? right == null : left.equalsIgnoreCase(right);
+    }
+
+    private static long totalBytes(List<SharedInboxStore.SharedItem> items) {
+        long total = 0L;
+        for (SharedInboxStore.SharedItem item : items) {
+            total += item.size;
+        }
+        return total;
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024L) {
+            return bytes + " B";
+        }
+        double kib = bytes / 1024.0;
+        if (kib < 1024.0) {
+            return String.format(Locale.ROOT, "%.1f KiB", kib);
+        }
+        return String.format(Locale.ROOT, "%.1f MiB", kib / 1024.0);
+    }
+
+    private void destroyWebView() {
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebViewClient(null);
+            webView.destroy();
+            webView = null;
+        }
+    }
+
     @Override
+    @SuppressLint("GestureBackNavigation")
     public void onBackPressed() {
+        if (!handleBack()) {
+            super.onBackPressed();
+        }
+    }
+
+    private boolean handleBack() {
+        if (uploading) {
+            Toast.makeText(this, "Wait for the current upload to finish.", Toast.LENGTH_SHORT).show();
+            return true;
+        }
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
-            return;
+            return true;
         }
-        if (webView != null) {
-            showConnectionScreen();
-            hostInput.setText(getPreferences(MODE_PRIVATE).getString(HOST_KEY, ""));
-            return;
+        if (screen == Screen.WEBVIEW && shareFlowActive) {
+            showConnectionScreen(true);
+            hostInput.setText(currentHost);
+            return true;
         }
-        super.onBackPressed();
+        if (screen == Screen.WEBVIEW) {
+            showConnectionScreen(false);
+            hostInput.setText(preferences.getString(HOST_KEY, ""));
+            return true;
+        }
+        if ((screen == Screen.REVIEW || screen == Screen.RESULT)
+                && !inboxStore.loadItems().isEmpty()) {
+            showConnectionScreen(true);
+            hostInput.setText(currentHost);
+            return true;
+        }
+        return false;
     }
 
     @Override
     protected void onDestroy() {
+        stopIdentityPolling();
+        destroyWebView();
         executor.shutdownNow();
         super.onDestroy();
+    }
+
+    private enum Screen {
+        CONNECTION,
+        WEBVIEW,
+        REVIEW,
+        UPLOADING,
+        RESULT
     }
 }

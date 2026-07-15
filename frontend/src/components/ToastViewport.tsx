@@ -12,7 +12,7 @@ export function ToastViewport() {
 
   return (
     <div
-      className={`fixed right-3 z-[60] flex w-[calc(100%-1.5rem)] max-w-xs flex-col gap-2 ${
+      className={`fixed left-1/2 z-[60] flex w-[calc(100%-1.5rem)] max-w-xs -translate-x-1/2 flex-col gap-2 ${
         isDesktopRuntime ? "bottom-12" : "bottom-3"
       }`}
       role="region"
@@ -22,11 +22,11 @@ export function ToastViewport() {
       {visibleToasts.map((toast) => (
         <div
           key={toast.id}
-          className="flex items-start gap-2 rounded-xl border border-neutral-200 bg-white p-3 shadow-lg"
+          className="flex min-h-11 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-lg"
         >
           <ToastIcon type={toast.type} />
 
-          <p className="min-w-0 flex-1 text-xs font-medium text-neutral-800">
+          <p className="min-w-0 flex-1 text-left text-xs font-medium leading-5 text-neutral-800">
             {toast.message}
           </p>
 

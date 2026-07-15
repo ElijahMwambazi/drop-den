@@ -3,18 +3,22 @@
 This is the native Android direction selected after the private-CA LAN PWA
 failed its installed-app reliability test.
 
-The prototype currently:
+The wrapper currently:
 
 - accepts a Drop Den host URL or LAN address;
 - normalizes and validates HTTP/HTTPS URLs;
 - verifies the host through `GET /api/config`;
 - remembers the last working host;
 - opens the existing responsive Drop Den UI in a WebView;
-- returns to host selection when the main navigation cannot connect.
+- returns to host selection when the main navigation cannot connect;
+- receives single and multiple file shares from Android apps;
+- copies `content://` files into bounded private app storage before review;
+- uploads confirmed files sequentially to the registered device's private
+  `/api/inbox`;
+- keeps failed files available for retry or a host change.
 
-It intentionally does not receive Android share intents yet. Inbox and cleanup
-semantics are defined in `docs/SHARED_FILE_INBOX.md` and should be implemented
-before enabling `ACTION_SEND` or `ACTION_SEND_MULTIPLE` intent filters.
+The wrapper never sends Android shares directly to public transfers. Inbox and
+cleanup semantics are defined in `docs/SHARED_FILE_INBOX.md`.
 
 ## Supported build stack
 
@@ -58,11 +62,27 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The wrapper deliberately permits cleartext HTTP because the normal Drop Den
 host is LAN-only HTTP. Do not navigate it to untrusted internet addresses.
 
+## Test Android sharing
+
+1. Start Drop Den on a computer and make sure the Android device is on the same
+   local network.
+2. Install the debug APK and connect it to the host URL shown by Drop Den.
+3. Register the Android device in the WebView if it is not already joined.
+4. From Android Gallery, Files, a browser, or another app, select one or more
+   files and choose **Share > Drop Den**.
+5. Review the staged files, choose **Upload to private inbox**, and confirm they
+   appear in **Shared inbox** for that Android device only.
+6. Repeat with the host offline, then use retry and change-host after restoring
+   the connection.
+
+Also exercise cancellation, a file over 250 MiB, more than 50 files, process
+death before upload, and an expired device registration. Shared files are
+limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
+
 ## Next development slice
 
-1. Add a native device-registration bridge or a dedicated native API client.
-2. Implement the private staged inbox from the shared-file contract.
-3. Register `ACTION_SEND` and `ACTION_SEND_MULTIPLE` only after staging is
-   transactional and bounded.
-4. Exercise process-death, offline-host, and host-IP-change recovery on a
-   physical Android device.
+1. Complete the Gallery, Files, WhatsApp, and browser physical-device test
+   matrix.
+2. Exercise process-death, offline-host, expired-registration, and host-IP-change
+   recovery on a physical Android device.
+3. Continue with inbox publishing only after the private share flow is verified.

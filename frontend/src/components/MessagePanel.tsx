@@ -23,6 +23,7 @@ export function MessagePanel({ embedded = false }: MessagePanelProps) {
   const device = useDeviceStore((state) => state.device);
   const [body, setBody] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const { data: messages = [] } = useQuery({
     queryKey: ["messages"],
@@ -52,6 +53,26 @@ export function MessagePanel({ embedded = false }: MessagePanelProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+
+    function keepComposerVisible() {
+      if (document.activeElement !== inputRef.current) return;
+
+      window.requestAnimationFrame(() => {
+        inputRef.current?.scrollIntoView({ block: "center" });
+      });
+    }
+
+    viewport?.addEventListener("resize", keepComposerVisible);
+    viewport?.addEventListener("scroll", keepComposerVisible);
+
+    return () => {
+      viewport?.removeEventListener("resize", keepComposerVisible);
+      viewport?.removeEventListener("scroll", keepComposerVisible);
+    };
+  }, []);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -150,7 +171,8 @@ export function MessagePanel({ embedded = false }: MessagePanelProps) {
 
       <form className="mt-3 flex gap-2" onSubmit={onSubmit}>
         <textarea
-          className="min-h-10 min-w-0 flex-1 resize-none rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900"
+          ref={inputRef}
+          className="min-h-10 min-w-0 flex-1 scroll-my-4 resize-none rounded-xl border border-neutral-300 px-3 py-2 text-xs outline-none focus:border-neutral-900"
           placeholder={
             device
               ? "Send a local message..."
@@ -161,6 +183,14 @@ export function MessagePanel({ embedded = false }: MessagePanelProps) {
           disabled={!device || mutation.isPending}
           onChange={(event) => setBody(event.target.value)}
           onKeyDown={onInputKeyDown}
+          onFocus={() => {
+            window.setTimeout(() => {
+              inputRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }, 250);
+          }}
         />
 
         <button

@@ -16,6 +16,12 @@ body {
     sans-serif;
 }
 
+@supports (min-height: 100dvh) {
+  body {
+    min-height: 100dvh;
+  }
+}
+
 #root {
   min-height: 100%;
 }

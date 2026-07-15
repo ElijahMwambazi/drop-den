@@ -95,7 +95,7 @@ export function App() {
           className={
             isDesktopRuntime
               ? "flex min-h-0 w-full flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-11 text-[13px]"
-              : "mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8"
+              : "mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8"
           }
         >
         {isDesktopRuntime ? (

@@ -136,7 +136,7 @@ desktop runtime may become host when no host is assigned.
 
 - [x] Confirm latest stable Android toolchain setup (SDK 36.1, AGP 9.2.1, Gradle 9.6.1, JDK 17+)
 - [x] Make `android-wrapper` a buildable Android project
-- [x] Add host selection screenf
+- [x] Add host selection screen
 - [x] Validate LAN host URL with `/api/config`
 - [x] Remember last working host
 - [x] Load Drop Den UI in Android WebView
@@ -159,13 +159,13 @@ inbox by uploading shared files directly as public transfers.
 
 ## Phase 10: Android share integration
 
-- [ ] Add `ACTION_SEND` handling
-- [ ] Add `ACTION_SEND_MULTIPLE` handling
-- [ ] Stream Android `content://` URI files safely
-- [ ] Validate shared file names, MIME types, and sizes
-- [ ] Upload shared Android files to `/api/inbox`
-- [ ] Add upload result screen
-- [ ] Add retry/change-host behavior for failed share uploads
+- [x] Add `ACTION_SEND` handling
+- [x] Add `ACTION_SEND_MULTIPLE` handling
+- [x] Stream Android `content://` URI files safely
+- [x] Validate shared file names, MIME types, and sizes
+- [x] Upload shared Android files to `/api/inbox`
+- [x] Add upload result screen
+- [x] Add retry/change-host behavior for failed share uploads
 - [ ] Test from Gallery, Files, WhatsApp, and browser share flows
 
 ## Phase 11: Inbox publishing
