@@ -176,7 +176,7 @@ Inbox code will be removed only after the replacement flow passes device tests.
 - [x] Add retry/change-host behavior for failed share uploads
 - [x] Make the WebView resize around the Android keyboard
 - [x] Add adaptive launcher icon resources
-- [ ] Correct launcher foreground safe-zone sizing
+- [x] Correct launcher foreground safe-zone sizing
 - [ ] Add QR scanning to the host connection screen
 - [ ] Upload staged Android files to `/api/transfers/upload`
 - [ ] Default Android share-sheet uploads to Everyone in the den

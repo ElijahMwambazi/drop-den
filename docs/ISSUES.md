@@ -13,23 +13,6 @@ Status values:
 
 ## Active
 
-### DD-001: Android launcher mark is clipped
-
-- Priority: High
-- Status: Open
-- Area: Android packaging
-
-The adaptive foreground fills too much of masked launcher shapes. On a
-squircle launcher the roof reaches the upper edge and the lower outline is
-visually cramped.
-
-Acceptance checks:
-
-- Increase the adaptive-icon safe padding without shrinking the legacy icon
-  unnecessarily.
-- Verify the icon with circle, squircle, rounded-square, and themed masks.
-- Confirm the mark remains recognizable at launcher and share-sheet sizes.
-
 ### DD-002: Android host connection needs QR scanning
 
 - Priority: High
@@ -87,6 +70,21 @@ Acceptance checks:
 
 ## Ready to verify
 
+### DD-001: Android launcher mark is clipped
+
+- Priority: High
+- Status: Verify
+- Area: Android packaging
+
+The adaptive foreground is now packaged at the correct density instead of as a
+density-independent 432 dp bitmap. This prevents Android from zooming and
+clipping the padded artwork.
+
+Acceptance checks:
+
+- Verify the icon with circle, squircle, rounded-square, and themed masks.
+- Confirm the mark remains recognizable at launcher and share-sheet sizes.
+
 ### DD-005: Toast content alignment on mobile
 
 - Priority: Medium
@@ -121,4 +119,3 @@ The planned inbox-publishing phase was replaced by direct Android publishing to
 Transfers. The private Android staging mechanism remains an implementation
 detail; the user-visible Shared Inbox is scheduled for removal after direct
 sharing is verified.
-
