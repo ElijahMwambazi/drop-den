@@ -2,6 +2,8 @@ package com.dropden.mobile;
 
 import android.app.Activity;
 import android.annotation.SuppressLint;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -18,6 +20,8 @@ import android.view.View;
 import android.window.OnBackInvokedDispatcher;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -51,6 +55,7 @@ public final class MainActivity extends Activity {
     private static final String DIRECT_SHARE_STAGING_MIGRATED_KEY =
             "direct_share_staging_migrated_v1";
     private static final long IDENTITY_POLL_MS = 1_000L;
+    private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
 
     private static final int INK = Color.rgb(23, 23, 23);
     private static final int MUTED = Color.rgb(92, 92, 92);
@@ -70,6 +75,7 @@ public final class MainActivity extends Activity {
     private Button connectButton;
     private Button scanButton;
     private WebView webView;
+    private ValueCallback<Uri[]> fileChooserCallback;
     private String currentHost = "";
     private long hostUploadLimit = SharedInboxStore.MAX_ITEM_BYTES;
     private boolean shareFlowActive;
@@ -392,6 +398,16 @@ public final class MainActivity extends Activity {
         view.getSettings().setJavaScriptEnabled(true);
         view.getSettings().setDomStorageEnabled(true);
         view.getSettings().setDatabaseEnabled(true);
+        view.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(
+                    WebView source,
+                    ValueCallback<Uri[]> callback,
+                    FileChooserParams chooserParams
+            ) {
+                return launchFileChooser(callback, chooserParams);
+            }
+        });
         view.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView source, WebResourceRequest request) {
@@ -436,6 +452,79 @@ public final class MainActivity extends Activity {
                     "Join this den on the page. Your transfer upload will start automatically.",
                     Toast.LENGTH_LONG
             ).show();
+        }
+    }
+
+    private boolean launchFileChooser(
+            ValueCallback<Uri[]> callback,
+            WebChromeClient.FileChooserParams chooserParams
+    ) {
+        cancelFileChooser();
+        fileChooserCallback = callback;
+
+        try {
+            Intent picker = chooserParams.createIntent();
+            picker.addCategory(Intent.CATEGORY_OPENABLE);
+            picker.putExtra(
+                    Intent.EXTRA_ALLOW_MULTIPLE,
+                    chooserParams.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
+            );
+            startActivityForResult(
+                    Intent.createChooser(picker, "Choose files for Drop Den"),
+                    FILE_CHOOSER_REQUEST_CODE
+            );
+            return true;
+        } catch (ActivityNotFoundException error) {
+            cancelFileChooser();
+            Toast.makeText(
+                    this,
+                    "No file picker is available on this device.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return true;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != FILE_CHOOSER_REQUEST_CODE) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+
+        ValueCallback<Uri[]> callback = fileChooserCallback;
+        fileChooserCallback = null;
+        if (callback == null) {
+            return;
+        }
+
+        callback.onReceiveValue(
+                resultCode == RESULT_OK ? selectedUris(data) : null
+        );
+    }
+
+    private static Uri[] selectedUris(Intent data) {
+        if (data == null) {
+            return null;
+        }
+
+        ClipData clipData = data.getClipData();
+        if (clipData != null && clipData.getItemCount() > 0) {
+            Uri[] values = new Uri[clipData.getItemCount()];
+            for (int index = 0; index < clipData.getItemCount(); index += 1) {
+                values[index] = clipData.getItemAt(index).getUri();
+            }
+            return values;
+        }
+
+        Uri value = data.getData();
+        return value == null ? null : new Uri[]{value};
+    }
+
+    private void cancelFileChooser() {
+        if (fileChooserCallback != null) {
+            fileChooserCallback.onReceiveValue(null);
+            fileChooserCallback = null;
         }
     }
 
@@ -891,8 +980,10 @@ public final class MainActivity extends Activity {
     }
 
     private void destroyWebView() {
+        cancelFileChooser();
         if (webView != null) {
             webView.stopLoading();
+            webView.setWebChromeClient(null);
             webView.setWebViewClient(null);
             webView.destroy();
             webView = null;

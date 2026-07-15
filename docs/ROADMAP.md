@@ -178,9 +178,11 @@ Inbox code will be removed only after the replacement flow passes device tests.
 - [x] Add adaptive launcher icon resources
 - [x] Correct launcher foreground safe-zone sizing
 - [x] Add QR scanning to the host connection screen
+- [x] Bridge the WebView file-upload control to Android's document picker
 - [x] Upload staged Android files to `/api/transfers/upload`
 - [x] Default Android share-sheet uploads to Everyone in the den
 - [ ] Verify direct transfer progress, result, retry, and host-change states
+- [ ] Verify single and multiple in-app file selection on Android
 - [ ] Remove the frontend Shared Inbox panel
 - [ ] Remove backend inbox routes, metadata, storage, and cleanup
 - [ ] Remove obsolete inbox documentation and migration references

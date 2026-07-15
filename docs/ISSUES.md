@@ -56,6 +56,24 @@ Acceptance checks:
 
 ## Ready to verify
 
+### DD-008: Android in-app file picker did not open
+
+- Priority: High
+- Status: Verify
+- Area: Android WebView uploads
+
+The responsive frontend uses an HTML file input, but Android WebView does not
+open a system picker for it without a native `WebChromeClient` bridge. The
+wrapper now launches Android's document picker, returns single or multiple URI
+selections to the WebView, and reports cancellation safely.
+
+Acceptance checks:
+
+- Tap **Choose or drop files** inside the Android app and select one file.
+- Repeat with multiple files and confirm every selection enters the upload queue.
+- Cancel the picker and confirm the app remains usable with no empty upload.
+- Confirm Gallery share-sheet publishing still works independently.
+
 ### DD-002: Android host connection needs QR scanning
 
 - Priority: High

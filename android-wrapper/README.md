@@ -11,6 +11,7 @@ The wrapper currently:
 - remembers the last working host;
 - scans host invite QR codes without requesting camera permission;
 - opens the existing responsive Drop Den UI in a WebView;
+- opens Android's document picker for the WebView's file-upload control;
 - returns to host selection when the main navigation cannot connect;
 - receives single and multiple file shares from Android apps;
 - copies `content://` files into bounded private app storage before upload;
@@ -78,6 +79,8 @@ These steps verify the current direct-to-Transfers flow.
    appears once in **Transfers** with destination **Everyone**.
 6. Repeat with the host offline, then use retry and change-host after restoring
    the connection.
+7. Open Drop Den itself, tap **Choose or drop files**, select one file and then
+   multiple files, and confirm both selections enter the normal upload queue.
 
 Also exercise cancellation, a file over 250 MiB, more than 50 files, process
 death before upload, and an expired device registration. Shared files are
