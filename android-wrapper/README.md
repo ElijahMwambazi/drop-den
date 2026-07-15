@@ -17,8 +17,10 @@ The wrapper currently:
   `/api/inbox`;
 - keeps failed files available for retry or a host change.
 
-The wrapper never sends Android shares directly to public transfers. Inbox and
-cleanup semantics are defined in `docs/SHARED_FILE_INBOX.md`.
+The current prototype uploads Android shares into the private Shared Inbox.
+That workflow is being replaced: the wrapper will keep its bounded private
+on-device staging but publish confirmed shares directly to normal Transfers.
+See `../docs/ISSUES.md` and `../docs/ROADMAP.md` for the transition order.
 
 ## Supported build stack
 
@@ -64,6 +66,9 @@ host is LAN-only HTTP. Do not navigate it to untrusted internet addresses.
 
 ## Test Android sharing
 
+These steps describe the current inbox-based prototype. Repeat the matrix
+against Transfers after the direct-publishing change is complete.
+
 1. Start Drop Den on a computer and make sure the Android device is on the same
    local network.
 2. Install the debug APK and connect it to the host URL shown by Drop Den.
@@ -81,8 +86,8 @@ limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
 
 ## Next development slice
 
-1. Complete the Gallery, Files, WhatsApp, and browser physical-device test
-   matrix.
-2. Exercise process-death, offline-host, expired-registration, and host-IP-change
-   recovery on a physical Android device.
-3. Continue with inbox publishing only after the private share flow is verified.
+1. Correct the adaptive launcher icon safe-zone sizing.
+2. Add host QR-code scanning with manual entry as a fallback.
+3. Upload staged files directly to `/api/transfers/upload` for Everyone.
+4. Verify Gallery, Files, WhatsApp, Chrome, and Firefox share flows.
+5. Remove Shared Inbox code only after direct publishing is verified.

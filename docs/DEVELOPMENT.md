@@ -176,6 +176,10 @@ Private shared inbox files are stored separately under `DROP_DEN_DATA_DIR/inbox`
 They expire after 24 hours and are removed when deleted, cleared, orphaned, or
 when their owning device is removed.
 
+This backend inbox is transitional and is scheduled for removal after Android
+direct-to-Transfers publishing passes the physical-device test matrix. Do not
+remove its storage or migration while current builds still use `/api/inbox`.
+
 Override paths:
 
 ```bash

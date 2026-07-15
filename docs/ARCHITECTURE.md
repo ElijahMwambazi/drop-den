@@ -110,6 +110,12 @@ Android shares are first reviewed in the wrapper, then staged in a private
 backend inbox owned by the registered device. Inbox staging never creates a
 public transfer. Publishing from the inbox is a separate flow.
 
+This is the current transitional implementation. The approved Android flow
+keeps private staging on the Android device and uploads directly to
+`POST /api/transfers/upload`. After that replacement passes physical-device
+tests, the backend inbox, its frontend panel, and this data flow will be
+removed.
+
 ### File download
 
 ```txt
@@ -165,6 +171,10 @@ Transfers expire after the configured transfer lifetime and are removed by the c
 Inbox items expire after 24 hours. Their files live under a separate managed
 `inbox` directory and are removed on expiry, deletion, device removal, or full
 reset. Inbox queries are always scoped to the requesting registered device.
+
+The inbox persistence model is scheduled for removal after Android direct
+transfer publishing is verified. It remains documented while its routes and
+migration are still part of the running application.
 
 Uploaded files are stored on disk.
 

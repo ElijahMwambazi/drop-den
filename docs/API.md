@@ -267,6 +267,10 @@ The authenticated device header is used as the sender identity.
 
 ## Shared inbox
 
+> **Transitional API:** these routes remain in the current build but are
+> scheduled for removal after Android shares publish reliably through
+> `POST /api/transfers/upload`.
+
 ```txt
 GET /api/inbox
 POST /api/inbox

@@ -1,5 +1,12 @@
 # Shared-file inbox contract
 
+> **Status: superseded after implementation.** This contract documents the
+> current temporary backend inbox. The approved product direction publishes
+> Android shares directly to Transfers while retaining bounded private staging
+> only inside the Android app. Remove this document with the inbox code after
+> the replacement flow is verified. See
+> [DD-003](ISSUES.md#dd-003-android-shares-should-publish-directly-to-transfers).
+
 The shared-file inbox is a two-stage private workflow between the Android
 wrapper and the Drop Den host. It deliberately keeps Android shares out of the
 public transfer list until the user publishes them.
@@ -15,8 +22,10 @@ public transfer list until the user publishes them.
 5. A later publishing action creates a public or targeted transfer from an
    inbox item. Publishing is not part of the staging upload.
 
-The wrapper must never bypass the inbox by sending Android shares directly to
-`/api/transfers/upload`.
+While the current inbox prototype is installed, the wrapper must not create a
+duplicate transfer by also sending the same share to `/api/transfers/upload`.
+The replacement direct-transfer build removes this backend inbox step instead
+of running both paths together.
 
 ## Item metadata
 

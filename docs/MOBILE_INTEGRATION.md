@@ -243,6 +243,18 @@ Conclusion:
 
 The application itself boots successfully, but the Android installed-app wrapper is not reliable with this private-CA LAN origin. This fails the PWA decision gate. Drop Den will keep standards-based Chrome and Firefox browser/PWA assets, but the supported Android share-target direction is now a native wrapper. Web Share Target may remain an experimental Chromium feature for deployments that provide a stable publicly trusted HTTPS origin.
 
-## Next action
+## Current Android direction
 
-The shared-file inbox contract is defined in `docs/SHARED_FILE_INBOX.md`. A native Android wrapper prototype in `android-wrapper` remembers a host, validates it through `/api/config`, and opens the existing responsive interface. The next step is implementing the private staged inbox before registering Android share intents.
+The native wrapper now remembers and validates a host, loads the responsive
+interface, receives single and multiple Android file shares, and copies
+`content://` data into bounded private app storage for recovery and retry.
+
+The backend Shared Inbox was implemented as an intermediate design. Physical
+testing showed that its extra user-visible publish step does not fit the
+intended share-sheet experience. The approved replacement keeps private
+Android staging but uploads directly to normal Transfers for Everyone in the
+den. Host QR scanning and launcher safe-zone correction are also required
+before the Android release-readiness matrix is completed.
+
+Track this work in the [roadmap](ROADMAP.md) and
+[known issues](ISSUES.md).

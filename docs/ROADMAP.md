@@ -1,5 +1,8 @@
 # Roadmap
 
+Concrete defects and verification work are tracked separately in
+[Known issues and fixes](ISSUES.md).
+
 ## Phase 1: Basic local hub
 
 - [x] Rust backend scaffold
@@ -143,10 +146,11 @@ desktop runtime may become host when no host is assigned.
 - [x] Add retry/change-host flow
 - [x] Build debug APK
 
-Android wrapper work must use the shared inbox model. It must not bypass the
-inbox by uploading shared files directly as public transfers.
+Android files must always be copied into bounded private app storage before a
+network upload. This local staging layer remains required even though the
+user-visible Shared Inbox is being replaced by direct transfer publishing.
 
-## Phase 9: Shared-file inbox
+## Phase 9: Shared-file inbox experiment
 
 - [x] Implement bounded private backend inbox
 - [x] Add SQLite inbox metadata
@@ -157,7 +161,11 @@ inbox by uploading shared files directly as public transfers.
 - [x] Add delete and clear inbox actions
 - [x] Keep inbox private to current registered device
 
-## Phase 10: Android share integration
+This phase was implemented and validated, but its user-visible workflow was
+superseded by the decision to publish Android shares directly to Transfers.
+Inbox code will be removed only after the replacement flow passes device tests.
+
+## Phase 10: Android direct sharing and onboarding
 
 - [x] Add `ACTION_SEND` handling
 - [x] Add `ACTION_SEND_MULTIPLE` handling
@@ -166,15 +174,21 @@ inbox by uploading shared files directly as public transfers.
 - [x] Upload shared Android files to `/api/inbox`
 - [x] Add upload result screen
 - [x] Add retry/change-host behavior for failed share uploads
+- [x] Make the WebView resize around the Android keyboard
+- [x] Add adaptive launcher icon resources
+- [ ] Correct launcher foreground safe-zone sizing
+- [ ] Add QR scanning to the host connection screen
+- [ ] Upload staged Android files to `/api/transfers/upload`
+- [ ] Default Android share-sheet uploads to Everyone in the den
+- [ ] Verify direct transfer progress, result, retry, and host-change states
+- [ ] Remove the frontend Shared Inbox panel
+- [ ] Remove backend inbox routes, metadata, storage, and cleanup
+- [ ] Remove obsolete inbox documentation and migration references
 - [ ] Test from Gallery, Files, WhatsApp, and browser share flows
 
-## Phase 11: Inbox publishing
-
-- [ ] Add publish inbox item as transfer
-- [ ] Add send-to-all from inbox
-- [ ] Add send-to-device from inbox
-- [ ] Decide whether publishing removes or keeps inbox item
-- [ ] Add filtered ZIP/download behavior if needed
+Decision: selecting Drop Den in the Android share sheet is sufficient intent to
+publish. Files still stage privately on Android for safety and recovery, but no
+separate backend inbox or publish action should remain in the final workflow.
 
 ## Future packaging
 

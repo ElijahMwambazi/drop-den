@@ -81,6 +81,12 @@ Shared inbox routes use the same registered-device header and scope every
 query and mutation to the owner device. API responses never expose server-side
 paths or owner IDs. Inbox files are not publicly downloadable.
 
+The backend inbox is transitional. Its replacement still copies Android
+`content://` data into bounded private Android storage before uploading, but
+successful shares become ordinary transfers and the temporary local copy is
+deleted. Existing inbox protections remain required until those routes and
+files are removed.
+
 ## Recommended future security improvements
 
 - Add device/session tokens instead of trusting only a device ID header.
