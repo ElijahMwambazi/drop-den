@@ -177,7 +177,7 @@ Inbox code will be removed only after the replacement flow passes device tests.
 - [x] Make the WebView resize around the Android keyboard
 - [x] Add adaptive launcher icon resources
 - [x] Correct launcher foreground safe-zone sizing
-- [ ] Add QR scanning to the host connection screen
+- [x] Add QR scanning to the host connection screen
 - [ ] Upload staged Android files to `/api/transfers/upload`
 - [ ] Default Android share-sheet uploads to Everyone in the den
 - [ ] Verify direct transfer progress, result, retry, and host-change states

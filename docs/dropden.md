@@ -62,7 +62,7 @@ or peer-to-peer WebRTC transfers.
 ### Android runtime
 
 - Native Android wrapper around the responsive web interface.
-- Remembered and validated LAN host address.
+- Remembered, QR-scanned, and validated LAN host address.
 - Single- and multi-file Android share intents.
 - Bounded private on-device staging for safe `content://` URI handling,
   recovery, and retry.
@@ -177,4 +177,3 @@ keeps saved data under `/var/lib/drop-den`.
 - [Security](SECURITY.md)
 - [Desktop troubleshooting](DESKTOP_TROUBLESHOOTING.md)
 - [RPM release checklist](RPM_RELEASE_CHECKLIST.md)
-

@@ -29,6 +29,11 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -63,12 +68,14 @@ public final class MainActivity extends Activity {
     private TextView status;
     private ProgressBar progress;
     private Button connectButton;
+    private Button scanButton;
     private WebView webView;
     private String currentHost = "";
     private long hostUploadLimit = SharedInboxStore.MAX_ITEM_BYTES;
     private boolean shareFlowActive;
     private boolean awaitingIdentity;
     private boolean uploading;
+    private boolean scanning;
     private Screen screen = Screen.CONNECTION;
 
     private final Runnable identityPoll = new Runnable() {
@@ -211,6 +218,15 @@ public final class MainActivity extends Activity {
         connectButton.setOnClickListener(view -> connect(hostInput.getText().toString()));
         card.addView(connectButton, matchWrap());
 
+        TextView divider = text("OR", 11, MUTED);
+        divider.setGravity(Gravity.CENTER);
+        divider.setPadding(0, dp(8), 0, dp(8));
+        card.addView(divider, matchWrap());
+
+        scanButton = actionButton("Scan host QR code", false);
+        scanButton.setOnClickListener(view -> startQrScan());
+        card.addView(scanButton, matchWrap());
+
         progress = new ProgressBar(this);
         progress.setVisibility(View.GONE);
         card.addView(progress, matchWrap());
@@ -230,6 +246,56 @@ public final class MainActivity extends Activity {
         }
 
         setContentView(centeredPage(card));
+    }
+
+    private void startQrScan() {
+        if (scanning) {
+            return;
+        }
+
+        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build();
+        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
+
+        setScanning(true, "Opening QR scanner…", false);
+        scanner.startScan()
+                .addOnSuccessListener(barcode -> handleScannedHost(barcode.getRawValue()))
+                .addOnCanceledListener(() -> setScanning(false, "Scan canceled.", false))
+                .addOnFailureListener(error -> setScanning(
+                        false,
+                        "Could not open the QR scanner. Enter the host address manually.",
+                        true
+                ));
+    }
+
+    private void handleScannedHost(String scannedValue) {
+        final String host;
+        try {
+            host = normalizeHost(scannedValue);
+        } catch (IllegalArgumentException error) {
+            setScanning(
+                    false,
+                    "That QR code does not contain a valid Drop Den host address.",
+                    true
+            );
+            return;
+        }
+
+        scanning = false;
+        hostInput.setText(host);
+        hostInput.setSelection(host.length());
+        connect(host);
+    }
+
+    private void setScanning(boolean active, String message, boolean isError) {
+        scanning = active;
+        connectButton.setEnabled(!active);
+        scanButton.setEnabled(!active);
+        progress.setVisibility(active ? View.VISIBLE : View.GONE);
+        status.setText(message);
+        status.setTextColor(isError ? ERROR : MUTED);
     }
 
     private void connect(String rawHost) {
@@ -726,6 +792,9 @@ public final class MainActivity extends Activity {
 
     private void setConnecting(boolean connecting, String message) {
         connectButton.setEnabled(!connecting);
+        if (scanButton != null) {
+            scanButton.setEnabled(!connecting && !scanning);
+        }
         progress.setVisibility(connecting ? View.VISIBLE : View.GONE);
         status.setText(message);
         status.setTextColor(connecting ? MUTED : ERROR);

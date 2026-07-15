@@ -13,24 +13,6 @@ Status values:
 
 ## Active
 
-### DD-002: Android host connection needs QR scanning
-
-- Priority: High
-- Status: Open
-- Area: Android onboarding
-
-The connection screen currently requires typing a LAN host address.
-
-Acceptance checks:
-
-- Add a **Scan host QR code** action alongside manual entry.
-- Request camera access only when scanning begins.
-- Accept only an `http://` or `https://` origin with no credentials, query, or
-  fragment.
-- Validate the scanned origin through `GET /api/config` before opening it.
-- Show a useful invalid-code or unavailable-host error.
-- Keep manual host entry and the remembered-host flow available.
-
 ### DD-003: Android shares should publish directly to Transfers
 
 - Priority: High
@@ -69,6 +51,23 @@ Acceptance checks:
   bounded and recoverable.
 
 ## Ready to verify
+
+### DD-002: Android host connection needs QR scanning
+
+- Priority: High
+- Status: Verify
+- Area: Android onboarding
+
+The connection screen now offers a QR-only Google Code Scanner with auto-zoom.
+Drop Den requests no camera permission itself; Google Play services owns the
+scanner UI. Manual and remembered-host flows remain available.
+
+Acceptance checks:
+
+- Scan the host invite QR and confirm `/api/config` validation connects.
+- Verify invalid content, cancellation, an unavailable host, and scanner module
+  failure return useful feedback without hiding manual entry.
+- Confirm scanned credentials, paths, queries, and fragments are rejected.
 
 ### DD-001: Android launcher mark is clipped
 

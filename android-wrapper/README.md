@@ -9,6 +9,7 @@ The wrapper currently:
 - normalizes and validates HTTP/HTTPS URLs;
 - verifies the host through `GET /api/config`;
 - remembers the last working host;
+- scans host invite QR codes without requesting camera permission;
 - opens the existing responsive Drop Den UI in a WebView;
 - returns to host selection when the main navigation cannot connect;
 - receives single and multiple file shares from Android apps;
@@ -86,8 +87,7 @@ limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
 
 ## Next development slice
 
-1. Correct the adaptive launcher icon safe-zone sizing.
-2. Add host QR-code scanning with manual entry as a fallback.
-3. Upload staged files directly to `/api/transfers/upload` for Everyone.
-4. Verify Gallery, Files, WhatsApp, Chrome, and Firefox share flows.
-5. Remove Shared Inbox code only after direct publishing is verified.
+1. Verify QR scanning and adaptive-icon sizing on a physical device.
+2. Upload staged files directly to `/api/transfers/upload` for Everyone.
+3. Verify Gallery, Files, WhatsApp, Chrome, and Firefox share flows.
+4. Remove Shared Inbox code only after direct publishing is verified.
