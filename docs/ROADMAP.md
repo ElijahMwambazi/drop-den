@@ -116,8 +116,8 @@ Concrete defects and verification work are tracked separately in
 - [x] Add PWA manifest, install icons, and static-shell service worker
 - [x] Add Chrome/Firefox install and service-worker update UX
 - [x] Select a native Android wrapper as the reliable share-target direction
-- [x] Define shared-file inbox limits, cleanup, and recovery behavior
-- [x] Add Android wrapper and shared-file inbox planning documents
+- [x] Prototype and evaluate a shared-file inbox workflow
+- [x] Add Android wrapper planning documents
 
 ## Phase 7: Core UX/Auth cleanup
 
@@ -147,8 +147,8 @@ desktop runtime may become host when no host is assigned.
 - [x] Build debug APK
 
 Android files must always be copied into bounded private app storage before a
-network upload. This local staging layer remains required even though the
-user-visible Shared Inbox is being replaced by direct transfer publishing.
+network upload. This local staging layer remains required for safe URI handling,
+offline retry, and process recovery.
 
 ## Phase 9: Shared-file inbox experiment
 
@@ -161,9 +161,9 @@ user-visible Shared Inbox is being replaced by direct transfer publishing.
 - [x] Add delete and clear inbox actions
 - [x] Keep inbox private to current registered device
 
-This phase was implemented and validated, but its user-visible workflow was
-superseded by the decision to publish Android shares directly to Transfers.
-Inbox code will be removed only after the replacement flow passes device tests.
+This phase was implemented and evaluated, then superseded by direct Android
+publishing to Transfers. Its frontend panel, backend API, storage, cleanup, and
+active database schema have been removed.
 
 ## Phase 10: Android direct sharing and onboarding
 
@@ -183,14 +183,17 @@ Inbox code will be removed only after the replacement flow passes device tests.
 - [x] Default Android share-sheet uploads to Everyone in the den
 - [ ] Verify direct transfer progress, result, retry, and host-change states
 - [ ] Verify single and multiple in-app file selection on Android
-- [ ] Remove the frontend Shared Inbox panel
-- [ ] Remove backend inbox routes, metadata, storage, and cleanup
-- [ ] Remove obsolete inbox documentation and migration references
+- [x] Remove the frontend Shared Inbox panel
+- [x] Remove backend inbox routes, metadata, storage, and cleanup
+- [x] Remove obsolete inbox documentation and drop its active schema safely
 - [ ] Test from Gallery, Files, WhatsApp, and browser share flows
 
 Decision: selecting Drop Den in the Android share sheet is sufficient intent to
 publish. Files still stage privately on Android for safety and recovery, but no
 separate backend inbox or publish action should remain in the final workflow.
+
+The historical inbox migration remains immutable for existing SQLite migration
+checksums; a forward migration drops its table during upgrade.
 
 ## Future packaging
 

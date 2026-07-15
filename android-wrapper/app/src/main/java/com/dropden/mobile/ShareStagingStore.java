@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
-final class SharedInboxStore {
+final class ShareStagingStore {
     static final long MAX_ITEM_BYTES = 250L * 1024L * 1024L;
     static final long MAX_TOTAL_BYTES = 500L * 1024L * 1024L;
     static final int MAX_ITEMS = 50;
@@ -35,12 +35,14 @@ final class SharedInboxStore {
 
     private final Context context;
     private final SharedPreferences preferences;
-    private final File inboxDirectory;
+    private final File stagingDirectory;
+    private final File legacyStagingDirectory;
 
-    SharedInboxStore(Context context) {
+    ShareStagingStore(Context context) {
         this.context = context.getApplicationContext();
         this.preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
-        this.inboxDirectory = new File(context.getFilesDir(), "share-inbox");
+        this.stagingDirectory = new File(context.getFilesDir(), "share-staging");
+        this.legacyStagingDirectory = new File(context.getFilesDir(), "share-inbox");
     }
 
     synchronized StageResult stage(Intent intent) {
@@ -91,7 +93,7 @@ final class SharedInboxStore {
             }
 
             String itemId = UUID.randomUUID().toString();
-            File itemDirectory = new File(inboxDirectory, itemId);
+            File itemDirectory = new File(stagingDirectory, itemId);
             File partialFile = new File(itemDirectory, "content.part");
             File storedFile = new File(itemDirectory, "content");
 
@@ -170,7 +172,7 @@ final class SharedInboxStore {
                 items.add(item);
             }
         } catch (Exception error) {
-            clearDirectoryContents(inboxDirectory);
+            clearDirectoryContents(stagingDirectory);
             preferences.edit().remove(ITEMS_KEY).commit();
             return items;
         }
@@ -207,7 +209,8 @@ final class SharedInboxStore {
 
     synchronized void clear() {
         preferences.edit().remove(ITEMS_KEY).commit();
-        clearDirectoryContents(inboxDirectory);
+        clearDirectoryContents(stagingDirectory);
+        clearDirectoryContents(legacyStagingDirectory);
     }
 
     private void updateItem(SharedItem item) {
@@ -404,7 +407,12 @@ final class SharedInboxStore {
             retainedIds.add(item.id);
         }
 
-        File[] children = inboxDirectory.listFiles();
+        removeOrphanedDirectories(stagingDirectory, retainedIds);
+        removeOrphanedDirectories(legacyStagingDirectory, retainedIds);
+    }
+
+    private static void removeOrphanedDirectories(File directory, Set<String> retainedIds) {
+        File[] children = directory.listFiles();
         if (children == null) {
             return;
         }

@@ -22,9 +22,9 @@ Status values:
 The Shared Inbox adds an unnecessary user-visible step. Android share-sheet
 files should become normal broadcast Transfers after safe local staging.
 
-Direct publishing is implemented and awaiting physical-device verification.
-Backend and frontend Shared Inbox removal remains intentionally blocked on that
-test so the working fallback is not removed prematurely.
+Direct publishing is implemented. Gallery sharing has been verified on a
+physical device, and the obsolete backend and frontend Shared Inbox have been
+removed. The broader source and recovery test matrix remains open.
 
 Acceptance checks:
 
@@ -34,8 +34,8 @@ Acceptance checks:
   Android device identity.
 - [x] Default Android share-sheet uploads to **Everyone in the den**.
 - [x] Retain clear progress, result, retry, and change-host states.
-- Verify direct sharing before removing the frontend Shared Inbox panel and
-  backend inbox routes, storage, metadata, cleanup, and migration references.
+- [x] Remove the frontend panel, backend routes, storage, cleanup, and active
+  inbox schema after confirming direct Gallery sharing.
 
 ### DD-004: Complete the Android share-source test matrix
 
@@ -138,5 +138,4 @@ changes. Physical-device testing confirmed that WebView resizing works.
 
 The planned inbox-publishing phase was replaced by direct Android publishing to
 Transfers. The private Android staging mechanism remains an implementation
-detail; the user-visible Shared Inbox is scheduled for removal after direct
-sharing is verified.
+detail; the user-visible and backend Shared Inbox have been removed.

@@ -12,7 +12,7 @@ use axum::{
     routing::get,
     Router,
 };
-use routes::{config, devices, health, inbox, messages, transfers};
+use routes::{config, devices, health, messages, transfers};
 use state::{AppState, AppStateInit};
 use std::{net::SocketAddr, path::PathBuf};
 use tower_http::{
@@ -33,11 +33,9 @@ async fn main() -> anyhow::Result<()> {
     let storage_dir = configured_storage_dir(&data_dir);
     tokio::fs::create_dir_all(&storage_dir).await?;
 
-    let inbox_dir = data_dir.join("inbox");
-    tokio::fs::create_dir_all(&inbox_dir).await?;
-
     let database_path = configured_database_path(&data_dir);
     let db = db::connect_database(database_path).await?;
+    remove_legacy_inbox_files(&data_dir).await;
 
     if should_reset_host() {
         db::reset_host_device(&db).await?;
@@ -50,7 +48,6 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(AppStateInit {
         storage_dir,
-        inbox_dir,
         db,
         join_pin: persisted_state.join_pin,
         join_pin_hash: persisted_state.join_pin_hash,
@@ -60,7 +57,6 @@ async fn main() -> anyhow::Result<()> {
         transfers: persisted_state.transfers,
     });
 
-    cleanup::cleanup_inbox(&state).await;
     cleanup::spawn_expired_transfer_cleanup(state.clone());
 
     let app = build_app(state, configured_frontend_dist_dir());
@@ -153,22 +149,25 @@ fn build_app(state: AppState, frontend_dist: PathBuf) -> Router {
                 .post(messages::create_message)
                 .delete(messages::delete_all_messages),
         )
-        .route(
-            "/api/inbox",
-            get(inbox::list_inbox_items)
-                .post(inbox::upload_inbox_item)
-                .delete(inbox::clear_inbox),
-        )
-        .route(
-            "/api/inbox/:id",
-            axum::routing::delete(inbox::delete_inbox_item),
-        )
         .route("/ws", get(ws::ws_handler))
         .fallback_service(static_files)
         .layer(DefaultBodyLimit::max(1024 * 1024 * 1024))
         .layer(local_cors_layer())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn remove_legacy_inbox_files(data_dir: &std::path::Path) {
+    let path = data_dir.join("inbox");
+    match tokio::fs::remove_dir_all(&path).await {
+        Ok(()) => tracing::info!(path = %path.display(), "removed legacy shared inbox storage"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => tracing::warn!(
+            path = %path.display(),
+            error = %error,
+            "failed to remove legacy shared inbox storage"
+        ),
+    }
 }
 
 fn should_reset_host() -> bool {
@@ -284,7 +283,7 @@ fn configured_frontend_dist_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Device, InboxItem, Transfer, TransferStatus};
+    use crate::models::{Device, Transfer, TransferStatus};
     use axum::{
         body::Body,
         http::{Request, StatusCode},
@@ -305,9 +304,7 @@ mod tests {
     async fn test_app() -> TestApp {
         let root = std::env::temp_dir().join(format!("drop-den-test-{}", Uuid::new_v4()));
         let storage_dir = root.join("transfers");
-        let inbox_dir = root.join("inbox");
         tokio::fs::create_dir_all(&storage_dir).await.unwrap();
-        tokio::fs::create_dir_all(&inbox_dir).await.unwrap();
 
         let pool = db::connect_database(root.join("drop-den.sqlite"))
             .await
@@ -315,7 +312,6 @@ mod tests {
         let persisted = db::load_persisted_runtime_state(&pool).await.unwrap();
         let state = AppState::new(AppStateInit {
             storage_dir,
-            inbox_dir,
             db: pool,
             join_pin: persisted.join_pin,
             join_pin_hash: persisted.join_pin_hash,
@@ -344,24 +340,6 @@ mod tests {
             .uri(uri)
             .header(auth::DEVICE_ID_HEADER, device_id)
             .body(Body::empty())
-            .unwrap()
-    }
-
-    fn inbox_upload_request(device_id: &str, filename: &str, contents: &str) -> Request<Body> {
-        let boundary = "drop-den-inbox-test-boundary";
-        let body = format!(
-            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: text/plain\r\n\r\n{contents}\r\n--{boundary}--\r\n"
-        );
-
-        Request::builder()
-            .method("POST")
-            .uri("/api/inbox")
-            .header(auth::DEVICE_ID_HEADER, device_id)
-            .header(
-                "content-type",
-                format!("multipart/form-data; boundary={boundary}"),
-            )
-            .body(Body::from(body))
             .unwrap()
     }
 
@@ -623,263 +601,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
-
-        test.state.db.close().await;
-        tokio::fs::remove_dir_all(test.root).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn inbox_items_are_private_to_the_owning_device() {
-        let test = test_app().await;
-        let (_, host) = register(&test.app, "Host", None).await;
-        let host = host.unwrap();
-        let pin = test.state.join_pin.read().await.clone();
-        let (_, joined) = register(&test.app, "Joined", Some(&pin)).await;
-        let joined = joined.unwrap();
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(inbox_upload_request(
-                &host.id,
-                "../../private-note.txt",
-                "private inbox contents",
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let uploaded = response_json(response).await;
-        let item_id = uploaded["id"].as_str().unwrap();
-        assert_eq!(uploaded["filename"], "_.._private-note.txt");
-        assert!(uploaded.get("owner_device_id").is_none());
-        assert!(uploaded.get("stored_path").is_none());
-
-        let host_items = db::list_inbox_items_for_device(&test.state.db, &host.id)
-            .await
-            .unwrap();
-        assert_eq!(host_items.len(), 1);
-        assert_eq!(
-            tokio::fs::read_to_string(&host_items[0].stored_path)
-                .await
-                .unwrap(),
-            "private inbox contents"
-        );
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(authorized_request("GET", "/api/inbox", &joined.id))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response_json(response).await, json!([]));
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(authorized_request(
-                "DELETE",
-                &format!("/api/inbox/{item_id}"),
-                &joined.id,
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(authorized_request(
-                "DELETE",
-                &format!("/api/inbox/{item_id}"),
-                &host.id,
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::NO_CONTENT);
-        assert!(tokio::fs::metadata(&host_items[0].stored_path)
-            .await
-            .is_err());
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(inbox_upload_request(
-                &host.id,
-                "clear-me.txt",
-                "clear inbox contents",
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let clear_items = db::list_inbox_items_for_device(&test.state.db, &host.id)
-            .await
-            .unwrap();
-        assert_eq!(clear_items.len(), 1);
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(authorized_request("DELETE", "/api/inbox", &host.id))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::NO_CONTENT);
-        assert!(tokio::fs::metadata(&clear_items[0].stored_path)
-            .await
-            .is_err());
-
-        test.state.db.close().await;
-        tokio::fs::remove_dir_all(test.root).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn inbox_requires_registration_and_enforces_the_item_count_limit() {
-        let test = test_app().await;
-        let response = test
-            .app
-            .clone()
-            .oneshot(Request::get("/api/inbox").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-
-        let (_, host) = register(&test.app, "Host", None).await;
-        let host = host.unwrap();
-        let now = Utc::now();
-
-        for index in 0..routes::inbox::MAX_INBOX_ITEMS_PER_DEVICE {
-            db::insert_inbox_item(
-                &test.state.db,
-                &InboxItem {
-                    id: format!("inbox-limit-{index}"),
-                    owner_device_id: host.id.clone(),
-                    filename: format!("file-{index}.txt"),
-                    mime_type: "text/plain".to_string(),
-                    size: 1,
-                    stored_path: test
-                        .root
-                        .join(format!("inbox-limit-{index}"))
-                        .to_string_lossy()
-                        .to_string(),
-                    created_at: now,
-                    expires_at: now + Duration::hours(1),
-                },
-            )
-            .await
-            .unwrap();
-        }
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(inbox_upload_request(&host.id, "one-too-many.txt", "x"))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::CONFLICT);
-        assert_eq!(response_json(response).await["code"], "inbox_item_limit");
-
-        test.state.db.close().await;
-        tokio::fs::remove_dir_all(test.root).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn inbox_cleanup_removes_expired_metadata_and_files() {
-        let test = test_app().await;
-        let (_, host) = register(&test.app, "Host", None).await;
-        let host = host.unwrap();
-        let item_dir = test.root.join("inbox").join(&host.id).join("expired-item");
-        let stored_path = item_dir.join("content");
-        let orphan_dir = test.root.join("inbox").join(&host.id).join("orphan-item");
-        let retained_dir = test.root.join("inbox").join(&host.id).join("retained-item");
-        let retained_path = retained_dir.join("content");
-        tokio::fs::create_dir_all(&item_dir).await.unwrap();
-        tokio::fs::create_dir_all(&orphan_dir).await.unwrap();
-        tokio::fs::create_dir_all(&retained_dir).await.unwrap();
-        tokio::fs::write(&stored_path, b"expired").await.unwrap();
-        tokio::fs::write(orphan_dir.join("content"), b"orphan")
-            .await
-            .unwrap();
-        tokio::fs::write(&retained_path, b"retained").await.unwrap();
-        let now = Utc::now();
-
-        db::insert_inbox_item(
-            &test.state.db,
-            &InboxItem {
-                id: "expired-item".to_string(),
-                owner_device_id: host.id.clone(),
-                filename: "expired.txt".to_string(),
-                mime_type: "text/plain".to_string(),
-                size: 7,
-                stored_path: stored_path.to_string_lossy().to_string(),
-                created_at: now - Duration::hours(25),
-                expires_at: now - Duration::hours(1),
-            },
-        )
-        .await
-        .unwrap();
-        db::insert_inbox_item(
-            &test.state.db,
-            &InboxItem {
-                id: "retained-item".to_string(),
-                owner_device_id: host.id.clone(),
-                filename: "retained.txt".to_string(),
-                mime_type: "text/plain".to_string(),
-                size: 8,
-                stored_path: retained_path.to_string_lossy().to_string(),
-                created_at: now,
-                expires_at: now + Duration::hours(1),
-            },
-        )
-        .await
-        .unwrap();
-
-        cleanup::cleanup_inbox(&test.state).await;
-
-        let remaining = db::list_inbox_items_for_device(&test.state.db, &host.id)
-            .await
-            .unwrap();
-        assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].id, "retained-item");
-        assert!(tokio::fs::metadata(&stored_path).await.is_err());
-        assert!(tokio::fs::metadata(&orphan_dir).await.is_err());
-        assert!(tokio::fs::metadata(&retained_path).await.is_ok());
-
-        test.state.db.close().await;
-        tokio::fs::remove_dir_all(test.root).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn inbox_enforces_the_global_storage_limit() {
-        let test = test_app().await;
-        let (_, host) = register(&test.app, "Host", None).await;
-        let host = host.unwrap();
-        let now = Utc::now();
-
-        db::insert_inbox_item(
-            &test.state.db,
-            &InboxItem {
-                id: "quota-item".to_string(),
-                owner_device_id: host.id.clone(),
-                filename: "quota.bin".to_string(),
-                mime_type: "application/octet-stream".to_string(),
-                size: routes::inbox::MAX_TOTAL_INBOX_SIZE_BYTES,
-                stored_path: test.root.join("quota-item").to_string_lossy().to_string(),
-                created_at: now,
-                expires_at: now + Duration::hours(1),
-            },
-        )
-        .await
-        .unwrap();
-
-        let response = test
-            .app
-            .clone()
-            .oneshot(inbox_upload_request(&host.id, "over-quota.txt", "x"))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::INSUFFICIENT_STORAGE);
-        assert_eq!(response_json(response).await["code"], "inbox_storage_limit");
 
         test.state.db.close().await;
         tokio::fs::remove_dir_all(test.root).await.unwrap();

@@ -1,12 +1,11 @@
 use crate::models::{Device, Message, Transfer};
 use sqlx::SqlitePool;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{broadcast, RwLock};
 
 #[derive(Clone)]
 pub struct AppState {
     pub storage_dir: PathBuf,
-    pub inbox_dir: PathBuf,
     pub db: SqlitePool,
     pub join_pin: Arc<RwLock<String>>,
     pub join_pin_hash: Arc<RwLock<String>>,
@@ -14,13 +13,11 @@ pub struct AppState {
     pub devices: Arc<RwLock<HashMap<String, Device>>>,
     pub transfers: Arc<RwLock<HashMap<String, Transfer>>>,
     pub messages: Arc<RwLock<Vec<Message>>>,
-    pub inbox_write_lock: Arc<Mutex<()>>,
     pub events: broadcast::Sender<String>,
 }
 
 pub struct AppStateInit {
     pub storage_dir: PathBuf,
-    pub inbox_dir: PathBuf,
     pub db: SqlitePool,
     pub join_pin: String,
     pub join_pin_hash: String,
@@ -34,7 +31,6 @@ impl AppState {
     pub fn new(init: AppStateInit) -> Self {
         let AppStateInit {
             storage_dir,
-            inbox_dir,
             db,
             join_pin,
             join_pin_hash,
@@ -47,7 +43,6 @@ impl AppState {
 
         Self {
             storage_dir,
-            inbox_dir,
             db,
             join_pin: Arc::new(RwLock::new(join_pin)),
             join_pin_hash: Arc::new(RwLock::new(join_pin_hash)),
@@ -55,7 +50,6 @@ impl AppState {
             devices: Arc::new(RwLock::new(devices)),
             transfers: Arc::new(RwLock::new(transfers)),
             messages: Arc::new(RwLock::new(messages)),
-            inbox_write_lock: Arc::new(Mutex::new(())),
             events,
         }
     }

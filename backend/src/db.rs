@@ -1,4 +1,4 @@
-use crate::models::{Device, InboxItem, Message, Transfer, TransferStatus};
+use crate::models::{Device, Message, Transfer, TransferStatus};
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -263,158 +263,9 @@ pub async fn delete_all_transfers(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn insert_inbox_item(pool: &SqlitePool, item: &InboxItem) -> anyhow::Result<()> {
-    sqlx::query(
-        r#"
-        INSERT INTO inbox_items (
-            id,
-            owner_device_id,
-            filename,
-            mime_type,
-            size,
-            stored_path,
-            created_at,
-            expires_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&item.id)
-    .bind(&item.owner_device_id)
-    .bind(&item.filename)
-    .bind(&item.mime_type)
-    .bind(item.size as i64)
-    .bind(&item.stored_path)
-    .bind(item.created_at.to_rfc3339())
-    .bind(item.expires_at.to_rfc3339())
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn list_inbox_items_for_device(
-    pool: &SqlitePool,
-    owner_device_id: &str,
-) -> anyhow::Result<Vec<InboxItem>> {
-    let rows = sqlx::query(
-        r#"
-        SELECT id, owner_device_id, filename, mime_type, size, stored_path, created_at, expires_at
-        FROM inbox_items
-        WHERE owner_device_id = ?
-        ORDER BY created_at DESC
-        "#,
-    )
-    .bind(owner_device_id)
-    .fetch_all(pool)
-    .await?;
-
-    rows.into_iter().map(inbox_item_from_row).collect()
-}
-
-pub async fn list_all_inbox_items(pool: &SqlitePool) -> anyhow::Result<Vec<InboxItem>> {
-    let rows = sqlx::query(
-        r#"
-        SELECT id, owner_device_id, filename, mime_type, size, stored_path, created_at, expires_at
-        FROM inbox_items
-        ORDER BY created_at ASC
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    rows.into_iter().map(inbox_item_from_row).collect()
-}
-
-pub async fn inbox_usage(pool: &SqlitePool, owner_device_id: &str) -> anyhow::Result<(u64, u64)> {
-    let row = sqlx::query(
-        r#"
-        SELECT
-            COALESCE(SUM(size), 0) AS total_bytes,
-            COALESCE(SUM(CASE WHEN owner_device_id = ? THEN 1 ELSE 0 END), 0) AS owner_count
-        FROM inbox_items
-        "#,
-    )
-    .bind(owner_device_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok((
-        row.get::<i64, _>("total_bytes") as u64,
-        row.get::<i64, _>("owner_count") as u64,
-    ))
-}
-
-pub async fn delete_inbox_item(
-    pool: &SqlitePool,
-    item_id: &str,
-    owner_device_id: &str,
-) -> anyhow::Result<Option<InboxItem>> {
-    let mut transaction = pool.begin().await?;
-    let row = sqlx::query(
-        r#"
-        SELECT id, owner_device_id, filename, mime_type, size, stored_path, created_at, expires_at
-        FROM inbox_items
-        WHERE id = ? AND owner_device_id = ?
-        "#,
-    )
-    .bind(item_id)
-    .bind(owner_device_id)
-    .fetch_optional(&mut *transaction)
-    .await?;
-
-    if row.is_some() {
-        sqlx::query("DELETE FROM inbox_items WHERE id = ? AND owner_device_id = ?")
-            .bind(item_id)
-            .bind(owner_device_id)
-            .execute(&mut *transaction)
-            .await?;
-    }
-
-    transaction.commit().await?;
-    row.map(inbox_item_from_row).transpose()
-}
-
-pub async fn delete_all_inbox_items_for_device(
-    pool: &SqlitePool,
-    owner_device_id: &str,
-) -> anyhow::Result<Vec<InboxItem>> {
-    let mut transaction = pool.begin().await?;
-    let rows = sqlx::query(
-        r#"
-        SELECT id, owner_device_id, filename, mime_type, size, stored_path, created_at, expires_at
-        FROM inbox_items
-        WHERE owner_device_id = ?
-        "#,
-    )
-    .bind(owner_device_id)
-    .fetch_all(&mut *transaction)
-    .await?;
-
-    sqlx::query("DELETE FROM inbox_items WHERE owner_device_id = ?")
-        .bind(owner_device_id)
-        .execute(&mut *transaction)
-        .await?;
-
-    transaction.commit().await?;
-    rows.into_iter().map(inbox_item_from_row).collect()
-}
-
-pub async fn delete_inbox_metadata(pool: &SqlitePool, item_id: &str) -> anyhow::Result<()> {
-    sqlx::query("DELETE FROM inbox_items WHERE id = ?")
-        .bind(item_id)
-        .execute(pool)
-        .await?;
-
-    Ok(())
-}
-
 pub async fn reset_all_data(pool: &SqlitePool, join_pin_hash: &str) -> anyhow::Result<()> {
     let mut transaction = pool.begin().await?;
 
-    sqlx::query("DELETE FROM inbox_items")
-        .execute(&mut *transaction)
-        .await?;
     sqlx::query("DELETE FROM transfers")
         .execute(&mut *transaction)
         .await?;
@@ -581,19 +432,6 @@ async fn load_transfers(pool: &SqlitePool) -> anyhow::Result<HashMap<String, Tra
 
 fn parse_datetime(value: String) -> anyhow::Result<DateTime<Utc>> {
     Ok(DateTime::parse_from_rfc3339(&value)?.with_timezone(&Utc))
-}
-
-fn inbox_item_from_row(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<InboxItem> {
-    Ok(InboxItem {
-        id: row.get::<String, _>("id"),
-        owner_device_id: row.get::<String, _>("owner_device_id"),
-        filename: row.get::<String, _>("filename"),
-        mime_type: row.get::<String, _>("mime_type"),
-        size: row.get::<i64, _>("size") as u64,
-        stored_path: row.get::<String, _>("stored_path"),
-        created_at: parse_datetime(row.get::<String, _>("created_at"))?,
-        expires_at: parse_datetime(row.get::<String, _>("expires_at"))?,
-    })
 }
 
 fn parse_transfer_status(value: String) -> anyhow::Result<TransferStatus> {

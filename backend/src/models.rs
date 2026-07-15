@@ -46,20 +46,6 @@ pub struct Message {
     pub expires_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InboxItem {
-    pub id: String,
-    #[serde(skip_serializing)]
-    pub owner_device_id: String,
-    pub filename: String,
-    pub mime_type: String,
-    pub size: u64,
-    #[serde(skip_serializing)]
-    pub stored_path: String,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct CreateMessageRequest {
     pub body: String,

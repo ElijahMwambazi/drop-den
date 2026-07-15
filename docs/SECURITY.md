@@ -8,7 +8,6 @@ It should be used on trusted local networks and should not be exposed directly t
 
 - Do not expose the server to the public internet.
 - Store files only under the configured storage directory.
-- Keep shared inbox files in a separate managed directory with fixed stored filenames.
 - Use random UUIDs for transfers and devices.
 - Require a join PIN before new devices can join after the host is created.
 - Show the join PIN only to the host device.
@@ -17,7 +16,8 @@ It should be used on trusted local networks and should not be exposed directly t
 - Add file size limits before heavy use.
 - Expire transfers after the configured transfer lifetime.
 - Automatically clean up expired transfers.
-- Keep inbox metadata and files private to their registered owner device.
+- Copy Android `content://` shares into bounded private app storage before upload.
+- Delete successful Android staging copies and retain failed copies only for retry.
 - Restrict CORS to local development origins instead of using permissive CORS.
 - Run the Linux background service with a dedicated `drop-den` system user.
 - Keep service data under `/var/lib/drop-den`.
@@ -40,7 +40,6 @@ Joined devices can:
 - receive visible transfers
 - accept or reject transfers targeted to their device
 - view connected devices
-- list, stage, delete, and clear only their own shared inbox items
 
 Not-joined browsers should only see:
 
@@ -77,15 +76,10 @@ A new join PIN is generated on backend startup, and the PIN rotates after every 
 
 The current API authorization model still uses a registered device ID header. Targeted transfer actions and downloads enforce device ownership, but device IDs are not cryptographic credentials. This remains suitable only for an MVP on trusted local networks.
 
-Shared inbox routes use the same registered-device header and scope every
-query and mutation to the owner device. API responses never expose server-side
-paths or owner IDs. Inbox files are not publicly downloadable.
-
-The backend inbox is transitional. Its replacement still copies Android
-`content://` data into bounded private Android storage before uploading, but
-successful shares become ordinary transfers and the temporary local copy is
-deleted. Existing inbox protections remain required until those routes and
-files are removed.
+Android share intents copy `content://` data into bounded private Android
+storage before uploading. Successful shares become ordinary transfers and the
+temporary local copy is deleted; failed copies remain private and bounded for
+explicit retry.
 
 ## Recommended future security improvements
 

@@ -18,10 +18,8 @@ The wrapper currently:
 - publishes staged files sequentially as broadcast Transfers for Everyone;
 - keeps failed files available for retry or a host change.
 
-The wrapper no longer sends new Android shares to the Shared Inbox. Existing
-inbox backend and frontend code remains temporarily as a fallback and will be
-removed only after direct sharing passes physical-device verification. See
-`../docs/ISSUES.md` and `../docs/ROADMAP.md` for the transition order.
+The wrapper uses private on-device staging only; the removed backend Shared
+Inbox is no longer part of the upload flow.
 
 ## Supported build stack
 
@@ -86,8 +84,7 @@ Also exercise cancellation, a file over 250 MiB, more than 50 files, process
 death before upload, and an expired device registration. Shared files are
 limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
 
-## Next development slice
+## Remaining verification
 
 1. Verify direct sharing from Gallery, Files, WhatsApp, Chrome, and Firefox.
 2. Exercise offline-host, expired-registration, retry, and host-change states.
-3. Remove Shared Inbox code only after direct publishing is verified.

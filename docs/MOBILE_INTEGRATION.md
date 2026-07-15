@@ -249,12 +249,10 @@ The native wrapper now remembers and validates a host, loads the responsive
 interface, receives single and multiple Android file shares, and copies
 `content://` data into bounded private app storage for recovery and retry.
 
-The backend Shared Inbox was implemented as an intermediate design. Physical
-testing showed that its extra user-visible publish step does not fit the
-intended share-sheet experience. The approved replacement keeps private
-Android staging but uploads directly to normal Transfers for Everyone in the
-den. Host QR scanning and launcher safe-zone correction are also required
-before the Android release-readiness matrix is completed.
+The backend Shared Inbox experiment was removed because its extra user-visible
+publish step did not fit the intended share-sheet experience. Android keeps
+bounded private local staging for safety and retry, then uploads directly to
+normal Transfers for Everyone in the den.
 
 Track this work in the [roadmap](ROADMAP.md) and
 [known issues](ISSUES.md).

@@ -53,10 +53,6 @@ DELETE /api/transfers/:id
 DELETE /api/transfers
 GET /api/messages
 POST /api/messages
-GET /api/inbox
-POST /api/inbox
-DELETE /api/inbox/:id
-DELETE /api/inbox
 ```
 
 ## Health
@@ -264,48 +260,6 @@ Message response:
 ```
 
 The authenticated device header is used as the sender identity.
-
-## Shared inbox
-
-> **Transitional API:** these routes remain in the current build but are
-> scheduled for removal after Android shares publish reliably through
-> `POST /api/transfers/upload`.
-
-```txt
-GET /api/inbox
-POST /api/inbox
-DELETE /api/inbox/:id
-DELETE /api/inbox
-```
-
-The shared inbox is private to the registered device in
-`X-Drop-Den-Device-Id`. Listing and clearing only affect that device. Deleting
-an item owned by another device returns `404 Not Found`.
-
-Upload one file per multipart request:
-
-```txt
-file=<binary>
-```
-
-Example item:
-
-```json
-{
-  "id": "uuid",
-  "filename": "photo.jpg",
-  "mime_type": "image/jpeg",
-  "size": 12345,
-  "created_at": "2026-07-13T10:00:00Z",
-  "expires_at": "2026-07-14T10:00:00Z"
-}
-```
-
-Owner IDs and stored paths are intentionally omitted. Inbox files have no
-public download route and do not become transfers until explicitly published.
-
-Limits are 250 MiB per item, 50 retained items per device, 500 MiB total inbox
-storage, and 24-hour retention. Limit errors use a JSON `code` and `message`.
 
 ## WebSocket
 

@@ -13,7 +13,6 @@ import { TransferList } from "./components/TransferList";
 import { DesktopTitleBar } from "./components/DesktopTitleBar";
 import { DesktopSettings } from "./components/DesktopSettings";
 import { HostSettings } from "./components/HostSettings";
-import { SharedInboxPanel } from "./components/SharedInboxPanel";
 import { CollapsibleSection } from "./components/CollapsibleSection";
 import { useWebSocketRefresh } from "./hooks/useWebSocketRefresh";
 import { useDeviceStore } from "./store/deviceStore";
@@ -182,7 +181,6 @@ export function App() {
             >
               <DeviceSetup />
               <FileUpload />
-              <SharedInboxPanel />
               <TransferList />
 
               <CollapsibleSection

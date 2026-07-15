@@ -70,9 +70,8 @@ or peer-to-peer WebRTC transfers.
 - Soft-keyboard-aware WebView layout.
 
 Android shares now use the invisible local staging layer and publish directly
-to normal broadcast Transfers. The previous backend Shared Inbox remains only
-as a temporary fallback and is scheduled for removal after physical-device
-verification. See the [roadmap](ROADMAP.md) and [issue tracker](ISSUES.md).
+to normal broadcast Transfers. The earlier backend Shared Inbox experiment has
+been removed. See the [roadmap](ROADMAP.md) and [issue tracker](ISSUES.md).
 
 ## Repository layout
 

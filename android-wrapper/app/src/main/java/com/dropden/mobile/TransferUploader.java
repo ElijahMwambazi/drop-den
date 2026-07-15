@@ -45,11 +45,11 @@ final class TransferUploader {
 
             long serverLimit = config.optLong(
                     "max_upload_size_bytes",
-                    SharedInboxStore.MAX_ITEM_BYTES
+                    ShareStagingStore.MAX_ITEM_BYTES
             );
             long uploadLimit = Math.max(
                     0L,
-                    Math.min(serverLimit, SharedInboxStore.MAX_ITEM_BYTES)
+                    Math.min(serverLimit, ShareStagingStore.MAX_ITEM_BYTES)
             );
             return new HostConfig(uploadLimit);
         } finally {
@@ -60,7 +60,7 @@ final class TransferUploader {
     static UploadResult upload(
             String host,
             String deviceId,
-            SharedInboxStore.SharedItem item
+            ShareStagingStore.SharedItem item
     ) {
         HttpURLConnection connection = null;
         try {

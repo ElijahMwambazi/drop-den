@@ -68,7 +68,7 @@ public final class MainActivity extends Activity {
     private final List<String> stageWarnings = new ArrayList<>();
 
     private SharedPreferences preferences;
-    private SharedInboxStore inboxStore;
+    private ShareStagingStore stagingStore;
     private EditText hostInput;
     private TextView status;
     private ProgressBar progress;
@@ -77,7 +77,7 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
     private String currentHost = "";
-    private long hostUploadLimit = SharedInboxStore.MAX_ITEM_BYTES;
+    private long hostUploadLimit = ShareStagingStore.MAX_ITEM_BYTES;
     private boolean shareFlowActive;
     private boolean awaitingIdentity;
     private boolean uploading;
@@ -100,8 +100,8 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         preferences = getSharedPreferences(PREFERENCES, MODE_PRIVATE);
         migrateLegacyHostPreference();
-        inboxStore = new SharedInboxStore(this);
-        migrateLegacyInboxStaging();
+        stagingStore = new ShareStagingStore(this);
+        migrateLegacyShareStaging();
         registerPredictiveBackHandler();
 
         if (isShareIntent(getIntent())) {
@@ -109,7 +109,7 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        if (!inboxStore.loadItems().isEmpty()) {
+        if (!stagingStore.loadItems().isEmpty()) {
             shareFlowActive = true;
             connectRememberedHostOrPrompt();
             return;
@@ -138,13 +138,13 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void migrateLegacyInboxStaging() {
+    private void migrateLegacyShareStaging() {
         if (preferences.getBoolean(DIRECT_SHARE_STAGING_MIGRATED_KEY, false)) {
             return;
         }
 
         // Never auto-publish files staged by an older inbox-based build.
-        inboxStore.clear();
+        stagingStore.clear();
         preferences.edit().putBoolean(DIRECT_SHARE_STAGING_MIGRATED_KEY, true).apply();
     }
 
@@ -168,10 +168,10 @@ public final class MainActivity extends Activity {
         showBusyScreen("Preparing shared files…", "Copying files into private app storage.");
 
         executor.execute(() -> {
-            SharedInboxStore.StageResult result = inboxStore.stage(intent);
+            ShareStagingStore.StageResult result = stagingStore.stage(intent);
             runOnUiThread(() -> {
                 stageWarnings.addAll(result.rejected);
-                if (result.staged.isEmpty() && inboxStore.loadItems().isEmpty()) {
+                if (result.staged.isEmpty() && stagingStore.loadItems().isEmpty()) {
                     showShareFailure();
                     return;
                 }
@@ -254,7 +254,7 @@ public final class MainActivity extends Activity {
 
         if (forShare) {
             TextView pending = text(
-                    inboxStore.loadItems().size() + " file(s) waiting in private staging",
+                    stagingStore.loadItems().size() + " file(s) waiting in private staging",
                     12,
                     MUTED
             );
@@ -333,7 +333,7 @@ public final class MainActivity extends Activity {
                     currentHost = host;
                     hostUploadLimit = config.maxUploadBytes;
                     preferences.edit().putString(HOST_KEY, host).apply();
-                    if (shareFlowActive && !inboxStore.loadItems().isEmpty()) {
+                    if (shareFlowActive && !stagingStore.loadItems().isEmpty()) {
                         ensureRegisteredDevice(host);
                     } else {
                         openHost(host, false);
@@ -582,7 +582,7 @@ public final class MainActivity extends Activity {
         return DEVICE_ID_PREFIX + host;
     }
 
-    private View sharedItemRow(SharedInboxStore.SharedItem item) {
+    private View sharedItemRow(ShareStagingStore.SharedItem item) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(dp(14), dp(13), dp(14), dp(13));
@@ -605,8 +605,8 @@ public final class MainActivity extends Activity {
         Button remove = actionButton("Remove", false);
         remove.setTextColor(ERROR);
         remove.setOnClickListener(view -> {
-            inboxStore.removeItem(item);
-            showUploadResult(0, inboxStore.loadItems().size(), false);
+            stagingStore.removeItem(item);
+            showUploadResult(0, stagingStore.loadItems().size(), false);
         });
         LinearLayout.LayoutParams removeParams = wrapWrap();
         removeParams.gravity = Gravity.END;
@@ -623,7 +623,7 @@ public final class MainActivity extends Activity {
         if (uploading) {
             return;
         }
-        List<SharedInboxStore.SharedItem> items = inboxStore.loadItems();
+        List<ShareStagingStore.SharedItem> items = stagingStore.loadItems();
         if (items.isEmpty()) {
             showUploadResult(0, 0, false);
             return;
@@ -650,27 +650,27 @@ public final class MainActivity extends Activity {
             }
 
             for (int index = 0; index < items.size(); index += 1) {
-                SharedInboxStore.SharedItem item = items.get(index);
+                ShareStagingStore.SharedItem item = items.get(index);
                 int position = index + 1;
                 runOnUiThread(() -> updateUploadProgress(position, items.size(), item.displayName));
 
                 if (item.size > effectiveLimit) {
-                    inboxStore.markFailed(item, "This file exceeds the host upload limit.");
+                    stagingStore.markFailed(item, "This file exceeds the host upload limit.");
                     failures += 1;
                     continue;
                 }
 
-                inboxStore.markUploading(item);
+                stagingStore.markUploading(item);
                 TransferUploader.UploadResult result = TransferUploader.upload(
                         currentHost,
                         deviceId,
                         item
                 );
                 if (result.success) {
-                    inboxStore.removeItem(item);
+                    stagingStore.removeItem(item);
                     successes += 1;
                 } else {
-                    inboxStore.markFailed(item, result.message);
+                    stagingStore.markFailed(item, result.message);
                     failures += 1;
                     if (result.status == 401) {
                         authExpired = true;
@@ -730,7 +730,7 @@ public final class MainActivity extends Activity {
 
     private void showUploadResult(int successes, int failures, boolean registrationExpired) {
         screen = Screen.RESULT;
-        List<SharedInboxStore.SharedItem> remaining = inboxStore.loadItems();
+        List<ShareStagingStore.SharedItem> remaining = stagingStore.loadItems();
         LinearLayout content = pageContent();
         content.addView(eyebrow("UPLOAD RESULT"));
         content.addView(title(
@@ -765,7 +765,7 @@ public final class MainActivity extends Activity {
             ));
         }
 
-        for (SharedInboxStore.SharedItem item : remaining) {
+        for (ShareStagingStore.SharedItem item : remaining) {
             content.addView(sharedItemRow(item));
         }
 
@@ -1018,7 +1018,7 @@ public final class MainActivity extends Activity {
             return true;
         }
         if (screen == Screen.RESULT
-                && !inboxStore.loadItems().isEmpty()) {
+                && !stagingStore.loadItems().isEmpty()) {
             showConnectionScreen(true);
             hostInput.setText(currentHost);
             return true;
