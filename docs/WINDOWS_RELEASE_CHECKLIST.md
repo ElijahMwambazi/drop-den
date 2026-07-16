@@ -20,7 +20,8 @@ Run from PowerShell at the repository root:
 .\scripts\build-desktop-windows.ps1
 ```
 
-- [ ] Confirm the backend builds as `backend/target/release/drop-den-backend.exe`.
+- [ ] Confirm the backend builds as
+  `backend/target/x86_64-pc-windows-msvc/release/drop-den-backend.exe`.
 - [ ] Confirm the sidecar is copied as
   `src-tauri/binaries/drop-den-backend-x86_64-pc-windows-msvc.exe`.
 - [ ] Confirm the NSIS installer is created under

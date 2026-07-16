@@ -311,8 +311,9 @@ Microsoft C++ Build Tools installed, run from PowerShell:
 .\scripts\build-desktop-windows.ps1
 ```
 
-This builds the backend `.exe`, copies it to Tauri's target-triple sidecar name,
-and creates an NSIS `-setup.exe` under
+This verifies the 64-bit Windows MSVC Rust host, builds the backend `.exe` for
+`x86_64-pc-windows-msvc`, copies it to Tauri's target-triple sidecar name, and
+creates an NSIS `-setup.exe` under
 `src-tauri/target/release/bundle/nsis/`. The platform-specific
 `src-tauri/tauri.windows.conf.json` overrides the Linux RPM target without
 changing Linux packaging. See the
