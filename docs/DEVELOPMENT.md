@@ -302,6 +302,22 @@ yarn desktop:dev:sidecar
 
 Avoid deleting `src-tauri/target` unless necessary. The first rebuild after deleting it is slow because Tauri, WebKit, and related Rust dependencies must be rebuilt.
 
+### Build the Windows desktop installer
+
+On 64-bit Windows with Node.js, Yarn, the stable MSVC Rust toolchain, and the
+Microsoft C++ Build Tools installed, run from PowerShell:
+
+```powershell
+.\scripts\build-desktop-windows.ps1
+```
+
+This builds the backend `.exe`, copies it to Tauri's target-triple sidecar name,
+and creates an NSIS `-setup.exe` under
+`src-tauri/target/release/bundle/nsis/`. The platform-specific
+`src-tauri/tauri.windows.conf.json` overrides the Linux RPM target without
+changing Linux packaging. See the
+[Windows release checklist](./WINDOWS_RELEASE_CHECKLIST.md) before distribution.
+
 ### Desktop dev data
 
 For a clean dev desktop run:

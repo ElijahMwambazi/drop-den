@@ -208,7 +208,11 @@ checksums; a forward migration drops its table during upgrade.
 
 ## Future packaging
 
-- [ ] Package Windows build
+- [x] Add Windows-specific Tauri bundle configuration
+- [x] Add a native Windows sidecar and NSIS build script
+- [x] Add a manual Windows CI artifact workflow
+- [ ] Build and smoke-test the NSIS installer on Windows
+- [ ] Configure Windows code signing for public downloads
 - [ ] Package macOS build
 
 ## Long-term ideas
