@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CircleAlert,
   LoaderCircle,
+  Radio,
   RotateCcw,
   Trash2,
   Upload,
@@ -28,6 +29,21 @@ type UploadItem = {
   status: UploadStatus;
   error?: string;
 };
+
+type NativeShareItem = {
+  id: string;
+  name: string;
+  size: number | null;
+  status: UploadStatus;
+  error?: string | null;
+  retryable: boolean;
+};
+
+declare global {
+  interface Window {
+    __DROP_DEN_NATIVE_SHARE_QUEUE__?: NativeShareItem[];
+  }
+}
 
 type TauriDragDropEvent = {
   payload:
@@ -64,11 +80,15 @@ export function FileUpload() {
   });
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [nativeShareQueue, setNativeShareQueue] = useState<NativeShareItem[]>(
+    () => window.__DROP_DEN_NATIVE_SHARE_QUEUE__ ?? [],
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [targetDeviceId, setTargetDeviceId] = useState("");
 
   const lastDesktopDropSignatureRef = useRef("");
   const lastDesktopDropTimeRef = useRef(0);
+  const nativeQueueWasVisibleRef = useRef(false);
   const deviceIdRef = useRef(device?.id);
   const targetDeviceIdRef = useRef(targetDeviceId);
 
@@ -90,6 +110,26 @@ export function FileUpload() {
   const completedUploads = uploads.filter(
     (upload) => upload.status === "success",
   );
+  const activeNativeShares = nativeShareQueue.filter(
+    (item) => item.status === "queued" || item.status === "uploading",
+  );
+  const failedNativeShares = nativeShareQueue.filter(
+    (item) => item.status === "error",
+  );
+  const completedNativeShares = nativeShareQueue.filter(
+    (item) => item.status === "success",
+  );
+  const dismissibleNativeShares = failedNativeShares.filter(
+    (item) => !item.retryable,
+  );
+  const hasRetryableFailure =
+    failedUploads.length > 0 ||
+    failedNativeShares.some((item) => item.retryable);
+  const totalQueueItems = uploads.length + nativeShareQueue.length;
+  const totalActiveUploads = activeUploads.length + activeNativeShares.length;
+  const totalFailedUploads = failedUploads.length + failedNativeShares.length;
+  const totalCompletedUploads =
+    completedUploads.length + completedNativeShares.length;
   const batchProgress = uploads.length
     ? Math.round(
         uploads.reduce((total, upload) => total + upload.progress, 0) /
@@ -98,6 +138,9 @@ export function FileUpload() {
     : 0;
   const completedUploadSignature = completedUploads
     .map((upload) => upload.id)
+    .join(":");
+  const completedNativeShareSignature = completedNativeShares
+    .map((item) => item.id)
     .join(":");
 
   useEffect(() => {
@@ -116,6 +159,64 @@ export function FileUpload() {
 
     return () => window.clearTimeout(timeout);
   }, [completedUploadSignature]);
+
+  useEffect(() => {
+    function updateNativeShareQueue(event: Event) {
+      const queue = (event as CustomEvent<NativeShareItem[]>).detail;
+      if (Array.isArray(queue)) {
+        setNativeShareQueue(queue);
+      }
+    }
+
+    function refreshTransfers() {
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+    }
+
+    window.addEventListener(
+      "drop-den-native-share-queue",
+      updateNativeShareQueue,
+    );
+    window.addEventListener(
+      "drop-den-native-transfer-complete",
+      refreshTransfers,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "drop-den-native-share-queue",
+        updateNativeShareQueue,
+      );
+      window.removeEventListener(
+        "drop-den-native-transfer-complete",
+        refreshTransfers,
+      );
+    };
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!completedNativeShareSignature) return;
+
+    queryClient.invalidateQueries({ queryKey: ["transfers"] });
+    const timeout = window.setTimeout(() => {
+      invokeNativeShareAction("clear-completed");
+    }, 8000);
+
+    return () => window.clearTimeout(timeout);
+  }, [completedNativeShareSignature, queryClient]);
+
+  useEffect(() => {
+    if (nativeShareQueue.length === 0) {
+      nativeQueueWasVisibleRef.current = false;
+      return;
+    }
+
+    if (!nativeQueueWasVisibleRef.current) {
+      nativeQueueWasVisibleRef.current = true;
+      document
+        .querySelector("[data-drop-den-share-target]")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [nativeShareQueue.length]);
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -450,10 +551,22 @@ export function FileUpload() {
     setUploads((currentUploads) =>
       currentUploads.filter((upload) => upload.status !== "success"),
     );
+    if (
+      completedNativeShares.length > 0 ||
+      dismissibleNativeShares.length > 0
+    ) {
+      invokeNativeShareAction("clear-completed");
+    }
   }
 
   function retryFailedUploads() {
-    if (isUploading || failedUploads.length === 0) return;
+    if (isUploading || activeNativeShares.length > 0) return;
+
+    if (failedNativeShares.some((item) => item.retryable)) {
+      invokeNativeShareAction("retry");
+    }
+
+    if (failedUploads.length === 0) return;
 
     const localPaths = failedUploads
       .map((upload) => upload.localPath)
@@ -468,7 +581,8 @@ export function FileUpload() {
   }
 
   return (
-    <Card>
+    <div data-drop-den-share-target>
+      <Card>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Send files</h2>
@@ -539,7 +653,7 @@ export function FileUpload() {
         />
       </label>
 
-      {uploads.length > 0 && (
+      {totalQueueItems > 0 && (
         <section className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50/70">
           <div className="border-b border-neutral-200 bg-white px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
@@ -547,21 +661,23 @@ export function FileUpload() {
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold text-neutral-900">Upload queue</p>
                   <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
-                    {uploads.length}
+                    {totalQueueItems}
                   </span>
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-neutral-500">
                   {formatBatchStatus(
-                    uploads.length,
-                    activeUploads.length,
-                    completedUploads.length,
-                    failedUploads.length,
+                    totalQueueItems,
+                    totalActiveUploads,
+                    totalCompletedUploads,
+                    totalFailedUploads,
                   )}
                 </p>
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
-                {failedUploads.length > 0 && !isUploading && (
+                {hasRetryableFailure &&
+                  !isUploading &&
+                  activeNativeShares.length === 0 && (
                   <button
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
                     type="button"
@@ -570,7 +686,18 @@ export function FileUpload() {
                     <RotateCcw size={12} /> Retry
                   </button>
                 )}
-                {completedUploads.length > 0 && (
+                {failedNativeShares.some((item) => item.retryable) &&
+                  activeNativeShares.length === 0 && (
+                    <button
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                      type="button"
+                      onClick={() => invokeNativeShareAction("change-host")}
+                    >
+                      <Radio size={12} /> Host
+                    </button>
+                  )}
+                {(totalCompletedUploads > 0 ||
+                  dismissibleNativeShares.length > 0) && (
                   <button
                     className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
                     type="button"
@@ -582,11 +709,16 @@ export function FileUpload() {
               </div>
             </div>
 
-            {isUploading && (
+            {(isUploading || activeNativeShares.length > 0) && (
               <div className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-100">
                 <div
-                  className="h-full rounded-full bg-neutral-900 transition-all"
-                  style={{ width: `${batchProgress}%` }}
+                  className={[
+                    "h-full rounded-full bg-neutral-900 transition-all",
+                    activeNativeShares.length > 0 ? "animate-pulse" : "",
+                  ].join(" ")}
+                  style={{
+                    width: activeNativeShares.length > 0 ? "55%" : `${batchProgress}%`,
+                  }}
                 />
               </div>
             )}
@@ -624,6 +756,31 @@ export function FileUpload() {
               </div>
             ))}
 
+            {activeNativeShares.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+              >
+                <div className="flex items-start gap-2.5">
+                  <LoaderCircle
+                    className="mt-0.5 shrink-0 animate-spin text-neutral-500"
+                    size={14}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-neutral-900">
+                      {item.name}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                      {formatNativeShareDetail(item)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-medium text-neutral-500">
+                    Android
+                  </span>
+                </div>
+              </div>
+            ))}
+
             {failedUploads.map((upload) => (
               <div
                 key={upload.id}
@@ -636,6 +793,23 @@ export function FileUpload() {
                   </p>
                   <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-red-700">
                     {upload.error ?? "Upload failed."}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {failedNativeShares.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5"
+              >
+                <CircleAlert className="mt-0.5 shrink-0 text-red-600" size={14} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-red-900">
+                    {item.name}
+                  </p>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-red-700">
+                    {item.error ?? "Upload failed."}
                   </p>
                 </div>
               </div>
@@ -654,10 +828,25 @@ export function FileUpload() {
                 </span>
               </div>
             )}
+
+            {completedNativeShares.length > 0 && (
+              <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-800">
+                <CheckCircle2 className="shrink-0" size={14} />
+                <p className="min-w-0 flex-1 truncate text-[11px] font-medium">
+                  {completedNativeShares.length === 1
+                    ? `${completedNativeShares[0].name} uploaded`
+                    : `${completedNativeShares.length} Android shares uploaded`}
+                </p>
+                <span className="shrink-0 text-[10px] text-emerald-700/70">
+                  Auto-clears
+                </span>
+              </div>
+            )}
           </div>
         </section>
       )}
-    </Card>
+      </Card>
+    </div>
   );
 }
 
@@ -720,6 +909,15 @@ function formatUploadDetail(upload: UploadItem) {
   }
 
   return `${formatBytes(upload.size)} · Queued`;
+}
+
+function formatNativeShareDetail(item: NativeShareItem) {
+  const size = item.size === null ? "Shared file" : formatBytes(item.size);
+  return `${size} · ${item.status === "queued" ? "Preparing" : "Uploading"}`;
+}
+
+function invokeNativeShareAction(action: string) {
+  window.location.href = `dropden-native://share/${action}`;
 }
 
 function createUploadId() {

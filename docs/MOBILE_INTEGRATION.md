@@ -252,7 +252,10 @@ interface, receives single and multiple Android file shares, and copies
 The backend Shared Inbox experiment was removed because its extra user-visible
 publish step did not fit the intended share-sheet experience. Android keeps
 bounded private local staging for safety and retry, then uploads directly to
-normal Transfers for Everyone in the den.
+normal Transfers for Everyone in the den. With a remembered host, Android opens
+the main responsive interface immediately and reports staging, upload, failure,
+and completion states in its existing bounded upload queue rather than separate
+native progress or result screens.
 
 Track this work in the [roadmap](ROADMAP.md) and
 [known issues](ISSUES.md).

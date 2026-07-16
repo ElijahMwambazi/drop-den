@@ -172,7 +172,7 @@ active database schema have been removed.
 - [x] Stream Android `content://` URI files safely
 - [x] Validate shared file names, MIME types, and sizes
 - [x] Prototype upload of shared Android files to `/api/inbox` (superseded)
-- [x] Add upload result screen
+- [x] Prototype native upload progress/result screens (superseded by the in-app queue)
 - [x] Add retry/change-host behavior for failed share uploads
 - [x] Make the WebView resize around the Android keyboard
 - [x] Add adaptive launcher icon resources
@@ -181,16 +181,26 @@ active database schema have been removed.
 - [x] Bridge the WebView file-upload control to Android's document picker
 - [x] Upload staged Android files to `/api/transfers/upload`
 - [x] Default Android share-sheet uploads to Everyone in the den
-- [ ] Verify direct transfer progress, result, retry, and host-change states
-- [ ] Verify single and multiple in-app file selection on Android
+- [x] Open the main Drop Den UI immediately for shares with a remembered host
+- [x] Show native Android share status in the existing upload queue
+- [x] Remove native preparation, progress, and result screens from the normal share path
+- [x] Verify direct transfer queue, retry, and host-change states
+- [x] Verify single in-app file selection on Android
+- [x] Verify multiple in-app file selection and picker cancellation on Android
 - [x] Remove the frontend Shared Inbox panel
 - [x] Remove backend inbox routes, metadata, storage, and cleanup
 - [x] Remove obsolete inbox documentation and drop its active schema safely
-- [ ] Test from Gallery, Files, WhatsApp, and browser share flows
+- [x] Test Android share flow from Gallery
+- [x] Test Android multi-file share flow from Samsung My Files
+- [x] Test Android share flow from WhatsApp
+- [x] Test Android share flow from Chrome
+- [x] Test Android share flow from Firefox
 
 Decision: selecting Drop Den in the Android share sheet is sufficient intent to
 publish. Files still stage privately on Android for safety and recovery, but no
 separate backend inbox or publish action should remain in the final workflow.
+For a configured device, Drop Den opens its main interface immediately and
+reports native share work in the same bounded upload queue used by in-app files.
 
 The historical inbox migration remains immutable for existing SQLite migration
 checksums; a forward migration drops its table during upgrade.

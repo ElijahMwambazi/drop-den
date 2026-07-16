@@ -13,18 +13,28 @@ Status values:
 
 ## Active
 
+No active defects are currently recorded.
+
+## Ready to verify
+
+No implemented fixes are currently waiting for verification.
+
+## Resolved
+
 ### DD-003: Android shares should publish directly to Transfers
 
 - Priority: High
-- Status: Verify
+- Status: Resolved
 - Area: Android sharing and backend simplification
+- Verified: July 16, 2026
 
 The Shared Inbox adds an unnecessary user-visible step. Android share-sheet
 files should become normal broadcast Transfers after safe local staging.
 
-Direct publishing is implemented. Gallery sharing has been verified on a
-physical device, and the obsolete backend and frontend Shared Inbox have been
-removed. The broader source and recovery test matrix remains open.
+Direct publishing is implemented and verified across the physical-device test
+matrix. The obsolete backend and frontend Shared Inbox have been removed. The
+main Drop Den interface now opens immediately and shows native share work in
+the existing upload queue instead of separate native progress/result screens.
 
 Acceptance checks:
 
@@ -33,34 +43,44 @@ Acceptance checks:
 - [x] Upload staged files to `POST /api/transfers/upload` with the registered
   Android device identity.
 - [x] Default Android share-sheet uploads to **Everyone in the den**.
-- [x] Retain clear progress, result, retry, and change-host states.
+- [x] Show preparation, upload, success, and failure states in the existing
+  **Send files** upload queue.
+- [x] Keep retry and explicit change-host actions available for failures.
+- [x] Remove the normal native preparation, progress, and result screens.
 - [x] Remove the frontend panel, backend routes, storage, cleanup, and active
   inbox schema after confirming direct Gallery sharing.
 
 ### DD-004: Complete the Android share-source test matrix
 
 - Priority: High
-- Status: Open
+- Status: Resolved
 - Area: Android release readiness
 - Depends on: DD-003
+- Verified: July 16, 2026
 
 Acceptance checks:
 
-- Test one and multiple files from Gallery and Files.
-- Test shares from WhatsApp, Chrome, and Firefox.
-- Test an offline host, expired device registration, host change, cancellation,
-  retry, and process restart.
-- Confirm every successful upload appears once in Transfers.
-- Confirm successful staging copies are removed and failed copies remain
+- [x] Test a Gallery share and confirm it appears once in Transfers.
+- [x] Test multiple files from Samsung My Files on Android 8.
+- [x] Test a single file from Files.
+- [x] Test shares from WhatsApp, Chrome, and Firefox.
+- [x] Test an offline host, expired device registration, host change,
+  cancellation, retry, and process restart.
+- [x] Confirm every successful upload appears once in Transfers.
+- [x] Confirm successful staging copies are removed and failed copies remain
   bounded and recoverable.
 
-## Ready to verify
+Physical-device result, July 16, 2026: Samsung My Files published two selected
+documents with `2 published · 0 failed`. The backend contained exactly one
+broadcast Transfer per filename, and Android private staging was empty after
+success. The remaining matrix was confirmed manually on July 16, 2026.
 
 ### DD-008: Android in-app file picker did not open
 
 - Priority: High
-- Status: Verify
+- Status: Resolved
 - Area: Android WebView uploads
+- Verified: July 16, 2026
 
 The responsive frontend uses an HTML file input, but Android WebView does not
 open a system picker for it without a native `WebChromeClient` bridge. The
@@ -69,16 +89,17 @@ selections to the WebView, and reports cancellation safely.
 
 Acceptance checks:
 
-- Tap **Choose or drop files** inside the Android app and select one file.
-- Repeat with multiple files and confirm every selection enters the upload queue.
-- Cancel the picker and confirm the app remains usable with no empty upload.
-- Confirm Gallery share-sheet publishing still works independently.
+- [x] Tap **Choose or drop files** inside the Android app and select one file.
+- [x] Repeat with multiple files and confirm every selection enters the upload queue.
+- [x] Cancel the picker and confirm the app remains usable with no empty upload.
+- [x] Confirm Gallery share-sheet publishing still works independently.
 
 ### DD-002: Android host connection needs QR scanning
 
 - Priority: High
-- Status: Verify
+- Status: Resolved
 - Area: Android onboarding
+- Verified: July 16, 2026
 
 The connection screen now offers a QR-only Google Code Scanner with auto-zoom.
 Drop Den requests no camera permission itself; Google Play services owns the
@@ -86,16 +107,17 @@ scanner UI. Manual and remembered-host flows remain available.
 
 Acceptance checks:
 
-- Scan the host invite QR and confirm `/api/config` validation connects.
-- Verify invalid content, cancellation, an unavailable host, and scanner module
+- [x] Scan the host invite QR and confirm `/api/config` validation connects.
+- [x] Verify invalid content, cancellation, an unavailable host, and scanner module
   failure return useful feedback without hiding manual entry.
-- Confirm scanned credentials, paths, queries, and fragments are rejected.
+- [x] Confirm scanned credentials, paths, queries, and fragments are rejected.
 
 ### DD-001: Android launcher mark is clipped
 
 - Priority: High
-- Status: Verify
+- Status: Resolved
 - Area: Android packaging
+- Verified: July 16, 2026
 
 The adaptive foreground is now packaged at the correct density instead of as a
 density-independent 432 dp bitmap. This prevents Android from zooming and
@@ -103,20 +125,20 @@ clipping the padded artwork.
 
 Acceptance checks:
 
-- Verify the icon with circle, squircle, rounded-square, and themed masks.
-- Confirm the mark remains recognizable at launcher and share-sheet sizes.
+- [x] Verify the icon with circle, squircle, rounded-square, and themed masks.
+- [x] Confirm the mark remains recognizable at launcher and share-sheet sizes.
 
 ### DD-005: Toast content alignment on mobile
 
 - Priority: Medium
-- Status: Verify
+- Status: Resolved
 - Area: Frontend
+- Verified: July 16, 2026
 
 Toast cards now use centered vertical alignment, left-aligned message text, and
-a horizontally centered mobile viewport. Verify short, wrapping, deduplicated,
-success, information, and error notifications on Android and desktop.
-
-## Resolved
+a horizontally centered mobile viewport. Short, wrapping, deduplicated,
+success, information, and error notifications were verified on Android and
+desktop.
 
 ### DD-006: Android keyboard covered the message composer
 

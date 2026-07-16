@@ -16,7 +16,8 @@ The wrapper currently:
 - receives single and multiple file shares from Android apps;
 - copies `content://` files into bounded private app storage before upload;
 - publishes staged files sequentially as broadcast Transfers for Everyone;
-- keeps failed files available for retry or a host change.
+- shows native share work in the responsive UI's existing upload queue;
+- keeps failed files available there for retry or an explicit host change.
 
 The wrapper uses private on-device staging only; the removed backend Shared
 Inbox is no longer part of the upload flow.
@@ -73,8 +74,9 @@ These steps verify the current direct-to-Transfers flow.
 3. Register the Android device in the WebView if it is not already joined.
 4. From Android Gallery, Files, a browser, or another app, select one or more
    files and choose **Share > Drop Den**.
-5. Confirm upload progress begins without a separate review step and each file
-   appears once in **Transfers** with destination **Everyone**.
+5. Confirm Drop Den opens its main interface immediately, the files enter the
+   **Send files** upload queue, and each appears once in **Transfers** with
+   destination **Everyone**. No native preparation or result screen should open.
 6. Repeat with the host offline, then use retry and change-host after restoring
    the connection.
 7. Open Drop Den itself, tap **Choose or drop files**, select one file and then
@@ -84,7 +86,6 @@ Also exercise cancellation, a file over 250 MiB, more than 50 files, process
 death before upload, and an expired device registration. Shared files are
 limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
 
-## Remaining verification
-
-1. Verify direct sharing from Gallery, Files, WhatsApp, Chrome, and Firefox.
-2. Exercise offline-host, expired-registration, retry, and host-change states.
+The physical Android matrix for Gallery, Files, Samsung My Files, WhatsApp,
+Chrome, Firefox, picker cancellation, recovery, retry, and host change was
+completed on July 16, 2026.

@@ -66,12 +66,15 @@ or peer-to-peer WebRTC transfers.
 - Single- and multi-file Android share intents.
 - Bounded private on-device staging for safe `content://` URI handling,
   recovery, and retry.
+- Native share progress and failures inside the existing web upload queue.
 - Adaptive Drop Den launcher icon.
 - Soft-keyboard-aware WebView layout.
 
 Android shares now use the invisible local staging layer and publish directly
-to normal broadcast Transfers. The earlier backend Shared Inbox experiment has
-been removed. See the [roadmap](ROADMAP.md) and [issue tracker](ISSUES.md).
+to normal broadcast Transfers. With a configured host, the main interface opens
+immediately and shows the work in **Send files** without native preparation or
+result screens. The earlier backend Shared Inbox experiment has been removed.
+See the [roadmap](ROADMAP.md) and [issue tracker](ISSUES.md).
 
 ## Repository layout
 

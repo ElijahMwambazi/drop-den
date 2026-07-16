@@ -28,7 +28,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -66,6 +65,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<String> stageWarnings = new ArrayList<>();
+    private final List<NativeShareQueueItem> nativeShareQueue = new ArrayList<>();
 
     private SharedPreferences preferences;
     private ShareStagingStore stagingStore;
@@ -79,9 +79,12 @@ public final class MainActivity extends Activity {
     private String currentHost = "";
     private long hostUploadLimit = ShareStagingStore.MAX_ITEM_BYTES;
     private boolean shareFlowActive;
+    private boolean stagingShareIntent;
     private boolean awaitingIdentity;
     private boolean uploading;
     private boolean scanning;
+    private boolean webViewLoaded;
+    private boolean scrollToShareQueue;
     private Screen screen = Screen.CONNECTION;
 
     private final Runnable identityPoll = new Runnable() {
@@ -163,19 +166,56 @@ public final class MainActivity extends Activity {
 
     private void handleShareIntent(Intent intent) {
         shareFlowActive = true;
+        stagingShareIntent = true;
         awaitingIdentity = false;
         handler.removeCallbacks(identityPoll);
-        showBusyScreen("Preparing shared files…", "Copying files into private app storage.");
+        String preparingItemId = "preparing-" + UUID.randomUUID();
+        nativeShareQueue.add(new NativeShareQueueItem(
+                preparingItemId,
+                "Preparing shared files…",
+                -1L,
+                "queued",
+                null,
+                false
+        ));
+
+        String rememberedHost = preferences.getString(HOST_KEY, "");
+        if (!rememberedHost.isEmpty()) {
+            boolean reuseCurrentWebView = webView != null && rememberedHost.equals(currentHost);
+            currentHost = rememberedHost;
+            boolean waitForIdentity = !isUuid(preferences.getString(deviceKey(rememberedHost), ""));
+            if (!reuseCurrentWebView) {
+                openHost(rememberedHost, waitForIdentity);
+            } else if (waitForIdentity) {
+                startIdentityPolling();
+            }
+        } else {
+            showConnectionScreen(true);
+        }
+        publishNativeShareQueue(true);
 
         executor.execute(() -> {
             ShareStagingStore.StageResult result = stagingStore.stage(intent);
             runOnUiThread(() -> {
+                stagingShareIntent = false;
+                nativeShareQueue.removeIf(item -> preparingItemId.equals(item.id));
                 stageWarnings.addAll(result.rejected);
+                syncNativeShareQueue(result.rejected);
+                publishNativeShareQueue(true);
                 if (result.staged.isEmpty() && stagingStore.loadItems().isEmpty()) {
-                    showShareFailure();
+                    shareFlowActive = false;
+                    if (webView == null) {
+                        showShareFailure();
+                    }
                     return;
                 }
-                connectRememberedHostOrPrompt();
+
+                if (currentHost.isEmpty()) {
+                    connectRememberedHostOrPrompt();
+                    return;
+                }
+
+                ensureRegisteredDevice(currentHost);
             });
         });
     }
@@ -190,11 +230,19 @@ public final class MainActivity extends Activity {
 
     private void connectRememberedHostOrPrompt() {
         String rememberedHost = preferences.getString(HOST_KEY, "");
+        if (!rememberedHost.isEmpty()) {
+            currentHost = rememberedHost;
+            syncNativeShareQueue(new ArrayList<>());
+            boolean waitForIdentity = !isUuid(preferences.getString(deviceKey(rememberedHost), ""));
+            openHost(rememberedHost, waitForIdentity);
+            if (!waitForIdentity && !stagingShareIntent) {
+                uploadPendingItems();
+            }
+            return;
+        }
+
         showConnectionScreen(true);
         hostInput.setText(rememberedHost);
-        if (!rememberedHost.isEmpty()) {
-            connect(rememberedHost);
-        }
     }
 
     private void connectRememberedHostIfPresent() {
@@ -334,7 +382,13 @@ public final class MainActivity extends Activity {
                     hostUploadLimit = config.maxUploadBytes;
                     preferences.edit().putString(HOST_KEY, host).apply();
                     if (shareFlowActive && !stagingStore.loadItems().isEmpty()) {
-                        ensureRegisteredDevice(host);
+                        boolean waitForIdentity = !isUuid(
+                                preferences.getString(deviceKey(host), "")
+                        );
+                        openHost(host, waitForIdentity);
+                        if (!waitForIdentity) {
+                            uploadPendingItems();
+                        }
                     } else {
                         openHost(host, false);
                     }
@@ -380,10 +434,17 @@ public final class MainActivity extends Activity {
     private void ensureRegisteredDevice(String host) {
         String savedDeviceId = preferences.getString(deviceKey(host), "");
         if (isUuid(savedDeviceId)) {
+            if (webView == null) {
+                openHost(host, false);
+            }
             uploadPendingItems();
             return;
         }
-        openHost(host, true);
+        if (webView == null) {
+            openHost(host, true);
+        } else {
+            startIdentityPolling();
+        }
     }
 
     private void openHost(String host, boolean waitForIdentity) {
@@ -394,6 +455,7 @@ public final class MainActivity extends Activity {
 
         WebView view = new WebView(this);
         webView = view;
+        webViewLoaded = false;
         view.setBackgroundColor(Color.WHITE);
         view.getSettings().setJavaScriptEnabled(true);
         view.getSettings().setDomStorageEnabled(true);
@@ -412,6 +474,10 @@ public final class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView source, WebResourceRequest request) {
                 Uri target = request.getUrl();
+                if ("dropden-native".equalsIgnoreCase(target.getScheme())) {
+                    handleNativeShareAction(target);
+                    return true;
+                }
                 Uri allowed = Uri.parse(host);
                 boolean sameOrigin = safeEquals(target.getScheme(), allowed.getScheme())
                         && safeEquals(target.getHost(), allowed.getHost())
@@ -421,6 +487,8 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView source, String url) {
+                webViewLoaded = true;
+                publishNativeShareQueue(false);
                 if (waitForIdentity) {
                     startIdentityPolling();
                 } else {
@@ -552,7 +620,7 @@ public final class MainActivity extends Activity {
                         return;
                     }
                     preferences.edit().putString(deviceKey(host), deviceId).apply();
-                    if (continueShare && awaitingIdentity && shareFlowActive) {
+                    if (continueShare && awaitingIdentity && shareFlowActive && !stagingShareIntent) {
                         stopIdentityPolling();
                         uploadPendingItems();
                     }
@@ -582,41 +650,108 @@ public final class MainActivity extends Activity {
         return DEVICE_ID_PREFIX + host;
     }
 
-    private View sharedItemRow(ShareStagingStore.SharedItem item) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(14), dp(13), dp(14), dp(13));
-        row.setBackground(rounded(Color.WHITE, dp(14), BORDER));
-
-        TextView filename = text(item.displayName, 15, INK);
-        filename.setMaxLines(2);
-        row.addView(filename, matchWrap());
-
-        TextView details = text(formatBytes(item.size) + " · " + item.mimeType, 12, MUTED);
-        details.setPadding(0, dp(4), 0, 0);
-        row.addView(details, matchWrap());
-
-        if (item.isFailed() && item.failureMessage != null) {
-            TextView failure = text(item.failureMessage, 12, ERROR);
-            failure.setPadding(0, dp(7), 0, 0);
-            row.addView(failure, matchWrap());
+    private void syncNativeShareQueue(List<String> rejected) {
+        for (ShareStagingStore.SharedItem item : stagingStore.loadItems()) {
+            NativeShareQueueItem queueItem = findNativeShareQueueItem(item.id);
+            String state = item.isFailed() ? "error" : "queued";
+            if (queueItem == null) {
+                nativeShareQueue.add(new NativeShareQueueItem(
+                        item.id,
+                        item.displayName,
+                        item.size,
+                        state,
+                        item.failureMessage,
+                        true
+                ));
+            } else if (!"uploading".equals(queueItem.status)) {
+                queueItem.status = state;
+                queueItem.error = item.failureMessage;
+            }
         }
 
-        Button remove = actionButton("Remove", false);
-        remove.setTextColor(ERROR);
-        remove.setOnClickListener(view -> {
-            stagingStore.removeItem(item);
-            showUploadResult(0, stagingStore.loadItems().size(), false);
-        });
-        LinearLayout.LayoutParams removeParams = wrapWrap();
-        removeParams.gravity = Gravity.END;
-        removeParams.setMargins(0, dp(8), 0, 0);
-        row.addView(remove, removeParams);
+        for (String warning : rejected) {
+            nativeShareQueue.add(new NativeShareQueueItem(
+                    "rejected-" + UUID.randomUUID(),
+                    "Shared file",
+                    -1L,
+                    "error",
+                    warning,
+                    false
+            ));
+        }
+    }
 
-        LinearLayout.LayoutParams rowParams = matchWrap();
-        rowParams.setMargins(0, 0, 0, dp(10));
-        row.setLayoutParams(rowParams);
-        return row;
+    private NativeShareQueueItem findNativeShareQueueItem(String id) {
+        for (NativeShareQueueItem item : nativeShareQueue) {
+            if (item.id.equals(id)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private void updateNativeShareQueueItem(String id, String state, String error) {
+        NativeShareQueueItem item = findNativeShareQueueItem(id);
+        if (item != null) {
+            item.status = state;
+            item.error = error;
+        }
+        publishNativeShareQueue(false);
+    }
+
+    private void publishNativeShareQueue(boolean scrollToQueue) {
+        if (scrollToQueue) {
+            scrollToShareQueue = true;
+        }
+
+        WebView view = webView;
+        if (view == null || !webViewLoaded) {
+            return;
+        }
+
+        JSONArray payload = new JSONArray();
+        for (NativeShareQueueItem item : nativeShareQueue) {
+            payload.put(item.toJson());
+        }
+
+        String script = "(function(){"
+                + "const queue=" + payload + ";"
+                + "window.__DROP_DEN_NATIVE_SHARE_QUEUE__=queue;"
+                + "window.dispatchEvent(new CustomEvent('drop-den-native-share-queue',"
+                + "{detail:queue}));"
+                + (scrollToShareQueue
+                    ? "document.querySelector('[data-drop-den-share-target]')?.scrollIntoView({behavior:'smooth',block:'start'});"
+                    : "")
+                + "})();";
+        scrollToShareQueue = false;
+        view.evaluateJavascript(script, null);
+    }
+
+    private void refreshWebTransfers() {
+        if (webView != null) {
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('drop-den-native-transfer-complete'));",
+                    null
+            );
+        }
+    }
+
+    private void handleNativeShareAction(Uri target) {
+        String action = target.getLastPathSegment();
+        if ("retry".equals(action)) {
+            retryPendingItems();
+            return;
+        }
+        if ("clear-completed".equals(action)) {
+            nativeShareQueue.removeIf(item -> "success".equals(item.status)
+                    || ("error".equals(item.status) && !item.retryable));
+            publishNativeShareQueue(false);
+            return;
+        }
+        if ("change-host".equals(action)) {
+            showConnectionScreen(true);
+            hostInput.setText(currentHost);
+        }
     }
 
     private void uploadPendingItems() {
@@ -625,7 +760,8 @@ public final class MainActivity extends Activity {
         }
         List<ShareStagingStore.SharedItem> items = stagingStore.loadItems();
         if (items.isEmpty()) {
-            showUploadResult(0, 0, false);
+            shareFlowActive = false;
+            publishNativeShareQueue(false);
             return;
         }
 
@@ -636,10 +772,10 @@ public final class MainActivity extends Activity {
         }
 
         uploading = true;
-        showUploadProgress(items.size());
+        syncNativeShareQueue(new ArrayList<>());
+        publishNativeShareQueue(true);
         executor.execute(() -> {
             int successes = 0;
-            int failures = 0;
             boolean authExpired = false;
             long effectiveLimit = hostUploadLimit;
 
@@ -651,12 +787,19 @@ public final class MainActivity extends Activity {
 
             for (int index = 0; index < items.size(); index += 1) {
                 ShareStagingStore.SharedItem item = items.get(index);
-                int position = index + 1;
-                runOnUiThread(() -> updateUploadProgress(position, items.size(), item.displayName));
+                runOnUiThread(() -> updateNativeShareQueueItem(
+                        item.id,
+                        "uploading",
+                        null
+                ));
 
                 if (item.size > effectiveLimit) {
                     stagingStore.markFailed(item, "This file exceeds the host upload limit.");
-                    failures += 1;
+                    runOnUiThread(() -> updateNativeShareQueueItem(
+                            item.id,
+                            "error",
+                            "This file exceeds the host upload limit."
+                    ));
                     continue;
                 }
 
@@ -668,10 +811,19 @@ public final class MainActivity extends Activity {
                 );
                 if (result.success) {
                     stagingStore.removeItem(item);
+                    runOnUiThread(() -> updateNativeShareQueueItem(
+                            item.id,
+                            "success",
+                            null
+                    ));
                     successes += 1;
                 } else {
                     stagingStore.markFailed(item, result.message);
-                    failures += 1;
+                    runOnUiThread(() -> updateNativeShareQueueItem(
+                            item.id,
+                            "error",
+                            result.message
+                    ));
                     if (result.status == 401) {
                         authExpired = true;
                     }
@@ -679,123 +831,31 @@ public final class MainActivity extends Activity {
             }
 
             int completedSuccesses = successes;
-            int completedFailures = failures;
             boolean registrationExpired = authExpired;
             runOnUiThread(() -> {
                 uploading = false;
                 if (registrationExpired) {
                     preferences.edit().remove(deviceKey(currentHost)).apply();
                 }
-                showUploadResult(completedSuccesses, completedFailures, registrationExpired);
-            });
-        });
-    }
-
-    private void showUploadProgress(int count) {
-        screen = Screen.UPLOADING;
-        LinearLayout card = card();
-        card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.addView(eyebrow("PUBLISHING TRANSFERS"));
-        card.addView(title("Uploading files"));
-        card.addView(paragraph(
-                "Keep Drop Den open while files are published for everyone one at a time."
-        ));
-
-        ProgressBar indicator = new ProgressBar(this);
-        indicator.setIndeterminate(false);
-        indicator.setMax(count);
-        indicator.setProgress(0);
-        indicator.setTag("upload-progress");
-        card.addView(indicator, matchWrap());
-
-        TextView uploadStatus = text("Starting…", 13, MUTED);
-        uploadStatus.setGravity(Gravity.CENTER);
-        uploadStatus.setPadding(0, dp(12), 0, 0);
-        uploadStatus.setTag("upload-status");
-        card.addView(uploadStatus, matchWrap());
-        setContentView(centeredPage(card));
-    }
-
-    private void updateUploadProgress(int position, int count, String filename) {
-        View root = findViewById(android.R.id.content);
-        ProgressBar uploadProgress = root.findViewWithTag("upload-progress");
-        TextView uploadStatus = root.findViewWithTag("upload-status");
-        if (uploadProgress != null) {
-            uploadProgress.setProgress(position - 1);
-        }
-        if (uploadStatus != null) {
-            uploadStatus.setText(position + " of " + count + " · " + filename);
-        }
-    }
-
-    private void showUploadResult(int successes, int failures, boolean registrationExpired) {
-        screen = Screen.RESULT;
-        List<ShareStagingStore.SharedItem> remaining = stagingStore.loadItems();
-        LinearLayout content = pageContent();
-        content.addView(eyebrow("UPLOAD RESULT"));
-        content.addView(title(
-                failures == 0 ? "Transfers are available" : "Some files need attention"
-        ));
-
-        String summary;
-        if (successes == 0 && failures == 0) {
-            summary = "There are no files waiting to upload.";
-        } else {
-            summary = successes + " published · " + failures + " failed";
-        }
-        content.addView(paragraph(summary));
-
-        if (!stageWarnings.isEmpty()) {
-            StringBuilder warning = new StringBuilder();
-            for (String value : stageWarnings) {
-                if (warning.length() > 0) {
-                    warning.append("\n");
+                shareFlowActive = !stagingStore.loadItems().isEmpty();
+                publishNativeShareQueue(false);
+                if (completedSuccesses > 0) {
+                    refreshWebTransfers();
                 }
-                warning.append("• ").append(value);
-            }
-            content.addView(infoBox("Some files were skipped", warning.toString(), true));
-            stageWarnings.clear();
-        }
-
-        if (registrationExpired) {
-            content.addView(infoBox(
-                    "Registration expired",
-                    "Join this den again before retrying the remaining files.",
-                    true
-            ));
-        }
-
-        for (ShareStagingStore.SharedItem item : remaining) {
-            content.addView(sharedItemRow(item));
-        }
-
-        if (!remaining.isEmpty()) {
-            Button retry = actionButton("Retry remaining files", true);
-            retry.setOnClickListener(view -> retryPendingItems());
-            content.addView(retry, buttonParams());
-
-            Button changeHost = actionButton("Change host", false);
-            changeHost.setOnClickListener(view -> {
-                showConnectionScreen(true);
-                hostInput.setText(currentHost);
+                if (!registrationExpired && hasQueuedStagedItems()) {
+                    uploadPendingItems();
+                }
             });
-            content.addView(changeHost, buttonParams());
-        }
-
-        Button open = actionButton("Open Drop Den", remaining.isEmpty());
-        open.setOnClickListener(view -> {
-            shareFlowActive = false;
-            openHost(currentHost, false);
         });
-        content.addView(open, buttonParams());
+    }
 
-        if (remaining.isEmpty()) {
-            Button done = actionButton("Done", false);
-            done.setOnClickListener(view -> finish());
-            content.addView(done, buttonParams());
+    private boolean hasQueuedStagedItems() {
+        for (ShareStagingStore.SharedItem item : stagingStore.loadItems()) {
+            if (!item.isFailed()) {
+                return true;
+            }
         }
-
-        setContentView(scrollPage(content));
+        return false;
     }
 
     private void retryPendingItems() {
@@ -822,16 +882,6 @@ public final class MainActivity extends Activity {
         setContentView(centeredPage(card));
     }
 
-    private void showBusyScreen(String heading, String description) {
-        screen = Screen.UPLOADING;
-        LinearLayout card = card();
-        card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.addView(title(heading));
-        card.addView(paragraph(description));
-        card.addView(new ProgressBar(this));
-        setContentView(centeredPage(card));
-    }
-
     private void setConnecting(boolean connecting, String message) {
         connectButton.setEnabled(!connecting);
         if (scanButton != null) {
@@ -850,21 +900,6 @@ public final class MainActivity extends Activity {
         page.setBackgroundColor(PAGE);
         page.addView(child, matchWrap());
         return page;
-    }
-
-    private ScrollView scrollPage(View child) {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(PAGE);
-        scroll.addView(child, matchWrap());
-        return scroll;
-    }
-
-    private LinearLayout pageContent() {
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(28), dp(20), dp(28));
-        return content;
     }
 
     private LinearLayout card() {
@@ -892,25 +927,6 @@ public final class MainActivity extends Activity {
         view.setLineSpacing(0, 1.18f);
         view.setPadding(0, 0, 0, dp(14));
         return view;
-    }
-
-    private View infoBox(String label, String value, boolean warning) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(14), dp(12), dp(14), dp(12));
-        box.setBackground(rounded(
-                warning ? Color.rgb(255, 247, 237) : Color.WHITE,
-                dp(14),
-                warning ? Color.rgb(253, 186, 116) : BORDER
-        ));
-        box.addView(text(label.toUpperCase(Locale.ROOT), 11, warning ? ERROR : MUTED));
-        TextView details = text(value, 13, warning ? ERROR : INK);
-        details.setPadding(0, dp(5), 0, 0);
-        box.addView(details, matchWrap());
-        LinearLayout.LayoutParams params = matchWrap();
-        params.setMargins(0, 0, 0, dp(12));
-        box.setLayoutParams(params);
-        return box;
     }
 
     private Button actionButton(String value, boolean primary) {
@@ -947,13 +963,6 @@ public final class MainActivity extends Activity {
         );
     }
 
-    private LinearLayout.LayoutParams wrapWrap() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-    }
-
     private LinearLayout.LayoutParams buttonParams() {
         LinearLayout.LayoutParams params = matchWrap();
         params.setMargins(0, dp(4), 0, dp(5));
@@ -968,17 +977,6 @@ public final class MainActivity extends Activity {
         return left == null ? right == null : left.equalsIgnoreCase(right);
     }
 
-    private static String formatBytes(long bytes) {
-        if (bytes < 1024L) {
-            return bytes + " B";
-        }
-        double kib = bytes / 1024.0;
-        if (kib < 1024.0) {
-            return String.format(Locale.ROOT, "%.1f KiB", kib);
-        }
-        return String.format(Locale.ROOT, "%.1f MiB", kib / 1024.0);
-    }
-
     private void destroyWebView() {
         cancelFileChooser();
         if (webView != null) {
@@ -988,6 +986,7 @@ public final class MainActivity extends Activity {
             webView.destroy();
             webView = null;
         }
+        webViewLoaded = false;
     }
 
     @Override
@@ -1037,7 +1036,46 @@ public final class MainActivity extends Activity {
     private enum Screen {
         CONNECTION,
         WEBVIEW,
-        UPLOADING,
         RESULT
+    }
+
+    private static final class NativeShareQueueItem {
+        final String id;
+        final String name;
+        final long size;
+        final boolean retryable;
+        String status;
+        String error;
+
+        NativeShareQueueItem(
+                String id,
+                String name,
+                long size,
+                String status,
+                String error,
+                boolean retryable
+        ) {
+            this.id = id;
+            this.name = name;
+            this.size = size;
+            this.status = status;
+            this.error = error;
+            this.retryable = retryable;
+        }
+
+        JSONObject toJson() {
+            JSONObject value = new JSONObject();
+            try {
+                value.put("id", id);
+                value.put("name", name);
+                value.put("size", size < 0 ? JSONObject.NULL : size);
+                value.put("status", status);
+                value.put("error", error == null ? JSONObject.NULL : error);
+                value.put("retryable", retryable);
+            } catch (Exception ignored) {
+                // Values are local primitives and cannot fail normal JSON serialization.
+            }
+            return value;
+        }
     }
 }

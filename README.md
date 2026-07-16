@@ -50,7 +50,7 @@ to reach the host computer.
 | --- | --- |
 | Browser clients | Supported on modern Chrome and Firefox |
 | Linux desktop host | Available; public package preparation is ongoing |
-| Android client and share target | In active testing |
+| Android client and share target | Implemented; release packaging pending |
 | Windows and macOS packages | Planned |
 
 ## Privacy and safety
