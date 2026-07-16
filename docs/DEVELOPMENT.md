@@ -318,6 +318,23 @@ and creates an NSIS `-setup.exe` under
 changing Linux packaging. See the
 [Windows release checklist](./WINDOWS_RELEASE_CHECKLIST.md) before distribution.
 
+### Build the macOS desktop installer
+
+On macOS with Xcode Command Line Tools, Node.js, Yarn, and stable Rust installed,
+run:
+
+```bash
+./scripts/build-desktop-macos.sh
+```
+
+The script detects the native Apple target, builds and copies the matching
+backend sidecar, and creates a DMG under
+`src-tauri/target/release/bundle/dmg/`. The manual GitHub Actions workflow builds
+separate Apple Silicon and Intel artifacts. See the
+[macOS release checklist](./MACOS_RELEASE_CHECKLIST.md) for real-device,
+signing, and notarization requirements. Test builds default to ad-hoc signing;
+set `APPLE_SIGNING_IDENTITY` to a Developer ID identity for release builds.
+
 ### Desktop dev data
 
 For a clean dev desktop run:

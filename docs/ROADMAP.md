@@ -213,7 +213,11 @@ checksums; a forward migration drops its table during upgrade.
 - [x] Add a manual Windows CI artifact workflow
 - [ ] Build and smoke-test the NSIS installer on Windows
 - [ ] Configure Windows code signing for public downloads
-- [ ] Package macOS build
+- [x] Add macOS-specific Tauri DMG configuration
+- [x] Add a native macOS sidecar and DMG build script
+- [x] Add Apple Silicon and Intel CI artifact workflows
+- [ ] Build and smoke-test both DMGs on matching Macs
+- [ ] Configure macOS Developer ID signing and notarization
 
 ## Long-term ideas
 

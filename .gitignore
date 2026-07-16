@@ -22,6 +22,7 @@ src-tauri/icons/StoreLogo.png
 
 !src-tauri/icons/icon.png
 !src-tauri/icons/icon.ico
+!src-tauri/icons/icon.icns
 
 # Local development storage
 storage/*
