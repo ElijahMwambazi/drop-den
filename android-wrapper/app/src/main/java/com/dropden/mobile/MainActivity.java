@@ -1,17 +1,21 @@
 package com.dropden.mobile;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
@@ -24,6 +28,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.URLUtil;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -55,6 +60,7 @@ public final class MainActivity extends Activity {
             "direct_share_staging_migrated_v1";
     private static final long IDENTITY_POLL_MS = 1_000L;
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
+    private static final int DOWNLOAD_PERMISSION_REQUEST_CODE = 1002;
 
     private static final int INK = Color.rgb(23, 23, 23);
     private static final int MUTED = Color.rgb(92, 92, 92);
@@ -76,6 +82,7 @@ public final class MainActivity extends Activity {
     private Button scanButton;
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
+    private PendingDownload pendingDownload;
     private String currentHost = "";
     private long hostUploadLimit = ShareStagingStore.MAX_ITEM_BYTES;
     private boolean shareFlowActive;
@@ -470,6 +477,15 @@ public final class MainActivity extends Activity {
                 return launchFileChooser(callback, chooserParams);
             }
         });
+        view.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) ->
+                startDownload(
+                        host,
+                        url,
+                        userAgent,
+                        contentDisposition,
+                        mimeType
+                )
+        );
         view.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView source, WebResourceRequest request) {
@@ -478,11 +494,7 @@ public final class MainActivity extends Activity {
                     handleNativeShareAction(target);
                     return true;
                 }
-                Uri allowed = Uri.parse(host);
-                boolean sameOrigin = safeEquals(target.getScheme(), allowed.getScheme())
-                        && safeEquals(target.getHost(), allowed.getHost())
-                        && target.getPort() == allowed.getPort();
-                return !sameOrigin;
+                return !isSameOrigin(target, host);
             }
 
             @Override
@@ -521,6 +533,121 @@ public final class MainActivity extends Activity {
                     Toast.LENGTH_LONG
             ).show();
         }
+    }
+
+    private void startDownload(
+            String host,
+            String url,
+            String userAgent,
+            String contentDisposition,
+            String mimeType
+    ) {
+        Uri target = Uri.parse(url);
+        if (!isSameOrigin(target, host)) {
+            Toast.makeText(
+                    this,
+                    "Drop Den blocked a download from an unexpected host.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
+        PendingDownload download = new PendingDownload(
+                url,
+                userAgent,
+                mimeType,
+                safeDownloadFileName(url, contentDisposition, mimeType)
+        );
+
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            pendingDownload = download;
+            requestPermissions(
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    DOWNLOAD_PERMISSION_REQUEST_CODE
+            );
+            return;
+        }
+
+        enqueueDownload(download);
+    }
+
+    private void enqueueDownload(PendingDownload download) {
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(download.url));
+            if (download.userAgent != null && !download.userAgent.isEmpty()) {
+                request.addRequestHeader("User-Agent", download.userAgent);
+            }
+            if (download.mimeType != null && !download.mimeType.isEmpty()) {
+                request.setMimeType(download.mimeType);
+            }
+            request.setTitle(download.fileName);
+            request.setDescription("Downloading from Drop Den");
+            request.setNotificationVisibility(
+                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+            );
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(true);
+            request.setDestinationInExternalPublicDir(
+                    Environment.DIRECTORY_DOWNLOADS,
+                    download.fileName
+            );
+
+            DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (manager == null) {
+                throw new IllegalStateException("Android Download Manager is unavailable.");
+            }
+            manager.enqueue(request);
+            Toast.makeText(
+                    this,
+                    "Downloading " + download.fileName,
+                    Toast.LENGTH_SHORT
+            ).show();
+        } catch (Exception error) {
+            Toast.makeText(
+                    this,
+                    "Could not start the download.",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != DOWNLOAD_PERMISSION_REQUEST_CODE) {
+            return;
+        }
+
+        PendingDownload download = pendingDownload;
+        pendingDownload = null;
+        if (download != null
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            enqueueDownload(download);
+            return;
+        }
+
+        Toast.makeText(
+                this,
+                "Storage permission is required to save this file.",
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
+    private static String safeDownloadFileName(
+            String url,
+            String contentDisposition,
+            String mimeType
+    ) {
+        String guessed = URLUtil.guessFileName(url, contentDisposition, mimeType);
+        String safe = guessed.replace('\\', '_').replace('/', '_').replace('\0', '_').trim();
+        return safe.isEmpty() ? "drop-den-download" : safe;
     }
 
     private boolean launchFileChooser(
@@ -977,10 +1104,18 @@ public final class MainActivity extends Activity {
         return left == null ? right == null : left.equalsIgnoreCase(right);
     }
 
+    private static boolean isSameOrigin(Uri target, String host) {
+        Uri allowed = Uri.parse(host);
+        return safeEquals(target.getScheme(), allowed.getScheme())
+                && safeEquals(target.getHost(), allowed.getHost())
+                && target.getPort() == allowed.getPort();
+    }
+
     private void destroyWebView() {
         cancelFileChooser();
         if (webView != null) {
             webView.stopLoading();
+            webView.setDownloadListener(null);
             webView.setWebChromeClient(null);
             webView.setWebViewClient(null);
             webView.destroy();
@@ -1045,6 +1180,20 @@ public final class MainActivity extends Activity {
         CONNECTION,
         WEBVIEW,
         RESULT
+    }
+
+    private static final class PendingDownload {
+        final String url;
+        final String userAgent;
+        final String mimeType;
+        final String fileName;
+
+        PendingDownload(String url, String userAgent, String mimeType, String fileName) {
+            this.url = url;
+            this.userAgent = userAgent;
+            this.mimeType = mimeType;
+            this.fileName = fileName;
+        }
     }
 
     private static final class NativeShareQueueItem {

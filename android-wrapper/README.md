@@ -12,6 +12,8 @@ The wrapper currently:
 - scans host invite QR codes without requesting camera permission;
 - opens the existing responsive Drop Den UI in a WebView;
 - opens Android's document picker for the WebView's file-upload control;
+- saves transfer downloads to Android's Downloads folder through the system
+  Download Manager;
 - returns to host selection when the main navigation cannot connect;
 - receives single and multiple file shares from Android apps;
 - copies `content://` files into bounded private app storage before upload;
@@ -81,6 +83,8 @@ These steps verify the current direct-to-Transfers flow.
    the connection.
 7. Open Drop Den itself, tap **Choose or drop files**, select one file and then
    multiple files, and confirm both selections enter the normal upload queue.
+8. Download an individual Transfer and **Download ZIP**, then confirm both files
+   complete through Android's download notification and appear in Downloads.
 
 Also exercise cancellation, a file over 250 MiB, more than 50 files, process
 death before upload, and an expired device registration. Shared files are

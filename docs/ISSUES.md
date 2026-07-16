@@ -17,7 +17,33 @@ No active defects are currently recorded.
 
 ## Ready to verify
 
-No implemented fixes are currently waiting for verification.
+### DD-010: Android transfer downloads did not start
+
+- Priority: High
+- Status: Verify
+- Area: Android WebView downloads
+- Fixed: July 16, 2026
+
+Android WebView does not save attachment responses without a native download
+handler. The wrapper now accepts downloads only from the connected Drop Den
+origin and hands them to Android's system Download Manager. Files are saved in
+Downloads with the backend-provided filename. Android 8 and 9 request the
+legacy storage permission only when the first download starts; newer Android
+versions do not request it.
+
+Acceptance checks:
+
+- [ ] Download an available individual transfer and open it from the completed
+  download notification.
+- [ ] Confirm the file appears in Android's Downloads folder with its expected
+  filename and content.
+- [ ] Download the filtered ZIP and confirm it contains the visible downloadable
+  transfers.
+- [ ] Download an accepted targeted transfer as its recipient.
+- [ ] On Android 8 or 9, grant storage access on the first attempt and confirm the
+  pending download starts automatically.
+- [ ] Confirm normal uploads, Android share-sheet publishing, and WebView
+  navigation still work.
 
 ## Resolved
 
