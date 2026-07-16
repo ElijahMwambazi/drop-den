@@ -1002,6 +1002,9 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, "Wait for the current upload to finish.", Toast.LENGTH_SHORT).show();
             return true;
         }
+        if (screen == Screen.WEBVIEW && hasRegisteredDeviceForCurrentHost()) {
+            return false;
+        }
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
             return true;
@@ -1023,6 +1026,11 @@ public final class MainActivity extends Activity {
             return true;
         }
         return false;
+    }
+
+    private boolean hasRegisteredDeviceForCurrentHost() {
+        return !currentHost.isEmpty()
+                && isUuid(preferences.getString(deviceKey(currentHost), ""));
     }
 
     @Override

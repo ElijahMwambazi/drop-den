@@ -21,6 +21,18 @@ No implemented fixes are currently waiting for verification.
 
 ## Resolved
 
+### DD-009: Android Back opened host setup from the registered app
+
+- Priority: High
+- Status: Resolved
+- Area: Android navigation
+- Fixed: July 16, 2026
+
+Pressing Android Back from the registered main Drop Den interface now exits the
+activity. It no longer treats Back as an implicit change-host action. Host setup
+remains available after a connection failure and through explicit host-change
+controls; Back can still leave an unregistered join flow.
+
 ### DD-003: Android shares should publish directly to Transfers
 
 - Priority: High

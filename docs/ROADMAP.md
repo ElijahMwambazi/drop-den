@@ -184,6 +184,7 @@ active database schema have been removed.
 - [x] Open the main Drop Den UI immediately for shares with a remembered host
 - [x] Show native Android share status in the existing upload queue
 - [x] Remove native preparation, progress, and result screens from the normal share path
+- [x] Make Android Back exit the registered main app instead of opening host setup
 - [x] Verify direct transfer queue, retry, and host-change states
 - [x] Verify single in-app file selection on Android
 - [x] Verify multiple in-app file selection and picker cancellation on Android
