@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { MessageSquareX, RotateCcw, Shield, Trash2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Clock3, MessageSquareX, RotateCcw, Save, Shield, Trash2 } from "lucide-react";
+import { getConfig, updateHostSettings } from "../api/config";
 import { resetHostIdentity } from "../api/devices";
 import { clearMessages } from "../api/messages";
 import { deleteAllTransfers } from "../api/transfers";
@@ -8,6 +9,7 @@ import { useDeviceStore } from "../store/deviceStore";
 import { useDialogStore } from "../store/dialogStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
+import { SelectMenu } from "./SelectMenu";
 
 type HostSettingsProps = {
   embedded?: boolean;
@@ -15,10 +17,43 @@ type HostSettingsProps = {
 
 export function HostSettings({ embedded = false }: HostSettingsProps) {
   const [isClearingTransfers, setIsClearingTransfers] = useState(false);
+  const [isSavingExpiry, setIsSavingExpiry] = useState(false);
+  const [transferTtlSeconds, setTransferTtlSeconds] = useState("86400");
   const queryClient = useQueryClient();
+  const device = useDeviceStore((state) => state.device);
   const clearDevice = useDeviceStore((state) => state.clearDevice);
   const confirm = useDialogStore((state) => state.confirm);
   const addToast = useToastStore((state) => state.addToast);
+
+  const { data: config } = useQuery({
+    queryKey: ["config", device?.id],
+    queryFn: () => getConfig(device?.id),
+    enabled: Boolean(device?.id),
+  });
+
+  useEffect(() => {
+    if (config?.default_transfer_ttl_seconds) {
+      setTransferTtlSeconds(String(config.default_transfer_ttl_seconds));
+    }
+  }, [config?.default_transfer_ttl_seconds]);
+
+  async function saveTransferExpiry() {
+    setIsSavingExpiry(true);
+    try {
+      await updateHostSettings({
+        transfer_ttl_seconds: Number(transferTtlSeconds),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["config"] });
+      addToast({
+        type: "success",
+        message: `New transfers will expire after ${transferTtlLabel(transferTtlSeconds)}.`,
+      });
+    } catch {
+      addToast({ type: "error", message: "Could not update transfer expiry." });
+    } finally {
+      setIsSavingExpiry(false);
+    }
+  }
 
   async function clearAllMessages() {
     if (
@@ -110,7 +145,43 @@ export function HostSettings({ embedded = false }: HostSettingsProps) {
         </div>
       )}
 
-      <div className={embedded ? "grid gap-2" : "mt-3 grid gap-2 sm:grid-cols-2"}>
+      <div className={embedded ? "mt-1" : "mt-3"}>
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+          <div className="flex items-start gap-2.5">
+            <div className="rounded-xl bg-white p-2 text-neutral-600 shadow-sm">
+              <Clock3 size={15} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-neutral-900">Transfer lifetime</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-neutral-500">
+                Applies to new uploads. Existing transfers keep their current expiry.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <SelectMenu
+              value={transferTtlSeconds}
+              onChange={setTransferTtlSeconds}
+              ariaLabel="Default transfer lifetime"
+              options={TRANSFER_TTL_OPTIONS}
+            />
+            <button
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-neutral-950 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={saveTransferExpiry}
+              disabled={
+                isSavingExpiry ||
+                Number(transferTtlSeconds) === config?.default_transfer_ttl_seconds
+              }
+            >
+              <Save size={13} /> {isSavingExpiry ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className={embedded ? "mt-3 grid gap-2" : "mt-3 grid gap-2 sm:grid-cols-2"}>
         <HostAction onClick={clearAllMessages} tone="warning">
           <MessageSquareX size={14} /> Clear messages
         </HostAction>
@@ -135,6 +206,23 @@ export function HostSettings({ embedded = false }: HostSettingsProps) {
 
   if (embedded) return content;
   return <Card>{content}</Card>;
+}
+
+const TRANSFER_TTL_OPTIONS = [
+  { value: "3600", label: "1 hour" },
+  { value: "21600", label: "6 hours" },
+  { value: "43200", label: "12 hours" },
+  { value: "86400", label: "1 day" },
+  { value: "259200", label: "3 days" },
+  { value: "604800", label: "7 days" },
+  { value: "2592000", label: "30 days" },
+];
+
+function transferTtlLabel(value: string) {
+  return (
+    TRANSFER_TTL_OPTIONS.find((option) => option.value === value)?.label ??
+    "the selected time"
+  );
 }
 
 function HostAction({

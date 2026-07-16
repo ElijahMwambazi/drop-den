@@ -31,6 +31,7 @@ The host device can:
 - view the join PIN
 - remove joined devices
 - delete all transfers
+- configure the lifetime assigned to new transfers
 - access normal den features
 
 Joined devices can:
@@ -84,7 +85,6 @@ explicit retry.
 ## Recommended future security improvements
 
 - Add device/session tokens instead of trusting only a device ID header.
-- Add host-only setting controls.
 - Add optional encryption-at-rest for stored transfer files.
 - Replace device-ID download links with short-lived authenticated download tokens.
 - Add optional audit log for device joins/removals/transfers.

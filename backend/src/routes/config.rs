@@ -1,13 +1,19 @@
-use crate::{models::AppConfig, state::AppState};
+use crate::{
+    auth::require_host_device,
+    db,
+    models::{AppConfig, HostSettings, UpdateHostSettingsRequest, WsEvent},
+    settings::valid_transfer_ttl_seconds,
+    state::AppState,
+};
 use axum::{
     extract::{Query, State},
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use local_ip_address::local_ip;
 use serde::Deserialize;
 
 const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
-const DEFAULT_TRANSFER_TTL_SECONDS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigQuery {
@@ -81,7 +87,7 @@ pub async fn config(
             None
         },
         max_upload_size_bytes: MAX_UPLOAD_SIZE_BYTES,
-        default_transfer_ttl_seconds: DEFAULT_TRANSFER_TTL_SECONDS,
+        default_transfer_ttl_seconds: *state.transfer_ttl_seconds.read().await,
         data_dir: desktop_paths
             .as_ref()
             .and_then(|paths| paths.data_dir.clone()),
@@ -92,6 +98,41 @@ pub async fn config(
             .as_ref()
             .and_then(|paths| paths.database_path.clone()),
     })
+}
+
+pub async fn update_host_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateHostSettingsRequest>,
+) -> Result<Json<HostSettings>, StatusCode> {
+    require_host_device(&state, &headers).await?;
+
+    if !valid_transfer_ttl_seconds(payload.transfer_ttl_seconds) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    db::set_setting(
+        &state.db,
+        crate::settings::TRANSFER_TTL_SETTING_KEY,
+        &payload.transfer_ttl_seconds.to_string(),
+    )
+    .await
+    .map_err(|error| {
+        tracing::error!(error = %error, "failed to persist host settings");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    *state.transfer_ttl_seconds.write().await = payload.transfer_ttl_seconds;
+    let settings = HostSettings {
+        transfer_ttl_seconds: payload.transfer_ttl_seconds,
+    };
+
+    state.broadcast_json(&WsEvent {
+        event_type: "config_updated".to_string(),
+        payload: settings.clone(),
+    });
+
+    Ok(Json(settings))
 }
 
 fn detect_lan_ip() -> Option<String> {

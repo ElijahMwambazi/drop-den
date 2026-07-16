@@ -39,7 +39,7 @@ or peer-to-peer WebRTC transfers.
 - Search, filtering, sorting, and bounded transfer-list scrolling.
 - Image, video, and audio previews.
 - Individual downloads and filtered ZIP downloads.
-- Transfer expiry and automatic cleanup.
+- Host-configurable transfer expiry from 1 hour to 30 days, plus automatic cleanup.
 - Configurable desktop transfer storage.
 
 ### Messages and realtime updates

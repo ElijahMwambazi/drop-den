@@ -1,4 +1,7 @@
 use crate::models::{Device, Message, Transfer, TransferStatus};
+use crate::settings::{
+    valid_transfer_ttl_seconds, DEFAULT_TRANSFER_TTL_SECONDS, TRANSFER_TTL_SETTING_KEY,
+};
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -20,6 +23,7 @@ pub struct PersistedRuntimeState {
     pub devices: HashMap<String, Device>,
     pub messages: Vec<Message>,
     pub transfers: HashMap<String, Transfer>,
+    pub transfer_ttl_seconds: u64,
 }
 
 pub async fn connect_database(database_path: PathBuf) -> anyhow::Result<SqlitePool> {
@@ -57,6 +61,20 @@ pub async fn load_persisted_runtime_state(
     let devices = load_devices(pool).await?;
     let messages = load_messages(pool).await?;
     let transfers = load_transfers(pool).await?;
+    let transfer_ttl_seconds = match get_setting(pool, TRANSFER_TTL_SETTING_KEY).await? {
+        Some(value) => value
+            .parse::<u64>()
+            .ok()
+            .filter(|value| valid_transfer_ttl_seconds(*value))
+            .unwrap_or(DEFAULT_TRANSFER_TTL_SECONDS),
+        None => DEFAULT_TRANSFER_TTL_SECONDS,
+    };
+    set_setting(
+        pool,
+        TRANSFER_TTL_SETTING_KEY,
+        &transfer_ttl_seconds.to_string(),
+    )
+    .await?;
 
     Ok(PersistedRuntimeState {
         join_pin,
@@ -65,6 +83,7 @@ pub async fn load_persisted_runtime_state(
         devices,
         messages,
         transfers,
+        transfer_ttl_seconds,
     })
 }
 

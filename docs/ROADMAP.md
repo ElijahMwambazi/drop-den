@@ -221,8 +221,8 @@ checksums; a forward migration drops its table during upgrade.
 
 ## Long-term ideas
 
-- Configurable transfer expiry
-- Message targeting
-- Optional encryption-at-rest
-- Local DNS/mDNS setup helper
-- Desktop service manager UI
+- [x] Configurable transfer expiry
+- [ ] Message targeting
+- [ ] Optional encryption-at-rest
+- [ ] Local DNS/mDNS setup helper
+- [ ] Desktop service manager UI

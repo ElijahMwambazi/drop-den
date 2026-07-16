@@ -40,3 +40,17 @@ pub async fn require_registered_device_id(
         Err(StatusCode::UNAUTHORIZED)
     }
 }
+
+pub async fn require_host_device(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<String, StatusCode> {
+    let device_id = require_registered_device(state, headers).await?;
+    let host_device_id = state.host_device_id.read().await;
+
+    if host_device_id.as_deref() == Some(device_id.as_str()) {
+        Ok(device_id)
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}

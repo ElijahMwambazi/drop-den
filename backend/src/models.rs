@@ -73,6 +73,16 @@ pub struct AppConfig {
     pub database_path: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateHostSettingsRequest {
+    pub transfer_ttl_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HostSettings {
+    pub transfer_ttl_seconds: u64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct WsEvent<T: Serialize> {
     pub event_type: String,

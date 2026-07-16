@@ -13,6 +13,7 @@ pub struct AppState {
     pub devices: Arc<RwLock<HashMap<String, Device>>>,
     pub transfers: Arc<RwLock<HashMap<String, Transfer>>>,
     pub messages: Arc<RwLock<Vec<Message>>>,
+    pub transfer_ttl_seconds: Arc<RwLock<u64>>,
     pub events: broadcast::Sender<String>,
 }
 
@@ -25,6 +26,7 @@ pub struct AppStateInit {
     pub devices: HashMap<String, Device>,
     pub messages: Vec<Message>,
     pub transfers: HashMap<String, Transfer>,
+    pub transfer_ttl_seconds: u64,
 }
 
 impl AppState {
@@ -38,6 +40,7 @@ impl AppState {
             devices,
             messages,
             transfers,
+            transfer_ttl_seconds,
         } = init;
         let (events, _) = broadcast::channel(256);
 
@@ -50,6 +53,7 @@ impl AppState {
             devices: Arc::new(RwLock::new(devices)),
             transfers: Arc::new(RwLock::new(transfers)),
             messages: Arc::new(RwLock::new(messages)),
+            transfer_ttl_seconds: Arc::new(RwLock::new(transfer_ttl_seconds)),
             events,
         }
     }

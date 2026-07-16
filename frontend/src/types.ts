@@ -25,6 +25,10 @@ export type AppConfig = {
   database_path?: string;
 };
 
+export type HostSettings = {
+  transfer_ttl_seconds: number;
+};
+
 export type TransferStatus = "available" | "pending" | "accepted" | "rejected";
 
 export type Transfer = {

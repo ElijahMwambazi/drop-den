@@ -24,7 +24,6 @@ use uuid::Uuid;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
-const DEFAULT_TRANSFER_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct DeviceQuery {
@@ -54,6 +53,7 @@ pub async fn upload_transfer(
     mut multipart: Multipart,
 ) -> Result<Json<Transfer>, StatusCode> {
     let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let transfer_ttl_seconds = *state.transfer_ttl_seconds.read().await as i64;
     let transfer_id = Uuid::new_v4().to_string();
     let transfer_dir = state.storage_dir.join(&transfer_id);
     tokio::fs::create_dir_all(&transfer_dir)
@@ -112,7 +112,7 @@ pub async fn upload_transfer(
                 };
 
                 let created_at = Utc::now();
-                let expires_at = created_at + Duration::seconds(DEFAULT_TRANSFER_TTL_SECONDS);
+                let expires_at = created_at + Duration::seconds(transfer_ttl_seconds);
 
                 saved_transfer = Some(Transfer {
                     id: transfer_id.clone(),
@@ -164,6 +164,7 @@ pub async fn upload_local_paths(
     }
 
     let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let transfer_ttl_seconds = *state.transfer_ttl_seconds.read().await as i64;
 
     if payload.sender_device_id.as_deref() != Some(&requesting_device_id) {
         return Err(StatusCode::FORBIDDEN);
@@ -225,7 +226,7 @@ pub async fn upload_local_paths(
         };
 
         let created_at = Utc::now();
-        let expires_at = created_at + Duration::seconds(DEFAULT_TRANSFER_TTL_SECONDS);
+        let expires_at = created_at + Duration::seconds(transfer_ttl_seconds);
 
         let transfer = Transfer {
             id: transfer_id,

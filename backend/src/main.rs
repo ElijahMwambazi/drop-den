@@ -3,6 +3,7 @@ mod cleanup;
 mod db;
 mod models;
 mod routes;
+mod settings;
 mod state;
 mod ws;
 
@@ -55,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
         devices: persisted_state.devices,
         messages: persisted_state.messages,
         transfers: persisted_state.transfers,
+        transfer_ttl_seconds: persisted_state.transfer_ttl_seconds,
     });
 
     cleanup::spawn_expired_transfer_cleanup(state.clone());
@@ -91,6 +93,10 @@ fn build_app(state: AppState, frontend_dist: PathBuf) -> Router {
     Router::new()
         .route("/api/health", get(health::health))
         .route("/api/config", get(config::config))
+        .route(
+            "/api/host/settings",
+            axum::routing::patch(config::update_host_settings),
+        )
         .route(
             "/api/devices",
             get(devices::list_devices).post(devices::register_device),
@@ -319,6 +325,7 @@ mod tests {
             devices: HashMap::new(),
             messages: Vec::new(),
             transfers: HashMap::new(),
+            transfer_ttl_seconds: persisted.transfer_ttl_seconds,
         });
         let app = build_app(state.clone(), root.join("missing-frontend"));
 
@@ -340,6 +347,21 @@ mod tests {
             .uri(uri)
             .header(auth::DEVICE_ID_HEADER, device_id)
             .body(Body::empty())
+            .unwrap()
+    }
+
+    fn authorized_json_request(
+        method: &str,
+        uri: &str,
+        device_id: &str,
+        body: Value,
+    ) -> Request<Body> {
+        Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("content-type", "application/json")
+            .header(auth::DEVICE_ID_HEADER, device_id)
+            .body(Body::from(body.to_string()))
             .unwrap()
     }
 
@@ -601,6 +623,82 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn only_the_host_can_change_transfer_expiry() {
+        let test = test_app().await;
+        let (_, host) = register(&test.app, "Host", None).await;
+        let host = host.unwrap();
+        let pin = test.state.join_pin.read().await.clone();
+        let (_, joined) = register(&test.app, "Joined", Some(&pin)).await;
+        let joined = joined.unwrap();
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_json_request(
+                "PATCH",
+                "/api/host/settings",
+                &joined.id,
+                json!({ "transfer_ttl_seconds": 6 * 60 * 60 }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_json_request(
+                "PATCH",
+                "/api/host/settings",
+                &host.id,
+                json!({ "transfer_ttl_seconds": 59 * 60 }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_json_request(
+                "PATCH",
+                "/api/host/settings",
+                &host.id,
+                json!({ "transfer_ttl_seconds": 3 * 24 * 60 * 60 }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(*test.state.transfer_ttl_seconds.read().await, 259_200);
+        assert_eq!(
+            db::get_setting(&test.state.db, settings::TRANSFER_TTL_SETTING_KEY)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("259200")
+        );
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(
+                Request::get(format!("/api/config?device_id={}", host.id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response_json(response).await["default_transfer_ttl_seconds"],
+            259_200
+        );
 
         test.state.db.close().await;
         tokio::fs::remove_dir_all(test.root).await.unwrap();

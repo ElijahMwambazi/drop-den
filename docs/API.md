@@ -103,6 +103,33 @@ Example response:
 }
 ```
 
+### Update host settings
+
+```txt
+PATCH /api/host/settings
+X-Drop-Den-Device-Id: <host-device-id>
+```
+
+Updates den-wide settings. This route is restricted to the current host device.
+
+```json
+{
+  "transfer_ttl_seconds": 259200
+}
+```
+
+The transfer lifetime must be between 3,600 seconds (1 hour) and 2,592,000
+seconds (30 days). It applies to new uploads only; existing transfers keep the
+expiry timestamp assigned when they were created.
+
+Response:
+
+```json
+{
+  "transfer_ttl_seconds": 259200
+}
+```
+
 ## Devices
 
 ```txt
