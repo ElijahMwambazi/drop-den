@@ -125,7 +125,7 @@ Use this checklist for every Drop Den Linux desktop RPM candidate. Complete it o
 - [ ] Send a targeted transfer and test accept/reject behavior.
 - [ ] Preview supported image, video, and audio files.
 - [ ] Download one transfer and Download ZIP.
-- [ ] Confirm transfer search, filter, sort, bounded scrolling, and deletion work.
+- [ ] Confirm transfer search, filter, sort, progressive expansion, and deletion work.
 - [ ] Send and receive a local message.
 - [ ] Remove a joined device as host.
 - [ ] Test copy URL and open-folder actions.

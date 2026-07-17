@@ -36,7 +36,7 @@ or peer-to-peer WebRTC transfers.
 - Upload progress and a bounded upload queue.
 - Broadcast or device-targeted transfers.
 - Accept and reject flow for targeted transfers.
-- Search, filtering, sorting, and bounded transfer-list scrolling.
+- Search, filtering, sorting, and progressive transfer-list expansion.
 - Image, video, and audio previews.
 - Individual downloads and filtered ZIP downloads.
 - Host-configurable transfer expiry from 1 hour to 30 days, plus automatic cleanup.

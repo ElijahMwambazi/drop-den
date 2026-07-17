@@ -93,7 +93,7 @@ Concrete defects and verification work are tracked separately in
 - [x] Configurable desktop transfer storage directory
 - [x] Streamline Desktop Settings layout and action hierarchy
 - [x] Compact joined-device hero, invite flow, and transfer controls across clients
-- [x] Add bounded scrolling and compact rows to the transfer list
+- [x] Add progressive expansion and compact rows to the transfer list
 - [x] Add desktop titlebar frontend reload action
 - [x] Clear messages maintenance action
 - [x] Reset host maintenance action

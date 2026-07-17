@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  ChevronDown,
+  ChevronUp,
   Download,
   File,
   FileStack,
@@ -10,6 +12,7 @@ import {
   Music2,
   Trash2,
 } from "lucide-react";
+import { isTauriRuntime } from "../api/client";
 import { getConfig } from "../api/config";
 import { listDevices } from "../api/devices";
 import {
@@ -207,14 +210,21 @@ function transferStatusClass(transfer: Transfer) {
 }
 
 export function TransferList() {
+  const initialTransferLimit = isTauriRuntime() ? 3 : 5;
   const queryClient = useQueryClient();
   const currentDevice = useDeviceStore((state) => state.device);
   const addToast = useToastStore((state) => state.addToast);
   const confirm = useDialogStore((state) => state.confirm);
+  const sectionRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<TransferFilter>("all");
   const [sortMode, setSortMode] = useState<TransferSortMode>("newest");
+  const [transferLimit, setTransferLimit] = useState(initialTransferLimit);
+
+  useEffect(() => {
+    setTransferLimit(initialTransferLimit);
+  }, [initialTransferLimit, searchQuery, statusFilter, sortMode]);
 
   const { data: transfers = [] } = useQuery({
     queryKey: ["transfers"],
@@ -304,10 +314,29 @@ export function TransferList() {
   const hasFilteredTransfers = filteredTransfers.length > 0;
   const hasDownloadableTransfers = downloadableTransfers.length > 0;
   const canDeleteAllTransfers = Boolean(config?.is_host_device) && hasTransfers;
+  const displayedTransfers = filteredTransfers.slice(0, transferLimit);
+  const remainingTransferCount = Math.max(
+    0,
+    filteredTransfers.length - displayedTransfers.length,
+  );
+  const nextTransferCount = Math.min(
+    initialTransferLimit,
+    remainingTransferCount,
+  );
+  const canCollapseTransfers =
+    transferLimit > initialTransferLimit &&
+    filteredTransfers.length > initialTransferLimit;
+
+  function collapseTransfers() {
+    setTransferLimit(initialTransferLimit);
+    window.requestAnimationFrame(() => {
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   return (
     <Card>
-      <div className="min-w-0">
+      <div ref={sectionRef} className="min-w-0 scroll-mt-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h2 className="text-base font-semibold">
@@ -406,13 +435,7 @@ export function TransferList() {
           )}
         </div>
 
-        <div
-          className={
-            hasFilteredTransfers
-              ? "drop-den-scrollbar mt-3 max-h-[min(52vh,30rem)] space-y-2 overflow-y-auto overscroll-contain pr-1"
-              : "mt-3 space-y-2"
-          }
-        >
+        <div className="mt-3 space-y-2">
           {!hasTransfers ? (
             <div className="flex items-center gap-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-3">
               <div className="rounded-lg bg-white p-2 text-neutral-400">
@@ -433,7 +456,7 @@ export function TransferList() {
               </p>
             </div>
           ) : (
-            filteredTransfers.map((transfer) => {
+            displayedTransfers.map((transfer) => {
               const senderName = getDeviceName(
                 devices,
                 transfer.sender_device_id,
@@ -550,6 +573,44 @@ export function TransferList() {
             })
           )}
         </div>
+
+        {hasFilteredTransfers &&
+          (remainingTransferCount > 0 || canCollapseTransfers) && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3">
+              <p className="text-[11px] text-neutral-500" aria-live="polite">
+                Showing {displayedTransfers.length} of {filteredTransfers.length}
+              </p>
+
+              <div className="flex items-center gap-2">
+                {canCollapseTransfers && (
+                  <button
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                    type="button"
+                    onClick={collapseTransfers}
+                  >
+                    <ChevronUp size={13} /> Collapse list
+                  </button>
+                )}
+
+                {remainingTransferCount > 0 && (
+                  <button
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-neutral-950 px-3 py-2 text-xs font-medium text-white"
+                    type="button"
+                    onClick={() =>
+                      setTransferLimit((current) =>
+                        Math.min(
+                          current + initialTransferLimit,
+                          filteredTransfers.length,
+                        ),
+                      )
+                    }
+                  >
+                    <ChevronDown size={13} /> Show {nextTransferCount} more
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
       </div>
     </Card>
   );
