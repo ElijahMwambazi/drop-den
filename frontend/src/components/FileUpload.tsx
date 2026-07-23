@@ -107,6 +107,9 @@ export function FileUpload() {
   const activeUploads = uploads.filter(
     (upload) => upload.status === "queued" || upload.status === "uploading",
   );
+  const hasActiveDesktopCopy = activeUploads.some(
+    (upload) => upload.localPath,
+  );
   const failedUploads = uploads.filter((upload) => upload.status === "error");
   const completedUploads = uploads.filter(
     (upload) => upload.status === "success",
@@ -677,6 +680,7 @@ export function FileUpload() {
                     totalActiveUploads,
                     totalCompletedUploads,
                     totalFailedUploads,
+                    hasActiveDesktopCopy,
                   )}
                 </p>
               </div>
@@ -721,10 +725,15 @@ export function FileUpload() {
                 <div
                   className={[
                     "h-full rounded-full bg-neutral-900 transition-all",
-                    activeNativeShares.length > 0 ? "animate-pulse" : "",
+                    activeNativeShares.length > 0 || hasActiveDesktopCopy
+                      ? "animate-pulse"
+                      : "",
                   ].join(" ")}
                   style={{
-                    width: activeNativeShares.length > 0 ? "55%" : `${batchProgress}%`,
+                    width:
+                      activeNativeShares.length > 0 || hasActiveDesktopCopy
+                        ? "55%"
+                        : `${batchProgress}%`,
                   }}
                 />
               </div>
@@ -750,14 +759,25 @@ export function FileUpload() {
                       {formatUploadDetail(upload)}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-neutral-600">
-                    {upload.progress}%
-                  </span>
+                  {upload.localPath ? (
+                    <span className="shrink-0 text-[10px] font-medium text-neutral-500">
+                      Copying
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-[11px] font-semibold tabular-nums text-neutral-600">
+                      {upload.progress}%
+                    </span>
+                  )}
                 </div>
                 <div className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-100">
                   <div
-                    className="h-full rounded-full bg-neutral-900 transition-all"
-                    style={{ width: `${upload.progress}%` }}
+                    className={[
+                      "h-full rounded-full bg-neutral-900 transition-all",
+                      upload.localPath ? "animate-pulse" : "",
+                    ].join(" ")}
+                    style={{
+                      width: upload.localPath ? "55%" : `${upload.progress}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -887,7 +907,14 @@ function formatBatchStatus(
   active: number,
   completed: number,
   failed: number,
+  copyingDesktopFiles: boolean,
 ) {
+  if (copyingDesktopFiles) {
+    return active === 1
+      ? `Copying ${Math.min(completed + failed + 1, total)} of ${total}`
+      : `Copying ${active} files · ${completed} complete`;
+  }
+
   if (active > 1) {
     return `Uploading ${active} files · ${completed} complete`;
   }
@@ -904,6 +931,12 @@ function formatBatchStatus(
 }
 
 function formatUploadDetail(upload: UploadItem) {
+  if (upload.localPath) {
+    return upload.status === "queued"
+      ? "Desktop file · Waiting to copy"
+      : "Copying into Drop Den…";
+  }
+
   if (upload.size === null) {
     return upload.status === "queued"
       ? "Desktop file · Queued"

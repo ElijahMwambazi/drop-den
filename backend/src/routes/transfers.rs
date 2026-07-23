@@ -231,19 +231,40 @@ pub async fn upload_local_paths(
             return Err(StatusCode::BAD_REQUEST);
         }
         if metadata.len() > state.limits.max_file_bytes {
+            tracing::warn!(
+                file_bytes = metadata.len(),
+                max_file_bytes = state.limits.max_file_bytes,
+                "desktop transfer copy rejected because a file is too large"
+            );
             return Err(StatusCode::PAYLOAD_TOO_LARGE);
         }
         batch_size = batch_size
             .checked_add(metadata.len())
             .ok_or(StatusCode::PAYLOAD_TOO_LARGE)?;
         if batch_size > state.limits.max_batch_bytes {
+            tracing::warn!(
+                batch_bytes = batch_size,
+                max_batch_bytes = state.limits.max_batch_bytes,
+                "desktop transfer copy rejected because the batch is too large"
+            );
             return Err(StatusCode::PAYLOAD_TOO_LARGE);
         }
         sources.push((source_path, metadata.len()));
     }
     if !has_storage_capacity(&state, batch_size).await {
+        tracing::warn!(
+            batch_bytes = batch_size,
+            max_storage_bytes = state.limits.max_storage_bytes,
+            "desktop transfer copy rejected because transfer storage is full"
+        );
         return Err(StatusCode::INSUFFICIENT_STORAGE);
     }
+
+    tracing::info!(
+        file_count = sources.len(),
+        total_bytes = batch_size,
+        "desktop transfer copy started"
+    );
 
     let transfer_ttl_seconds = *state.transfer_ttl_seconds.read().await as i64;
     let mut created = Vec::with_capacity(sources.len());
@@ -287,6 +308,12 @@ pub async fn upload_local_paths(
         }
         created.push(transfer);
     }
+
+    tracing::info!(
+        file_count = created.len(),
+        total_bytes = batch_size,
+        "desktop transfer copy completed"
+    );
 
     Ok(Json(created))
 }

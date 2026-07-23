@@ -7,7 +7,8 @@ Use this checklist when the Tauri desktop app fails to start, cannot reach its b
 - [ ] Open **Desktop settings → Diagnostics**.
 - [ ] Confirm the backend indicator is online.
 - [ ] Click **Check again**.
-- [ ] Click **Copy report** and keep the report with the bug notes.
+- [ ] Click **Export support** and keep the saved report with the bug notes.
+- [ ] Use **Open logs** only when inspecting the rotating local logs directly.
 - [ ] Record whether the problem occurs in development mode, an unpackaged release build, or an installed RPM.
 
 ## Development preflight
@@ -128,7 +129,7 @@ Use these steps only after closing the desktop app normally.
 
 When reporting a desktop problem, include:
 
-- copied Diagnostics report;
+- exported Diagnostics support report;
 - development, release binary, or installed RPM mode;
 - Linux distribution and desktop session (X11 or Wayland);
 - exact command used to start or build Drop Den;

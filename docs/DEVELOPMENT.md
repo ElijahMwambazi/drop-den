@@ -289,7 +289,8 @@ The desktop wrapper currently provides:
 - Desktop Settings panel
 - host-only transfer cleanup from Desktop Settings
 - full desktop data reset with typed confirmation and an in-place backend restart
-- desktop diagnostics view with backend health, runtime paths, and copyable report
+- desktop diagnostics with backend health, bounded rotating logs, and a
+  sanitized support-report export
 - open data folder and open transfers folder actions
 - configurable transfer storage folder persisted in `desktop-settings.json`
 - collapsible side panels for connected devices, settings, and messages

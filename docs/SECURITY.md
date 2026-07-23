@@ -102,6 +102,11 @@ from disk. ZIPs are built one file at a time into a temporary file and then
 streamed; cancellation removes the temporary file. Disk-full failures return
 `507 Insufficient Storage` where the operating system reports that condition.
 
+The desktop wrapper retains at most five local log files of roughly 2 MiB
+each. Support-report export is user initiated and sanitizes session tokens,
+join PINs, download tickets, and configured local storage paths. Transfer
+contents, message bodies, and filenames are not logged.
+
 ## Remaining limitations
 
 - LAN HTTP does not encrypt session tokens in transit. A party able to sniff or

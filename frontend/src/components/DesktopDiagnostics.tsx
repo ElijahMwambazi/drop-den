@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { Activity, Check, ChevronDown, Copy, RefreshCw } from "lucide-react";
+import {
+  Activity,
+  Check,
+  ChevronDown,
+  Copy,
+  Download,
+  FolderOpen,
+  LoaderCircle,
+  RefreshCw,
+} from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import type { AppConfig } from "../types";
@@ -29,6 +40,7 @@ export function DesktopDiagnostics({
   );
   const [appVersion, setAppVersion] = useState("Unavailable");
   const [copied, setCopied] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const device = useDeviceStore((state) => state.device);
   const addToast = useToastStore((state) => state.addToast);
 
@@ -46,28 +58,79 @@ export function DesktopDiagnostics({
       ? "Host"
       : "Joined";
 
-  async function copyDiagnostics() {
-    const report = [
+  function buildDiagnosticsReport(includePrivateDetails: boolean) {
+    const lines = [
       "Drop Den desktop diagnostics",
       `App version: ${appVersion}`,
       `Backend: ${backendOnline ? "Online" : "Unavailable"}`,
       `Mode: ${config?.mode ?? "desktop"}`,
       `Role: ${role}`,
-      `Device: ${device?.name ?? "Not joined"}`,
-      `Local URL: ${config?.local_origin ?? "http://127.0.0.1:18080"}`,
-      `Data directory: ${config?.data_dir ?? "Unavailable"}`,
-      `Database: ${config?.database_path ?? "Unavailable"}`,
-      `Transfer storage: ${storageDir}`,
       `Storage fallback: ${storageFallbackActive ? "Active" : "No"}`,
       `Platform: ${navigator.platform || "Unavailable"}`,
       `User agent: ${navigator.userAgent}`,
       `Captured: ${new Date().toISOString()}`,
-    ].join("\n");
+    ];
+
+    if (includePrivateDetails) {
+      lines.splice(
+        5,
+        0,
+        `Device: ${device?.name ?? "Not joined"}`,
+        `Local URL: ${config?.local_origin ?? "http://127.0.0.1:18080"}`,
+        `Data directory: ${config?.data_dir ?? "Unavailable"}`,
+        `Database: ${config?.database_path ?? "Unavailable"}`,
+        `Transfer storage: ${storageDir}`,
+      );
+    }
+
+    return lines.join("\n");
+  }
+
+  async function copyDiagnostics() {
+    const report = buildDiagnosticsReport(true);
 
     await navigator.clipboard.writeText(report);
     setCopied(true);
     addToast({ type: "success", message: "Diagnostics copied." });
     window.setTimeout(() => setCopied(false), 1200);
+  }
+
+  async function exportSupportReport() {
+    const capturedDate = new Date().toISOString().slice(0, 10);
+    const destination = await save({
+      defaultPath: `drop-den-support-${capturedDate}.txt`,
+      title: "Save Drop Den support report",
+      filters: [{ name: "Text report", extensions: ["txt"] }],
+    });
+
+    if (!destination) return;
+
+    setIsExporting(true);
+    try {
+      await invoke<string>("export_support_bundle", {
+        destinationPath: destination,
+        diagnostics: buildDiagnosticsReport(false),
+      });
+      addToast({ type: "success", message: "Support report saved." });
+    } catch (error) {
+      addToast({
+        type: "error",
+        message:
+          typeof error === "string"
+            ? error
+            : "Could not save the support report.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function openLogsFolder() {
+    try {
+      await invoke("open_logs_folder");
+    } catch {
+      addToast({ type: "error", message: "Could not open the logs folder." });
+    }
   }
 
   return (
@@ -155,7 +218,33 @@ export function DesktopDiagnostics({
               {copied ? <Check size={13} /> : <Copy size={13} />}
               {copied ? "Copied" : "Copy report"}
             </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-3 py-2 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+              onClick={() => void exportSupportReport()}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <LoaderCircle size={13} className="animate-spin" />
+              ) : (
+                <Download size={13} />
+              )}
+              {isExporting ? "Saving..." : "Export support"}
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              onClick={() => void openLogsFolder()}
+            >
+              <FolderOpen size={13} />
+              Open logs
+            </button>
           </div>
+          <p className="mt-2 text-[10px] leading-4 text-neutral-400">
+            Support reports include recent app logs and runtime details. Session
+            tokens, join PINs, file names, transfer contents, and local storage
+            paths are excluded.
+          </p>
         </div>
       )}
     </div>

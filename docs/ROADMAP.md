@@ -223,6 +223,7 @@ checksums; a forward migration drops its table during upgrade.
 - [x] Add pairing and upload rate limits
 - [x] Add negative authorization and redaction regression tests
 - [x] Add backend, frontend, Android, and Tauri CI checks
+- [x] Add bounded desktop/backend logs and sanitized support-report export
 - [x] Update API, architecture, security, and setup documentation
 
 This milestone targets a trusted-household beta. LAN HTTP remains unsuitable

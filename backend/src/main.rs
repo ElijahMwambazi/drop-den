@@ -26,6 +26,7 @@ use tower_http::{
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
+        .with_ansi(std::env::var("DROP_DEN_MODE").ok().as_deref() != Some("desktop"))
         .with_env_filter("drop_den_backend=debug,tower_http=info")
         .init();
 
