@@ -59,6 +59,8 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
+      - name: Make Gradle wrapper executable
+        run: chmod +x android-wrapper/gradlew
       - name: Test, lint, and assemble Android debug app
         working-directory: android-wrapper
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
@@ -76,6 +78,8 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+      - name: Prepare Linux backend sidecar
+        run: bash scripts/prepare-tauri-sidecar-dev.sh
       - name: Check desktop wrapper
         working-directory: src-tauri
         run: cargo check --locked
