@@ -15,7 +15,7 @@ import { uploadLocalPaths, uploadTransfer } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
 import { Card } from "./Card";
-import { isTauriRuntime } from "../api/client";
+import { ApiError, isTauriRuntime } from "../api/client";
 import { SelectMenu } from "./SelectMenu";
 
 type UploadStatus = "queued" | "uploading" | "success" | "error";
@@ -356,8 +356,11 @@ export function FileUpload() {
 
       queryClient.invalidateQueries({ queryKey: ["transfers"] });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Dropped file upload failed.";
+      const errorMessage = formatUploadError(
+        error,
+        maxUploadSizeBytes,
+        paths.length,
+      );
 
       setUploads((currentUploads) =>
         currentUploads.map((upload) => ({
@@ -442,8 +445,11 @@ export function FileUpload() {
 
         successCount += 1;
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Upload failed.";
+        const errorMessage = formatUploadError(
+          error,
+          maxUploadSizeBytes,
+          1,
+        );
 
         setUploads((currentUploads) =>
           currentUploads.map((item) =>
@@ -915,6 +921,46 @@ function formatUploadDetail(upload: UploadItem) {
 function formatNativeShareDetail(item: NativeShareItem) {
   const size = item.size === null ? "Shared file" : formatBytes(item.size);
   return `${size} · ${item.status === "queued" ? "Preparing" : "Uploading"}`;
+}
+
+function formatUploadError(
+  error: unknown,
+  maxUploadSizeBytes: number,
+  fileCount: number,
+) {
+  if (error instanceof ApiError) {
+    switch (error.status) {
+      case 400:
+        return fileCount === 1
+          ? "Drop Den couldn't read this file. Choose it again and retry."
+          : "Drop Den couldn't read one of these files. Choose them again and retry.";
+      case 401:
+        return "Your device session expired. Rejoin the den, then try again.";
+      case 403:
+        return "This upload isn't allowed from the current device.";
+      case 404:
+        return "The selected device is no longer available. Choose another destination.";
+      case 413:
+        return fileCount === 1
+          ? `This file is larger than the ${formatBytes(maxUploadSizeBytes)} limit. Choose a smaller file.`
+          : `One or more files exceed the ${formatBytes(maxUploadSizeBytes)} file limit, or the batch is too large. Choose fewer or smaller files.`;
+      case 429:
+        return "Too many uploads were started at once. Wait a moment and retry.";
+      case 507:
+        return "Drop Den is out of transfer storage. Delete older transfers and retry.";
+      default:
+        return "Drop Den couldn't save this upload. Try again.";
+    }
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    if (message.includes("network") || message.includes("failed to fetch")) {
+      return "Drop Den couldn't reach the host. Check the connection and try again.";
+    }
+  }
+
+  return "This upload didn't complete. Try again.";
 }
 
 function invokeNativeShareAction(action: string) {

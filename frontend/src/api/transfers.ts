@@ -1,4 +1,5 @@
 import {
+  ApiError,
   apiUrl,
   authorizedXhr,
   clearSessionOnUnauthorized,
@@ -66,7 +67,7 @@ export function uploadTransfer(
       }
 
       clearSessionOnUnauthorized(request.status);
-      reject(new Error(`Upload failed: ${request.status}`));
+      reject(new ApiError("Upload failed.", request.status));
     };
 
     request.onerror = () => {
