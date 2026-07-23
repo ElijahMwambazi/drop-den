@@ -14,6 +14,21 @@ pub struct RegisterDeviceRequest {
     pub join_pin: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegisteredDevice {
+    #[serde(flatten)]
+    pub device: Device,
+    pub session_token: String,
+}
+
+impl std::ops::Deref for RegisteredDevice {
+    type Target = Device;
+
+    fn deref(&self) -> &Self::Target {
+        &self.device
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TransferStatus {
@@ -32,6 +47,7 @@ pub struct Transfer {
     pub sender_device_id: Option<String>,
     pub target_device_id: Option<String>,
     pub status: TransferStatus,
+    #[serde(skip_serializing)]
     pub stored_path: String,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
@@ -81,6 +97,12 @@ pub struct UpdateHostSettingsRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct HostSettings {
     pub transfer_ttl_seconds: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DownloadGrant {
+    pub ticket: String,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize)]

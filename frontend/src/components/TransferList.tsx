@@ -19,10 +19,10 @@ import {
   acceptTransfer,
   deleteAllTransfers,
   deleteTransfer,
-  downloadAllTransfersUrl,
+  createDownloadAllTransfersUrl,
+  createTransferDownloadUrl,
   listTransfers,
   rejectTransfer,
-  transferDownloadUrl,
 } from "../api/transfers";
 import { useDeviceStore } from "../store/deviceStore";
 import { useToastStore } from "../store/toastStore";
@@ -72,19 +72,6 @@ function getDeviceName(devices: Device[], deviceId?: string | null) {
   );
 }
 
-function isTransferVisibleToDevice(
-  transfer: Transfer,
-  currentDeviceId?: string,
-) {
-  if (!transfer.target_device_id) return true;
-  if (!currentDeviceId) return false;
-
-  return (
-    transfer.target_device_id === currentDeviceId ||
-    transfer.sender_device_id === currentDeviceId
-  );
-}
-
 function isTransferExpired(transfer: Transfer) {
   return Date.now() >= new Date(transfer.expires_at).getTime();
 }
@@ -130,9 +117,14 @@ function formatStatusLabel(status: TransferStatus) {
 function TransferPreview({ transfer }: { transfer: Transfer }) {
   const canPreview = isTransferDownloadable(transfer);
   const previewType = getTransferPreviewType(transfer.mime_type);
-  const url = transferDownloadUrl(transfer.id);
+  const { data: url } = useQuery({
+    queryKey: ["transfer-download-url", transfer.id],
+    queryFn: () => createTransferDownloadUrl(transfer.id),
+    enabled: canPreview && (previewType === "image" || previewType === "video"),
+    staleTime: 4 * 60 * 1000,
+  });
 
-  if (canPreview && previewType === "image") {
+  if (canPreview && previewType === "image" && url) {
     return (
       <a
         href={url}
@@ -150,7 +142,7 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
     );
   }
 
-  if (canPreview && previewType === "video") {
+  if (canPreview && previewType === "video" && url) {
     return (
       <video
         className="h-14 w-14 shrink-0 rounded-xl bg-black object-cover"
@@ -175,6 +167,32 @@ function TransferPreview({ transfer }: { transfer: Transfer }) {
       <PreviewIcon size={20} />
     </div>
   );
+}
+
+function TransferAudio({ transfer }: { transfer: Transfer }) {
+  const { data: url } = useQuery({
+    queryKey: ["transfer-download-url", transfer.id],
+    queryFn: () => createTransferDownloadUrl(transfer.id),
+    staleTime: 4 * 60 * 1000,
+  });
+  if (!url) return null;
+  return (
+    <audio
+      className="mt-2 h-8 w-full"
+      src={url}
+      controls
+      preload="metadata"
+    />
+  );
+}
+
+function triggerDownload(url: string) {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.rel = "noreferrer";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 function formatRelativeTime(value: string) {
@@ -285,13 +303,7 @@ export function TransferList() {
     },
   });
 
-  const visibleTransfers = useMemo(
-    () =>
-      transfers.filter((transfer) =>
-        isTransferVisibleToDevice(transfer, currentDevice?.id),
-      ),
-    [transfers, currentDevice?.id],
-  );
+  const visibleTransfers = transfers;
 
   const filteredTransfers = useMemo(
     () =>
@@ -397,15 +409,18 @@ export function TransferList() {
           {hasTransfers && (
             <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-row">
               {hasDownloadableTransfers && (
-                <a
+                <button
                   className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-neutral-900 px-3 py-2 text-center text-xs font-medium text-white ${
                     canDeleteAllTransfers ? "" : "col-span-2"
                   }`}
-                  href={downloadAllTransfersUrl()}
+                  type="button"
+                  onClick={async () =>
+                    triggerDownload(await createDownloadAllTransfersUrl())
+                  }
                 >
                   <Archive size={13} />
                   Download ZIP
-                </a>
+                </button>
               )}
 
               {canDeleteAllTransfers && (
@@ -470,6 +485,9 @@ export function TransferList() {
                 currentDevice?.id,
               );
               const canDownload = isTransferDownloadable(transfer);
+              const canDelete =
+                Boolean(config?.is_host_device) ||
+                transfer.sender_device_id === currentDevice?.id;
 
               return (
                 <div
@@ -517,12 +535,7 @@ export function TransferList() {
 
                   {canDownload &&
                     getTransferPreviewType(transfer.mime_type) === "audio" && (
-                      <audio
-                        className="mt-2 h-8 w-full"
-                        src={transferDownloadUrl(transfer.id)}
-                        controls
-                        preload="metadata"
-                      />
+                      <TransferAudio transfer={transfer} />
                     )}
 
                   <div className="mt-2 flex shrink-0 flex-wrap justify-end gap-1.5 border-t border-neutral-200/70 pt-2">
@@ -549,24 +562,31 @@ export function TransferList() {
                     )}
 
                     {canDownload && (
-                      <a
+                      <button
                         className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-medium text-white"
-                        href={transferDownloadUrl(transfer.id)}
+                        type="button"
+                        onClick={async () =>
+                          triggerDownload(
+                            await createTransferDownloadUrl(transfer.id),
+                          )
+                        }
                       >
                         <Download size={12} />
                         Download
-                      </a>
+                      </button>
                     )}
 
-                    <button
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 hover:bg-white"
-                      type="button"
-                      onClick={() => remove.mutate(transfer.id)}
-                      disabled={remove.isPending}
-                    >
-                      <Trash2 size={12} />
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 hover:bg-white"
+                        type="button"
+                        onClick={() => remove.mutate(transfer.id)}
+                        disabled={remove.isPending}
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               );

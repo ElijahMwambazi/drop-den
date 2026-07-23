@@ -92,7 +92,8 @@ export function FileUpload() {
   const deviceIdRef = useRef(device?.id);
   const targetDeviceIdRef = useRef(targetDeviceId);
 
-  const maxUploadSizeBytes = config?.max_upload_size_bytes ?? 250 * 1024 * 1024;
+  const maxUploadSizeBytes =
+    config?.max_upload_size_bytes ?? 1024 * 1024 * 1024;
   const transferTtlSeconds =
     config?.default_transfer_ttl_seconds ?? 24 * 60 * 60;
 

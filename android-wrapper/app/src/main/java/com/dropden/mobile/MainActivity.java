@@ -56,6 +56,7 @@ public final class MainActivity extends Activity {
     private static final String PREFERENCES = "drop_den_mobile";
     private static final String HOST_KEY = "host_url";
     private static final String DEVICE_ID_PREFIX = "device_id:";
+    private static final String SESSION_TOKEN_PREFIX = "session_token:";
     private static final String DIRECT_SHARE_STAGING_MIGRATED_KEY =
             "direct_share_staging_migrated_v1";
     private static final long IDENTITY_POLL_MS = 1_000L;
@@ -190,7 +191,7 @@ public final class MainActivity extends Activity {
         if (!rememberedHost.isEmpty()) {
             boolean reuseCurrentWebView = webView != null && rememberedHost.equals(currentHost);
             currentHost = rememberedHost;
-            boolean waitForIdentity = !isUuid(preferences.getString(deviceKey(rememberedHost), ""));
+            boolean waitForIdentity = !hasDeviceSession(rememberedHost);
             if (!reuseCurrentWebView) {
                 openHost(rememberedHost, waitForIdentity);
             } else if (waitForIdentity) {
@@ -240,7 +241,7 @@ public final class MainActivity extends Activity {
         if (!rememberedHost.isEmpty()) {
             currentHost = rememberedHost;
             syncNativeShareQueue(new ArrayList<>());
-            boolean waitForIdentity = !isUuid(preferences.getString(deviceKey(rememberedHost), ""));
+            boolean waitForIdentity = !hasDeviceSession(rememberedHost);
             openHost(rememberedHost, waitForIdentity);
             if (!waitForIdentity && !stagingShareIntent) {
                 uploadPendingItems();
@@ -389,9 +390,7 @@ public final class MainActivity extends Activity {
                     hostUploadLimit = config.maxUploadBytes;
                     preferences.edit().putString(HOST_KEY, host).apply();
                     if (shareFlowActive && !stagingStore.loadItems().isEmpty()) {
-                        boolean waitForIdentity = !isUuid(
-                                preferences.getString(deviceKey(host), "")
-                        );
+                        boolean waitForIdentity = !hasDeviceSession(host);
                         openHost(host, waitForIdentity);
                         if (!waitForIdentity) {
                             uploadPendingItems();
@@ -439,8 +438,7 @@ public final class MainActivity extends Activity {
     }
 
     private void ensureRegisteredDevice(String host) {
-        String savedDeviceId = preferences.getString(deviceKey(host), "");
-        if (isUuid(savedDeviceId)) {
+        if (hasDeviceSession(host)) {
             if (webView == null) {
                 openHost(host, false);
             }
@@ -742,11 +740,15 @@ public final class MainActivity extends Activity {
         view.evaluateJavascript(
                 "(function(){return window.localStorage.getItem('drop-den-device') || '';})()",
                 encodedValue -> {
-                    String deviceId = decodeDeviceId(encodedValue);
-                    if (!isUuid(deviceId)) {
+                    String deviceId = decodeDeviceField(encodedValue, "id");
+                    String sessionToken = decodeDeviceField(encodedValue, "session_token");
+                    if (!isUuid(deviceId) || !isSessionToken(sessionToken)) {
                         return;
                     }
-                    preferences.edit().putString(deviceKey(host), deviceId).apply();
+                    preferences.edit()
+                            .putString(deviceKey(host), deviceId)
+                            .putString(sessionTokenKey(host), sessionToken)
+                            .apply();
                     if (continueShare && awaitingIdentity && shareFlowActive && !stagingShareIntent) {
                         stopIdentityPolling();
                         uploadPendingItems();
@@ -755,13 +757,19 @@ public final class MainActivity extends Activity {
         );
     }
 
-    private static String decodeDeviceId(String encodedValue) {
+    private static String decodeDeviceField(String encodedValue, String field) {
         try {
             String storedDevice = new JSONArray("[" + encodedValue + "]").getString(0);
-            return new JSONObject(storedDevice).optString("id", "").trim();
+            return new JSONObject(storedDevice).optString(field, "").trim();
         } catch (Exception error) {
             return "";
         }
+    }
+
+    private static boolean isSessionToken(String value) {
+        return value != null
+                && value.length() >= 32
+                && value.matches("[A-Za-z0-9_-]+");
     }
 
     private static boolean isUuid(String value) {
@@ -775,6 +783,15 @@ public final class MainActivity extends Activity {
 
     private static String deviceKey(String host) {
         return DEVICE_ID_PREFIX + host;
+    }
+
+    private static String sessionTokenKey(String host) {
+        return SESSION_TOKEN_PREFIX + host;
+    }
+
+    private boolean hasDeviceSession(String host) {
+        return isUuid(preferences.getString(deviceKey(host), ""))
+                && isSessionToken(preferences.getString(sessionTokenKey(host), ""));
     }
 
     private void syncNativeShareQueue(List<String> rejected) {
@@ -893,7 +910,8 @@ public final class MainActivity extends Activity {
         }
 
         String deviceId = preferences.getString(deviceKey(currentHost), "");
-        if (!isUuid(deviceId)) {
+        String sessionToken = preferences.getString(sessionTokenKey(currentHost), "");
+        if (!isUuid(deviceId) || !isSessionToken(sessionToken)) {
             ensureRegisteredDevice(currentHost);
             return;
         }
@@ -933,7 +951,7 @@ public final class MainActivity extends Activity {
                 stagingStore.markUploading(item);
                 TransferUploader.UploadResult result = TransferUploader.upload(
                         currentHost,
-                        deviceId,
+                        sessionToken,
                         item
                 );
                 if (result.success) {
@@ -962,7 +980,10 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> {
                 uploading = false;
                 if (registrationExpired) {
-                    preferences.edit().remove(deviceKey(currentHost)).apply();
+                    preferences.edit()
+                            .remove(deviceKey(currentHost))
+                            .remove(sessionTokenKey(currentHost))
+                            .apply();
                 }
                 shareFlowActive = !stagingStore.loadItems().isEmpty();
                 publishNativeShareQueue(false);
@@ -987,7 +1008,8 @@ public final class MainActivity extends Activity {
 
     private void retryPendingItems() {
         String deviceId = preferences.getString(deviceKey(currentHost), "");
-        if (isUuid(deviceId)) {
+        String sessionToken = preferences.getString(sessionTokenKey(currentHost), "");
+        if (isUuid(deviceId) && isSessionToken(sessionToken)) {
             uploadPendingItems();
         } else {
             openHost(currentHost, true);
@@ -1165,7 +1187,7 @@ public final class MainActivity extends Activity {
 
     private boolean hasRegisteredDeviceForCurrentHost() {
         return !currentHost.isEmpty()
-                && isUuid(preferences.getString(deviceKey(currentHost), ""));
+                && hasDeviceSession(currentHost);
     }
 
     @Override

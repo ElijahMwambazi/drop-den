@@ -1,11 +1,11 @@
 import { create } from "zustand";
-import type { Device } from "../types";
+import type { DeviceSession } from "../types";
 
 const DEVICE_STORAGE_KEY = "drop-den-device";
 
 type DeviceState = {
-  device: Device | null;
-  setDevice: (device: Device) => void;
+  device: DeviceSession | null;
+  setDevice: (device: DeviceSession) => void;
   clearDevice: () => void;
   hydrateDevice: () => void;
 };
@@ -18,7 +18,18 @@ function readStoredDevice() {
   }
 
   try {
-    return JSON.parse(storedValue) as Device;
+    const parsed = JSON.parse(storedValue) as Partial<DeviceSession>;
+    if (
+      typeof parsed.id !== "string" ||
+      typeof parsed.name !== "string" ||
+      typeof parsed.connected_at !== "string" ||
+      typeof parsed.session_token !== "string" ||
+      parsed.session_token.length < 32
+    ) {
+      localStorage.removeItem(DEVICE_STORAGE_KEY);
+      return null;
+    }
+    return parsed as DeviceSession;
   } catch {
     localStorage.removeItem(DEVICE_STORAGE_KEY);
     return null;

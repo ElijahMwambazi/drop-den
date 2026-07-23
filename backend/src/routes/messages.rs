@@ -1,7 +1,7 @@
 use crate::{
-    auth::require_registered_device,
+    auth::{require_authenticated_device, require_host_device},
     db,
-    models::{CreateMessageRequest, Message, WsEvent},
+    models::{CreateMessageRequest, Message},
     state::AppState,
 };
 use axum::{
@@ -18,7 +18,7 @@ pub async fn list_messages(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<Message>>, StatusCode> {
-    require_registered_device(&state, &headers).await?;
+    require_authenticated_device(&state, &headers).await?;
 
     let now = Utc::now();
     let mut messages = state.messages.write().await;
@@ -33,11 +33,11 @@ pub async fn create_message(
     headers: HeaderMap,
     Json(input): Json<CreateMessageRequest>,
 ) -> Result<Json<Message>, StatusCode> {
-    let requesting_device_id = require_registered_device(&state, &headers).await?;
+    let requester = require_authenticated_device(&state, &headers).await?;
 
     let body = input.body.trim();
 
-    if body.is_empty() {
+    if body.is_empty() || body.chars().count() > 2_000 {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -46,7 +46,7 @@ pub async fn create_message(
 
     let message = Message {
         id: Uuid::new_v4().to_string(),
-        sender_device_id: Some(requesting_device_id),
+        sender_device_id: Some(requester.id),
         body: body.to_string(),
         created_at,
         expires_at,
@@ -61,10 +61,7 @@ pub async fn create_message(
 
     state.messages.write().await.push(message.clone());
 
-    state.broadcast_json(&WsEvent {
-        event_type: "message_created".to_string(),
-        payload: message.clone(),
-    });
+    state.broadcast_all("message_created", &message);
 
     Ok(Json(message))
 }
@@ -73,12 +70,7 @@ pub async fn delete_all_messages(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<StatusCode, StatusCode> {
-    let requesting_device_id = require_registered_device(&state, &headers).await?;
-    let host_device_id = state.host_device_id.read().await.clone();
-
-    if host_device_id.as_deref() != Some(requesting_device_id.as_str()) {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    require_host_device(&state, &headers).await?;
 
     db::delete_all_messages(&state.db).await.map_err(|error| {
         tracing::error!(error = %error, "failed to delete all messages");
@@ -87,10 +79,7 @@ pub async fn delete_all_messages(
 
     state.messages.write().await.clear();
 
-    state.broadcast_json(&WsEvent {
-        event_type: "messages_cleared".to_string(),
-        payload: serde_json::json!({}),
-    });
+    state.broadcast_all("messages_cleared", &serde_json::json!({}));
 
     Ok(StatusCode::NO_CONTENT)
 }

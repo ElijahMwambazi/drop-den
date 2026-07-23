@@ -86,9 +86,9 @@ These steps verify the current direct-to-Transfers flow.
 8. Download an individual Transfer and **Download ZIP**, then confirm both files
    complete through Android's download notification and appear in Downloads.
 
-Also exercise cancellation, a file over 250 MiB, more than 50 files, process
+Also exercise cancellation, a file over 1 GiB, more than 50 files, process
 death before upload, and an expired device registration. Shared files are
-limited to 250 MiB each, 50 staged items, and 500 MiB of private staging.
+limited to 1 GiB each, 50 staged items, and 2 GiB of private staging.
 
 The physical Android matrix for Gallery, Files, Samsung My Files, WhatsApp,
 Chrome, Firefox, picker cancellation, recovery, retry, and host change was

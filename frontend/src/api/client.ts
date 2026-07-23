@@ -2,8 +2,6 @@ import { useDeviceStore } from "../store/deviceStore";
 
 const DESKTOP_API_ORIGIN = "http://127.0.0.1:18080";
 
-export const DEVICE_ID_HEADER = "X-Drop-Den-Device-Id";
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -42,27 +40,17 @@ export function websocketUrl(path = "/ws") {
   return `${protocol}//${window.location.host}${path}`;
 }
 
-function getDeviceId() {
-  return useDeviceStore.getState().device?.id;
+export function getSessionToken() {
+  return useDeviceStore.getState().device?.session_token;
 }
 
 function authorizedHeaders(headers: HeadersInit = {}) {
-  const deviceId = getDeviceId();
+  const token = getSessionToken();
 
   return {
     ...headers,
-    ...(deviceId ? { [DEVICE_ID_HEADER]: deviceId } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-}
-
-export function currentDeviceQuery() {
-  const deviceId = getDeviceId();
-
-  if (!deviceId) {
-    return "";
-  }
-
-  return `device_id=${encodeURIComponent(deviceId)}`;
 }
 
 export async function getJson<T>(path: string): Promise<T> {
@@ -71,10 +59,24 @@ export async function getJson<T>(path: string): Promise<T> {
   });
 
   if (!response.ok) {
+    clearSessionOnUnauthorized(response.status);
     throw new ApiError(`GET ${path} failed: ${response.status}`, response.status);
   }
 
   return response.json();
+}
+
+export function authorizedXhr(request: XMLHttpRequest) {
+  const token = getSessionToken();
+  if (token) {
+    request.setRequestHeader("Authorization", `Bearer ${token}`);
+  }
+}
+
+export function clearSessionOnUnauthorized(status: number) {
+  if (status === 401 && getSessionToken()) {
+    useDeviceStore.getState().clearDevice();
+  }
 }
 
 export async function postJson<TResponse, TBody>(
@@ -88,6 +90,7 @@ export async function postJson<TResponse, TBody>(
   });
 
   if (!response.ok) {
+    clearSessionOnUnauthorized(response.status);
     throw new ApiError(`POST ${path} failed: ${response.status}`, response.status);
   }
 
@@ -111,6 +114,7 @@ export async function patchJson<TResponse, TBody = undefined>(
   });
 
   if (!response.ok) {
+    clearSessionOnUnauthorized(response.status);
     throw new ApiError(`PATCH ${path} failed: ${response.status}`, response.status);
   }
 
@@ -124,6 +128,7 @@ export async function deleteRequest(path: string): Promise<void> {
   });
 
   if (!response.ok && response.status !== 204) {
+    clearSessionOnUnauthorized(response.status);
     throw new ApiError(`DELETE ${path} failed: ${response.status}`, response.status);
   }
 }

@@ -1,8 +1,4 @@
-use crate::{
-    db,
-    models::{Transfer, WsEvent},
-    state::AppState,
-};
+use crate::{db, models::Transfer, state::AppState, transfer_policy};
 use chrono::Utc;
 use std::path::PathBuf;
 use tokio::time::{self, Duration};
@@ -55,10 +51,12 @@ async fn cleanup_expired_transfers(state: AppState) {
     for transfer in expired_transfers {
         remove_transfer_files(&transfer).await;
 
-        state.broadcast_json(&WsEvent {
-            event_type: "transfer_deleted".to_string(),
-            payload: transfer,
-        });
+        let host_id = state.host_device_id.read().await.clone();
+        if let Some(device_ids) = transfer_policy::event_devices(&transfer, host_id.as_deref()) {
+            state.broadcast_to("transfer_deleted", &transfer, device_ids);
+        } else {
+            state.broadcast_all("transfer_deleted", &transfer);
+        }
     }
 }
 
@@ -69,7 +67,6 @@ async fn remove_transfer_files(transfer: &Transfer) {
         if let Err(error) = tokio::fs::remove_dir_all(parent).await {
             tracing::warn!(
                 transfer_id = %transfer.id,
-                path = %parent.display(),
                 error = %error,
                 "failed to remove expired transfer directory"
             );
@@ -97,8 +94,5 @@ async fn cleanup_expired_messages(state: AppState) {
         tracing::warn!(error = %error, "failed to delete expired messages from sqlite");
     }
 
-    state.broadcast_json(&WsEvent {
-        event_type: "messages_deleted".to_string(),
-        payload: removed_count,
-    });
+    state.broadcast_all("messages_deleted", &removed_count);
 }

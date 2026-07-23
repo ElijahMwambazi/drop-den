@@ -25,7 +25,7 @@ or peer-to-peer WebRTC transfers.
 
 - The first registered device becomes the host device.
 - Later devices join with a rotating six-digit PIN.
-- Private API routes require a registered device identity.
+- Private API routes require a revocable device session token issued at pairing.
 - Host settings are available to the host on supported runtimes.
 - Desktop runtime settings remain desktop-only.
 - Host devices can remove joined devices and perform den-wide maintenance.

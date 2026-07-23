@@ -1,5 +1,5 @@
 import { deleteRequest, getJson, postJson } from "./client";
-import type { Device } from "../types";
+import type { Device, DeviceSession } from "../types";
 
 type RegisterDeviceInput = {
   name: string;
@@ -11,7 +11,7 @@ export function listDevices() {
 }
 
 export function registerDevice(input: RegisterDeviceInput) {
-  return postJson<Device, { name: string; join_pin?: string }>("/api/devices", {
+  return postJson<DeviceSession, { name: string; join_pin?: string }>("/api/devices", {
     name: input.name,
     join_pin: input.joinPin,
   });

@@ -1,24 +1,17 @@
 use crate::{
-    auth::require_host_device,
+    auth::{optional_authenticated_device, require_host_device},
     db,
-    models::{AppConfig, HostSettings, UpdateHostSettingsRequest, WsEvent},
+    models::{AppConfig, HostSettings, UpdateHostSettingsRequest},
     settings::valid_transfer_ttl_seconds,
     state::AppState,
 };
 use axum::{
-    extract::{Query, State},
+    extract::{ConnectInfo, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
 use local_ip_address::local_ip;
-use serde::Deserialize;
-
-const MAX_UPLOAD_SIZE_BYTES: u64 = 250 * 1024 * 1024;
-
-#[derive(Debug, Deserialize)]
-pub struct ConfigQuery {
-    pub device_id: Option<String>,
-}
+use std::net::SocketAddr;
 
 struct DesktopPaths {
     data_dir: Option<String>,
@@ -28,16 +21,21 @@ struct DesktopPaths {
 
 pub async fn config(
     State(state): State<AppState>,
-    Query(query): Query<ConfigQuery>,
+    peer: Option<ConnectInfo<SocketAddr>>,
+    headers: HeaderMap,
 ) -> Json<AppConfig> {
     let host_device_id = state.host_device_id.read().await.clone();
-    let is_host_device = match (&host_device_id, &query.device_id) {
-        (Some(host_id), Some(device_id)) => host_id == device_id,
-        _ => false,
-    };
+    let authenticated = optional_authenticated_device(&state, &headers).await;
+    let is_host_device = authenticated
+        .as_ref()
+        .map(|device| device.is_host)
+        .unwrap_or(false);
 
     let mode = std::env::var("DROP_DEN_MODE").unwrap_or_else(|_| "development".to_string());
-    let desktop_paths = if mode == "desktop" {
+    let is_loopback = peer
+        .map(|ConnectInfo(address)| address.ip().is_loopback())
+        .unwrap_or(false);
+    let desktop_paths = if mode == "desktop" && is_host_device && is_loopback {
         Some(DesktopPaths {
             data_dir: std::env::var("DROP_DEN_DATA_DIR").ok(),
             storage_dir: Some(state.storage_dir.to_string_lossy().to_string()),
@@ -86,7 +84,7 @@ pub async fn config(
         } else {
             None
         },
-        max_upload_size_bytes: MAX_UPLOAD_SIZE_BYTES,
+        max_upload_size_bytes: state.limits.max_file_bytes,
         default_transfer_ttl_seconds: *state.transfer_ttl_seconds.read().await,
         data_dir: desktop_paths
             .as_ref()
@@ -127,10 +125,7 @@ pub async fn update_host_settings(
         transfer_ttl_seconds: payload.transfer_ttl_seconds,
     };
 
-    state.broadcast_json(&WsEvent {
-        event_type: "config_updated".to_string(),
-        payload: settings.clone(),
-    });
+    state.broadcast_all("config_updated", &settings);
 
     Ok(Json(settings))
 }

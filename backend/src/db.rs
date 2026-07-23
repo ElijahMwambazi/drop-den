@@ -21,6 +21,7 @@ pub struct PersistedRuntimeState {
     pub join_pin_hash: String,
     pub host_device_id: Option<String>,
     pub devices: HashMap<String, Device>,
+    pub sessions: HashMap<String, String>,
     pub messages: Vec<Message>,
     pub transfers: HashMap<String, Transfer>,
     pub transfer_ttl_seconds: u64,
@@ -43,7 +44,7 @@ pub async fn connect_database(database_path: PathBuf) -> anyhow::Result<SqlitePo
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    tracing::info!("SQLite database ready at {}", database_path.display());
+    tracing::info!("SQLite database ready");
 
     Ok(pool)
 }
@@ -59,6 +60,7 @@ pub async fn load_persisted_runtime_state(
 
     let host_device_id = get_setting(pool, "host_device_id").await?;
     let devices = load_devices(pool).await?;
+    let sessions = load_sessions(pool).await?;
     let messages = load_messages(pool).await?;
     let transfers = load_transfers(pool).await?;
     let transfer_ttl_seconds = match get_setting(pool, TRANSFER_TTL_SETTING_KEY).await? {
@@ -81,6 +83,7 @@ pub async fn load_persisted_runtime_state(
         join_pin_hash,
         host_device_id,
         devices,
+        sessions,
         messages,
         transfers,
         transfer_ttl_seconds,
@@ -142,19 +145,25 @@ pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> anyhow::R
     Ok(())
 }
 
-pub async fn insert_device(pool: &SqlitePool, device: &Device) -> anyhow::Result<()> {
+pub async fn insert_device(
+    pool: &SqlitePool,
+    device: &Device,
+    session_token_hash: &str,
+) -> anyhow::Result<()> {
     sqlx::query(
         r#"
-        INSERT INTO devices (id, name, connected_at)
-        VALUES (?, ?, ?)
+        INSERT INTO devices (id, name, connected_at, session_token_hash)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
-            connected_at = excluded.connected_at
+            connected_at = excluded.connected_at,
+            session_token_hash = excluded.session_token_hash
         "#,
     )
     .bind(&device.id)
     .bind(&device.name)
     .bind(device.connected_at.to_rfc3339())
+    .bind(session_token_hash)
     .execute(pool)
     .await?;
 
@@ -343,6 +352,24 @@ async fn load_devices(pool: &SqlitePool) -> anyhow::Result<HashMap<String, Devic
     }
 
     Ok(devices)
+}
+
+async fn load_sessions(pool: &SqlitePool) -> anyhow::Result<HashMap<String, String>> {
+    let rows = sqlx::query(
+        "SELECT id, session_token_hash FROM devices WHERE session_token_hash IS NOT NULL",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            (
+                row.get::<String, _>("session_token_hash"),
+                row.get::<String, _>("id"),
+            )
+        })
+        .collect())
 }
 
 async fn load_messages(pool: &SqlitePool) -> anyhow::Result<Vec<Message>> {

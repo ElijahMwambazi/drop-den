@@ -1,99 +1,116 @@
-# Security
+# Security model
 
-Drop Den is designed to be local-only.
+Drop Den is intended for trusted household LANs. It must not be exposed
+directly to the public internet.
 
-It should be used on trusted local networks and should not be exposed directly to the public internet.
+## Device identity and sessions
 
-## Current MVP safety rules
-
-- Do not expose the server to the public internet.
-- Store files only under the configured storage directory.
-- Use random UUIDs for transfers and devices.
-- Require a join PIN before new devices can join after the host is created.
-- Show the join PIN only to the host device.
-- Require a registered device identity for private API routes.
-- Allow the host to remove joined devices.
-- Add file size limits before heavy use.
-- Expire transfers after the configured transfer lifetime.
-- Automatically clean up expired transfers.
-- Copy Android `content://` shares into bounded private app storage before upload.
-- Delete successful Android staging copies and retain failed copies only for retry.
-- Restrict CORS to local development origins instead of using permissive CORS.
-- Run the Linux background service with a dedicated `drop-den` system user.
-- Keep service data under `/var/lib/drop-den`.
-
-## Current access model
-
-The first registered device becomes the host device.
-
-The host device can:
-
-- view the join PIN
-- remove joined devices
-- delete all transfers
-- configure the lifetime assigned to new transfers
-- access normal den features
-
-Joined devices can:
-
-- send files
-- send messages
-- receive visible transfers
-- accept or reject transfers targeted to their device
-- view connected devices
-
-Not-joined browsers should only see:
-
-- Join this den
-- Your device setup
-
-### Host recovery
-
-If the host browser identity is lost, the server can clear the persisted `host_device_id` with:
+Device IDs are public identifiers, not credentials. Successful registration
+returns a separate 256-bit random session token exactly once:
 
 ```txt
-DROP_DEN_RESET_HOST=1
+Authorization: Bearer <device-session-token>
 ```
 
-The next registered browser device becomes the host. This is a recovery mechanism for local/server-admin use and should only be used by someone with access to the machine running Drop Den.
+Only a SHA-256 digest of the random token is stored in SQLite and memory.
+Tokens are never returned by device lists, transfers, logs, or WebSocket
+events. Removing a device revokes its session and download tickets and closes
+its live connection.
 
-## API authorization
+Migration `005_device_session_tokens.sql` deliberately removes legacy devices,
+messages, and transfers because older device IDs were usable as credentials.
+After upgrade, every device must pair again. Orphaned legacy transfer files are
+removed during startup.
 
-Private API routes require:
+The first device still becomes host without a PIN. Later devices need the
+current six-digit PIN; it is Argon2-hashed in SQLite, kept in plaintext only in
+runtime memory, rotated after each successful join, and rate-limited by source
+IP.
+
+## Authorization
+
+The backend is the authority for transfer access:
+
+| Operation | Broadcast transfer | Targeted transfer |
+| --- | --- | --- |
+| List/inspect | Any registered device | Host, sender, or recipient |
+| Download | Any registered device when available | Host, sender, or recipient after acceptance |
+| Accept/reject | Not applicable | Recipient only while pending |
+| Delete | Host or sender | Host or sender |
+| Receive event | All registered devices | Host, sender, and recipient |
+
+An inaccessible transfer normally returns `404` so its existence is not
+disclosed. Absolute storage paths are backend-only fields and are omitted from
+all serialized transfer payloads.
+
+Host-only actions include den-wide settings, clearing all messages/transfers,
+and host/reset maintenance.
+
+## WebSockets and downloads
+
+WebSockets authenticate during the handshake using:
 
 ```txt
-X-Drop-Den-Device-Id: <registered-device-id>
+Sec-WebSocket-Protocol: drop-den-v1, drop-den-auth.<session-token>
 ```
 
-This is an MVP authorization mechanism. It prevents removed or unknown devices from using private routes casually, but it is not a full cryptographic authentication system.
+This avoids placing a long-lived token in a URL. Events are filtered by the
+authenticated device. Revoked sessions are disconnected.
 
-## Current limitations
+Browser and Android downloads use a five-minute, high-entropy, resource-scoped
+ticket issued over an authenticated request. A ticket can download only one
+transfer or the caller's currently visible ZIP selection. It is not a device
+session and is revoked when the device is removed.
 
-Drop Den now persists core metadata with SQLite, including devices, messages, transfer metadata, host identity, and app settings.
+## Desktop trust boundary
 
-The join PIN plaintext is kept only in runtime memory. SQLite stores a join PIN hash.
+`POST /api/transfers/upload-local-paths` is a privileged desktop capability. It
+requires all of:
 
-A new join PIN is generated on backend startup, and the PIN rotates after every successful joined-device registration.
+- desktop backend mode;
+- a loopback TCP peer;
+- the current host's bearer token.
 
-The current API authorization model still uses a registered device ID header. Targeted transfer actions and downloads enforce device ownership, but device IDs are not cryptographic credentials. This remains suitable only for an MVP on trusted local networks.
+Input paths are canonicalized and must resolve to readable regular files.
+Directories, missing paths, oversized batches, and unsupported request shapes
+are rejected. Browser and Android clients cannot obtain desktop filesystem
+paths from `/api/config`; runtime paths are returned only to an authenticated
+desktop host.
 
-Android share intents copy `content://` data into bounded private Android
-storage before uploading. Successful shares become ordinary transfers and the
-temporary local copy is deleted; failed copies remain private and bounded for
-explicit retry.
+The Tauri endpoint is still HTTP on loopback rather than an unforgeable native
+IPC capability. Malware or a hostile process already running as the same OS
+user remains outside Drop Den's protection.
 
-## Recommended future security improvements
+## Resource controls
 
-- Add device/session tokens instead of trusting only a device ID header.
-- Add optional encryption-at-rest for stored transfer files.
-- Replace device-ID download links with short-lived authenticated download tokens.
-- Add optional audit log for device joins/removals/transfers.
+Defaults can be changed with environment variables:
 
-## Avoid in the MVP
+| Variable | Default |
+| --- | ---: |
+| `DROP_DEN_MAX_FILE_BYTES` | 1 GiB |
+| `DROP_DEN_MAX_BATCH_BYTES` | 4 GiB |
+| `DROP_DEN_MAX_STORAGE_BYTES` | 50 GiB |
+| `DROP_DEN_MAX_FILES_PER_BATCH` | 50 |
 
-- Public internet sharing.
-- User accounts.
-- Cloud relay storage.
-- WebRTC direct transfer.
-- Complex role systems.
-- Exposing the service through a public tunnel without authentication.
+Device names are limited to 64 characters, messages to 2,000 characters,
+filenames to 180 safe ASCII characters, and MIME metadata to 128 characters.
+Pairing is limited to 12 attempts per source IP per five minutes; uploads are
+limited to 60 requests per device per minute.
+
+Uploads stream to disk with size/storage checks. Individual downloads stream
+from disk. ZIPs are built one file at a time into a temporary file and then
+streamed; cancellation removes the temporary file. Disk-full failures return
+`507 Insufficient Storage` where the operating system reports that condition.
+
+## Remaining limitations
+
+- LAN HTTP does not encrypt session tokens in transit. A party able to sniff or
+  alter the trusted LAN can steal a session. Public or hostile-network use
+  requires TLS and a stronger deployment model.
+- Files are not encrypted at rest.
+- There are no user accounts, audit log, malware scan, or content inspection.
+- A compromised host OS can read all den data.
+- Rate limits are in-memory and reset with the backend.
+
+These controls support a trusted-household beta, not an internet-facing public
+service.

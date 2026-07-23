@@ -206,6 +206,38 @@ reports native share work in the same bounded upload queue used by in-app files.
 The historical inbox migration remains immutable for existing SQLite migration
 checksums; a forward migration drops its table during upgrade.
 
+## Phase 11: Trusted beta hardening
+
+- [x] Separate public device IDs from high-entropy session-token authentication
+- [x] Store session-token digests and revoke sessions when devices are removed
+- [x] Add a safe re-pair migration from legacy device-ID credentials
+- [x] Authenticate WebSockets without URL session secrets
+- [x] Filter realtime events by backend transfer policy
+- [x] Centralize transfer list, download, review, delete, and event permissions
+- [x] Remove stored filesystem paths from API and event payloads
+- [x] Add short-lived scoped browser/Android download tickets
+- [x] Restrict desktop local-path upload to desktop mode, loopback, and host
+- [x] Canonicalize desktop paths and reject non-file inputs
+- [x] Add configurable file, batch, storage, and metadata limits
+- [x] Stream individual downloads and bound ZIP memory use
+- [x] Add pairing and upload rate limits
+- [x] Add negative authorization and redaction regression tests
+- [x] Add backend, frontend, Android, and Tauri CI checks
+- [x] Update API, architecture, security, and setup documentation
+
+This milestone targets a trusted-household beta. LAN HTTP remains unsuitable
+for hostile networks or direct public-internet exposure.
+
+## Remaining trusted-beta risks
+
+- [ ] Add TLS or another secure LAN transport before supporting hostile networks
+- [ ] Decide whether pairing and upload rate-limit state must survive restarts
+- [ ] Re-verify individual, ZIP, and targeted downloads on physical Android devices
+- [ ] Add frontend unit/lint coverage and Android unit tests
+- [ ] Evaluate resumable uploads for unreliable links and files near 1 GiB
+- [ ] Complete installer signing and package smoke tests for public downloads
+- [ ] Evaluate encryption at rest before storing sensitive transfers
+
 ## Future packaging
 
 - [x] Add Windows-specific Tauri bundle configuration

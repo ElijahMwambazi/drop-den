@@ -18,7 +18,6 @@ import java.util.Locale;
 import java.util.UUID;
 
 final class TransferUploader {
-    private static final String DEVICE_ID_HEADER = "X-Drop-Den-Device-Id";
     private static final int CONNECT_TIMEOUT_MS = 8_000;
     private static final int READ_TIMEOUT_MS = 120_000;
     private static final int MAX_RESPONSE_BYTES = 64 * 1024;
@@ -59,7 +58,7 @@ final class TransferUploader {
 
     static UploadResult upload(
             String host,
-            String deviceId,
+            String sessionToken,
             ShareStagingStore.SharedItem item
     ) {
         HttpURLConnection connection = null;
@@ -75,7 +74,7 @@ final class TransferUploader {
             connection.setDoOutput(true);
             connection.setChunkedStreamingMode(64 * 1024);
             connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty(DEVICE_ID_HEADER, deviceId);
+            connection.setRequestProperty("Authorization", "Bearer " + sessionToken);
             connection.setRequestProperty(
                     "Content-Type",
                     "multipart/form-data; boundary=" + boundary

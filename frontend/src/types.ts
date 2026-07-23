@@ -4,6 +4,10 @@ export type Device = {
   connected_at: string;
 };
 
+export type DeviceSession = Device & {
+  session_token: string;
+};
+
 export type AppConfig = {
   app_name: string;
   mode: string;
@@ -39,7 +43,6 @@ export type Transfer = {
   sender_device_id?: string | null;
   target_device_id?: string | null;
   status: TransferStatus;
-  stored_path: string;
   created_at: string;
   expires_at: string;
 };

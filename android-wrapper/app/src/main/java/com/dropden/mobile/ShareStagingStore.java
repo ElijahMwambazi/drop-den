@@ -23,8 +23,8 @@ import java.util.Set;
 import java.util.UUID;
 
 final class ShareStagingStore {
-    static final long MAX_ITEM_BYTES = 250L * 1024L * 1024L;
-    static final long MAX_TOTAL_BYTES = 500L * 1024L * 1024L;
+    static final long MAX_ITEM_BYTES = 1024L * 1024L * 1024L;
+    static final long MAX_TOTAL_BYTES = 2L * 1024L * 1024L * 1024L;
     static final int MAX_ITEMS = 50;
 
     private static final String PREFERENCES = "drop_den_mobile";
@@ -84,11 +84,11 @@ final class ShareStagingStore {
 
             long declaredSize = readDeclaredSize(resolver, uri);
             if (declaredSize > MAX_ITEM_BYTES) {
-                rejected.add(displayName + ": files cannot exceed 250 MiB.");
+                rejected.add(displayName + ": files cannot exceed 1 GiB.");
                 continue;
             }
             if (declaredSize >= 0 && retainedBytes + declaredSize > MAX_TOTAL_BYTES) {
-                rejected.add(displayName + ": the private staging area cannot exceed 500 MiB.");
+                rejected.add(displayName + ": the private staging area cannot exceed 2 GiB.");
                 continue;
             }
 
@@ -253,10 +253,10 @@ final class ShareStagingStore {
             while ((read = input.read(buffer)) != -1) {
                 size += read;
                 if (size > itemLimit) {
-                    throw new SizeLimitException("files cannot exceed 250 MiB.");
+                    throw new SizeLimitException("files cannot exceed 1 GiB.");
                 }
                 if (size > remainingTotal) {
-                    throw new SizeLimitException("the private staging area cannot exceed 500 MiB.");
+                    throw new SizeLimitException("the private staging area cannot exceed 2 GiB.");
                 }
                 output.write(buffer, 0, read);
             }

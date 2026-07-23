@@ -22,17 +22,20 @@ No active defects are currently recorded.
 - Priority: High
 - Status: Verify
 - Area: Android WebView downloads
-- Fixed: July 16, 2026
+- Updated: July 23, 2026
 
 Android WebView does not save attachment responses without a native download
 handler. The wrapper now accepts downloads only from the connected Drop Den
-origin and hands them to Android's system Download Manager. Files are saved in
-Downloads with the backend-provided filename. Android 8 and 9 request the
-legacy storage permission only when the first download starts; newer Android
-versions do not request it.
+origin and hands them to Android's system Download Manager. The frontend first
+obtains a five-minute resource-scoped ticket, so the manager never needs the
+long-lived device session in a URL. Files are saved in Downloads with the
+backend-provided filename. Android 8 and 9 request the legacy storage
+permission only when the first download starts; newer Android versions do not
+request it.
 
 Acceptance checks:
 
+- [ ] Re-pair the Android device after applying the session-token migration.
 - [ ] Download an available individual transfer and open it from the completed
   download notification.
 - [ ] Confirm the file appears in Android's Downloads folder with its expected
@@ -79,7 +82,7 @@ Acceptance checks:
 - [x] Keep bounded private Android staging for `content://` safety, offline retry,
   and process recovery.
 - [x] Upload staged files to `POST /api/transfers/upload` with the registered
-  Android device identity.
+  Android device session token.
 - [x] Default Android share-sheet uploads to **Everyone in the den**.
 - [x] Show preparation, upload, success, and failure states in the existing
   **Send files** upload queue.

@@ -179,6 +179,59 @@ DROP_DEN_DATABASE_PATH=/path/to/drop-den.sqlite cargo run
 DROP_DEN_STORAGE_DIR=/path/to/transfers cargo run
 ```
 
+Trusted-beta resource limits are configurable:
+
+```bash
+DROP_DEN_MAX_FILE_BYTES=1073741824
+DROP_DEN_MAX_BATCH_BYTES=4294967296
+DROP_DEN_MAX_STORAGE_BYTES=53687091200
+DROP_DEN_MAX_FILES_PER_BATCH=50
+```
+
+All values must be positive integers. The defaults are 1 GiB per file, 4 GiB
+per desktop batch, 50 GiB total managed transfer storage, and 50 local-path
+files per batch.
+
+Migration `005_device_session_tokens.sql` intentionally invalidates the older
+device-ID credential model. On first startup after the upgrade, devices must
+pair again and legacy messages/transfers are removed. Back up required files
+before applying migrations.
+
+## Verification
+
+Backend:
+
+```bash
+cd backend
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+```
+
+Frontend:
+
+```bash
+cd frontend
+yarn install --frozen-lockfile
+yarn build
+```
+
+Android requires a complete JDK with `javac`. When using Flatpak Android
+Studio, its bundled JDK is typically:
+
+```bash
+export JAVA_HOME=/var/lib/flatpak/app/com.google.AndroidStudio/current/active/files/extra/jbr
+cd android-wrapper
+./gradlew testDebugUnitTest lintDebug assembleDebug
+```
+
+Desktop wrapper check:
+
+```bash
+cd src-tauri
+cargo check --locked
+```
+
 ## Host recovery
 
 If the host browser identity is lost, clear the persisted host device and let the next registered browser become host.
@@ -364,7 +417,9 @@ If the current desktop device is host:
 - disable `Switch device`
 - use `Reset host` instead
 
-Reason: if the backend still has a persisted `host_device_id` but the WebView loses the matching local device ID, the user can lose access to the host-only join PIN.
+Reason: if the backend still has a persisted `host_device_id` but the WebView
+loses the matching local device session, the user can lose access to the
+host-only join PIN.
 
 ### Desktop folder shortcuts
 

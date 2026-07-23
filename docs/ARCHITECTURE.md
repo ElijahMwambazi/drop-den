@@ -1,198 +1,77 @@
 # Architecture
 
-Drop Den is a local-only transfer hub.
+Drop Den is a local-first hub. The Rust/Axum host owns persistence, policy, and
+file storage; React, Tauri, Android, and ordinary browsers are clients of the
+same API.
 
 ```txt
-Phone A  ──┐
-Laptop   ──┼──> Host machine running Drop Den ──> Browser UI
-Phone B  ──┘
+Browser ───────┐
+Tauri host UI ─┼─ HTTP/WebSocket ─> Axum host ─> SQLite + transfer storage
+Android ───────┘
 ```
 
-The host machine runs the Rust backend. Every device, including the host itself, uses the browser UI.
+Files move through the host rather than directly between clients.
 
-## Core idea
+## Trust boundaries
 
-Files and messages are not transferred directly between browsers in the current architecture. They move through the host backend:
+### Public onboarding
 
-```txt
-Sender browser -> Rust backend -> Receiver browser
-```
+`GET /api/config` exposes non-secret discovery metadata. `POST /api/devices`
+creates the initial host or verifies the rotating join PIN. Successful pairing
+returns a public device ID plus a separate raw session token.
 
-This makes the app easier to build, test, secure, and package.
+### Authenticated den
 
-## Components
+Protected HTTP requests use bearer session tokens. The backend stores token
+digests and maps them to devices. Device removal revokes that mapping.
 
-### Rust backend
+WebSockets carry the session token in `Sec-WebSocket-Protocol`, not the URL.
+The event broker attaches an audience to each event and sends targeted-transfer
+events only to the host, sender, and recipient.
 
-Responsibilities:
+The frontend may still filter and sort for presentation, but it never defines
+the security boundary. `backend/src/transfer_policy.rs` is the reusable
+authority for list, download, review, delete, and event visibility.
 
-- Serve API routes.
-- Serve the built React app in packaged mode.
-- Register browser devices.
-- Track the host device.
-- Validate join PINs.
-- Enforce registered-device access for private API routes.
-- Store uploaded files in local storage.
-- Store transfer metadata.
-- Expose individual and ZIP download endpoints.
-- Store local text messages.
-- Broadcast WebSocket events.
-- Clean up expired transfers.
-- Detect LAN/friendly join URLs.
+### Downloads
 
-### React frontend
+Clients first request a five-minute, resource-scoped download ticket using
+their bearer token. This permits normal browser links, media elements, and
+Android Download Manager without putting the long-lived session token in a
+URL. Individual files stream from disk. ZIP creation reads one source file at
+a time into a temporary archive, then streams and removes it.
 
-Responsibilities:
+### Desktop privilege
 
-- Display the join URL and QR code.
-- Show host-only join PIN controls.
-- Register the current browser as a device.
-- Hide private app sections until joined.
-- Send files.
-- Send text messages.
-- Show connected devices.
-- Allow the host to remove joined devices.
-- Show available transfers.
-- Support media previews.
-- Support transfer targeting and accept/reject.
-- Show realtime updates and toast notifications.
+The Tauri shell starts the same backend as a sidecar on `127.0.0.1:18080`.
+Native drag/drop uses `/api/transfers/upload-local-paths`, which additionally
+requires desktop mode, a loopback peer, and the host session. The server
+canonicalizes each path. LAN clients cannot call this capability or retrieve
+desktop runtime paths.
 
-### Packaged mode
+## Persistence
 
-In packaged mode, the Rust backend serves the built frontend from:
+SQLite stores:
 
-```txt
-frontend/dist
-```
+- public device metadata and hashed session tokens;
+- host identity and settings;
+- Argon2 join-PIN hash;
+- message metadata;
+- transfer metadata, including backend-only stored paths.
 
-Users access the UI through the same Rust server:
+The raw join PIN exists only in runtime memory. The raw session token exists
+only in the successful pairing response and client storage.
 
-```txt
-http://localhost:8080
-http://<host-lan-ip>:8080
-```
-
-A friendly local name can be displayed if configured:
-
-```txt
-http://drop-den.local:8080
-```
-
-## Recommended data flow
-
-### Join flow
-
-```txt
-GET /api/config
-POST /api/devices
-```
-
-The first registered device becomes the host device. Later devices must provide the join PIN.
-
-### File upload
-
-```txt
-POST /api/transfers/upload
-```
-
-The sender uploads a multipart file to the backend. The backend stores it, creates transfer metadata, and broadcasts a `transfer_created` event.
-
-### File download
-
-```txt
-GET /api/transfers/:id/download?device_id=<device-id>
-```
-
-The receiver downloads the file from the host backend. Expired or unaccepted targeted transfers are not downloadable.
-
-### Download all
-
-```txt
-GET /api/transfers/download-all?device_id=<device-id>
-```
-
-The backend generates a ZIP of downloadable, non-expired transfers.
-
-### Text message
-
-```txt
-POST /api/messages
-```
-
-The backend stores the message and broadcasts a `message_created` event.
-
-### Realtime events
-
-```txt
-GET /ws
-```
-
-WebSockets are used for notifications and state refresh triggers, not for large file transfer.
-
-## Current state model
-
-SQLite setup is present and migrations run at backend startup.
-
-The backend now persists:
-
-- registered devices
-- host device identity
-- app settings
-- join PIN hash
-- messages
-- transfer metadata
-
-The plaintext join PIN is kept only in runtime memory so it can be shown to the host device. SQLite stores the hash. A fresh PIN is generated on backend startup, and the PIN rotates after every successful joined-device registration.
-
-Messages expire after 24 hours and are removed by the cleanup job.
-
-Transfers expire after the configured transfer lifetime and are removed by the cleanup job. On startup, non-expired transfer metadata is restored from SQLite. Expired transfers and transfer records whose files are missing are removed from SQLite.
-
-Uploaded files are stored on disk.
-
-## Future persistence model
-
-SQLite should move core metadata out of memory and into durable storage.
-
-SQLite should persist:
-
-- devices
-- messages
-- transfers
-- settings
-- host device identity
-- join PIN hash or generated join secret
-
-Files should remain on disk in a configured storage directory.
+Files remain under the configured transfer directory. Startup removes expired
+or missing metadata and orphaned storage. Migration 005 invalidates legacy
+device-ID credentials and requires re-pairing.
 
 ## Delivery variants
 
-### Drop Den Server
+- Server/package mode serves the built React application and LAN API.
+- Tauri desktop mode starts the backend sidecar and compact desktop UI.
+- Android loads the LAN UI in a WebView and stages `content://` shares in
+  bounded private app storage before authenticated upload.
 
-Runs as a backend/server process and serves the browser UI.
-
-Best for:
-
-- Linux hosts
-- home servers
-- technical users
-- LAN utility use
-
-### Drop Den Desktop
-
-Future Tauri wrapper around the same backend and frontend.
-
-Recommended approach:
-
-```txt
-Tauri shell starts backend sidecar -> UI connects to local backend
-```
-
-This keeps Tauri optional while preserving one backend architecture.
-
-## Local-only assumptions
-
-- Devices are on the same LAN/Wi-Fi.
-- The host machine is reachable by IP address or local name.
-- The server binds to `0.0.0.0` for LAN access.
-- Users should not expose the service to the public internet.
+All variants assume a trusted LAN and host. They do not provide internet-grade
+transport security.

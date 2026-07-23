@@ -13,9 +13,15 @@ export function useWebSocketRefresh() {
   const clearDevice = useDeviceStore((state) => state.clearDevice);
 
   useEffect(() => {
+    if (!currentDevice?.session_token) {
+      return;
+    }
     let shouldShowDisconnectToast = true;
 
-    const socket = new WebSocket(websocketUrl());
+    const socket = new WebSocket(websocketUrl(), [
+      "drop-den-v1",
+      `drop-den-auth.${currentDevice.session_token}`,
+    ]);
 
     socket.onopen = () => {
       shouldShowDisconnectToast = true;
@@ -66,7 +72,13 @@ export function useWebSocketRefresh() {
       shouldShowDisconnectToast = false;
       socket.close();
     };
-  }, [addToast, clearDevice, currentDevice?.id, queryClient]);
+  }, [
+    addToast,
+    clearDevice,
+    currentDevice?.id,
+    currentDevice?.session_token,
+    queryClient,
+  ]);
 }
 
 function isRegisteredDevice(
@@ -133,18 +145,19 @@ function handleWebSocketToast(
   }
 
   if (wsEvent.event_type === "host_reset") {
-    const payload = wsEvent.payload as { device_id?: string };
-
-    if (payload.device_id === currentDeviceId) {
-      clearDevice();
-      return;
-    }
-
     addToast({
       type: "info",
       message: "The host identity was reset. This den needs a new host.",
     });
 
+    return;
+  }
+
+  if (
+    wsEvent.event_type === "session_revoked" ||
+    wsEvent.event_type === "desktop_reset"
+  ) {
+    clearDevice();
     return;
   }
 
@@ -204,12 +217,7 @@ function handleWebSocketToast(
   }
 
   if (wsEvent.event_type === "transfers_cleared") {
-    const payload = wsEvent.payload as {
-      deleted_count?: number;
-      device_id?: string;
-    };
-
-    if (payload.device_id === currentDeviceId) return;
+    const payload = wsEvent.payload as { deleted_count?: number };
 
     const deletedCount = payload.deleted_count ?? 0;
     addToast({

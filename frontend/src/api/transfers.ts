@@ -1,7 +1,7 @@
 import {
-  DEVICE_ID_HEADER,
   apiUrl,
-  currentDeviceQuery,
+  authorizedXhr,
+  clearSessionOnUnauthorized,
   deleteRequest,
   getJson,
   patchJson,
@@ -49,9 +49,7 @@ export function uploadTransfer(
 
     request.open("POST", apiUrl("/api/transfers/upload"));
 
-    if (senderDeviceId) {
-      request.setRequestHeader(DEVICE_ID_HEADER, senderDeviceId);
-    }
+    authorizedXhr(request);
 
     request.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
@@ -67,6 +65,7 @@ export function uploadTransfer(
         return;
       }
 
+      clearSessionOnUnauthorized(request.status);
       reject(new Error(`Upload failed: ${request.status}`));
     };
 
@@ -108,20 +107,27 @@ export function deleteAllTransfers() {
   return deleteRequest("/api/transfers");
 }
 
-export function transferDownloadUrl(id: string) {
-  const query = currentDeviceQuery();
-  const path = query
-    ? `/api/transfers/${id}/download?${query}`
-    : `/api/transfers/${id}/download`;
+type DownloadGrant = {
+  ticket: string;
+  expires_at: string;
+};
 
-  return apiUrl(path);
+export async function createTransferDownloadUrl(id: string) {
+  const grant = await postJson<DownloadGrant, Record<string, never>>(
+    `/api/transfers/${id}/download-ticket`,
+    {},
+  );
+  return apiUrl(
+    `/api/transfers/${id}/download?ticket=${encodeURIComponent(grant.ticket)}`,
+  );
 }
 
-export function downloadAllTransfersUrl() {
-  const query = currentDeviceQuery();
-  const path = query
-    ? `/api/transfers/download-all?${query}`
-    : "/api/transfers/download-all";
-
-  return apiUrl(path);
+export async function createDownloadAllTransfersUrl() {
+  const grant = await postJson<DownloadGrant, Record<string, never>>(
+    "/api/transfers/download-all-ticket",
+    {},
+  );
+  return apiUrl(
+    `/api/transfers/download-all?ticket=${encodeURIComponent(grant.ticket)}`,
+  );
 }

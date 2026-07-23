@@ -147,12 +147,18 @@ distribution.
 
 - Files pass through the host computer, not a cloud service.
 - Joining devices require a PIN after the host is created.
-- Private operations require a registered device identity.
+- Private operations require a revocable device session token issued at pairing.
 - Transfers and messages are automatically cleaned up after their retention
   period.
 - Anyone controlling the host computer can access its locally stored data.
 
 Use Drop Den only on a network and host computer you trust.
+
+Security migration note: upgrading an older installation to the trusted-beta
+authentication model invalidates legacy device identities and clears protected
+legacy content. Devices must pair again. See the
+[security model](docs/SECURITY.md) before upgrading an installation with data
+you need to retain.
 
 ## Learn more
 
