@@ -70,6 +70,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
@@ -78,6 +83,12 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+      - run: npm install --global yarn@1.22.22
+      - name: Build frontend assets for Tauri resource check
+        working-directory: frontend
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
       - name: Prepare Linux backend sidecar
         run: bash scripts/prepare-tauri-sidecar-dev.sh
       - name: Check desktop wrapper
