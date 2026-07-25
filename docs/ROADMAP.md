@@ -239,6 +239,22 @@ for hostile networks or direct public-internet exposure.
 - [ ] Complete installer signing and package smoke tests for public downloads
 - [ ] Evaluate encryption at rest before storing sensitive transfers
 
+## Phase 12: Controlled beta packaging
+
+- [x] Add a beta-tag workflow with version validation and pre-package test gates
+- [x] Add isolated build jobs for RPM, unsigned Windows NSIS, and signed Android
+  release candidates
+- [x] Configure Android release signing through temporary secret-backed
+  keystore reconstruction
+- [x] Gate pre-release publication on a complete, checksummed asset set through
+  a final draft-release job
+- [x] Document beta downloads, macOS source builds, and cross-platform release
+  acceptance
+- [ ] Pass clean-machine RPM install, upgrade, and uninstall testing
+- [ ] Pass Windows clean install, upgrade, and uninstall testing
+- [ ] Pass Android signed clean-install and same-certificate upgrade testing
+- [ ] Pass Apple Silicon and Intel builds and smoke tests on matching hardware
+
 ## Future packaging
 
 - [x] Add Windows-specific Tauri bundle configuration

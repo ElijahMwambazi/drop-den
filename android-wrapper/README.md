@@ -39,7 +39,7 @@ command-line builds: the selected Java installation must include `javac`.
 Gradle 9.6.1 can run on Java 25, while Android Studio's bundled JDK is the
 simplest supported default.
 
-## Build
+## Development build
 
 Open `android-wrapper` in Android Studio, or configure the SDK path in an
 ignored `local.properties` file:
@@ -61,7 +61,44 @@ Then build from the wrapper directory:
 ./gradlew assembleDebug
 ```
 
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The development APK is written to
+`app/build/outputs/apk/debug/app-debug.apk`. It is for local testing only and
+must not be distributed as a beta release.
+
+## Signed release build
+
+Android upgrades are accepted only when the new APK uses the same application
+ID and signing certificate. Create one permanent Drop Den release keystore,
+store it outside the repository, back it up securely, and use the same key for
+all future releases. Increment `versionCode` for every APK published after this
+first beta so Android accepts it as an upgrade.
+
+The Gradle release configuration reads credentials from the environment:
+
+```bash
+export ANDROID_KEYSTORE_PATH=/secure/path/drop-den-release.jks
+export ANDROID_KEYSTORE_PASSWORD='<keystore password>'
+export ANDROID_KEY_ALIAS='<key alias>'
+export ANDROID_KEY_PASSWORD='<key password>'
+./gradlew :app:assembleRelease
+```
+
+The signed APK is written to
+`app/build/outputs/apk/release/app-release.apk`. The build fails rather than
+creating a release APK when the required signing values are absent.
+
+The beta release workflow reconstructs the keystore temporarily from these
+GitHub Actions repository secrets:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+Encode the keystore as a single-line base64 value for
+`ANDROID_KEYSTORE_BASE64`. Do not commit the keystore, encoded keystore,
+passwords, alias, certificates, or generated signing files. Restrict access to
+the repository secrets and preserve an offline backup of the keystore.
 
 The wrapper deliberately permits cleartext HTTP because the normal Drop Den
 host is LAN-only HTTP. Do not navigate it to untrusted internet addresses.
@@ -72,7 +109,9 @@ These steps verify the current direct-to-Transfers flow.
 
 1. Start Drop Den on a computer and make sure the Android device is on the same
    local network.
-2. Install the debug APK and connect it to the host URL shown by Drop Den.
+2. Install a locally built development APK, or the signed release candidate
+   when performing release acceptance, and connect it to the host URL shown by
+   Drop Den.
 3. Register the Android device in the WebView if it is not already joined.
 4. From Android Gallery, Files, a browser, or another app, select one or more
    files and choose **Share > Drop Den**.

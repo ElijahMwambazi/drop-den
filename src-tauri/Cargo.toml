@@ -1,6 +1,6 @@
 [package]
 name = "drop-den-desktop"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 description = "Drop Den desktop wrapper"
 authors = ["Elijah Mwambazi"]
 edition = "2021"

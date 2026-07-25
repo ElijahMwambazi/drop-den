@@ -23,20 +23,42 @@ and the host can select a lifetime from 1 hour to 30 days. Drop Den is intended
 for trusted home, office, and event networks—not direct exposure to the public
 internet.
 
-## Downloads
+## Beta downloads
 
-Public release downloads are being prepared. Releases will provide:
+> **Trusted home-network beta. Intended for private networks you control. Do
+> not expose Drop Den directly to the internet or use it on hostile or public
+> networks.**
 
-- a Linux RPM desktop package;
-- an Android APK;
-- a Windows NSIS installer;
-- a server package for browser-based access;
-- macOS packages in a later release.
+Download the beta from the
+[GitHub Releases page](https://github.com/ElijahMwambazi/drop-den/releases).
+For `v0.1.0-beta.1`, select:
 
-Until the first public release is published, the current unsigned packages can
-be built from source using the instructions below. Unsigned Windows installers
-may trigger Microsoft Defender SmartScreen, and the Android debug APK is for
-testing rather than store distribution.
+- Linux x86_64 RPM: `drop-den-0.1.0-beta.1-linux-x86_64.rpm`
+- Windows x64 installer: `drop-den-0.1.0-beta.1-windows-x64-setup.exe`
+- Android APK: `drop-den-0.1.0-beta.1-android.apk`
+- Checksums: `SHA256SUMS.txt`
+
+The Windows installer is intentionally unsigned for this beta and may trigger
+Microsoft Defender SmartScreen. On Android, allow installation from the
+browser or file manager used to open the APK when prompted. Install only the
+signed release APK from the Releases page.
+
+Verify the SHA-256 checksums before installing. On Linux, place all downloaded
+files and `SHA256SUMS.txt` in one directory and run:
+
+```bash
+sha256sum --check SHA256SUMS.txt
+```
+
+On macOS, `shasum -a 256 <filename>` can be compared with the matching line in
+`SHA256SUMS.txt`. On Windows, use:
+
+```powershell
+Get-FileHash .\drop-den-0.1.0-beta.1-windows-x64-setup.exe -Algorithm SHA256
+```
+
+This is not a stable or market-ready release. Public macOS binaries are
+postponed; macOS users can build from source as described below.
 
 ## Getting started
 
@@ -55,9 +77,9 @@ to reach the host computer.
 | --- | --- |
 | Browser clients | Supported on modern Chrome and Firefox |
 | Linux desktop host | Available; public package preparation is ongoing |
-| Android client and share target | Implemented; signed release packaging pending |
+| Android client and share target | Implemented; secret-backed signed release packaging configured |
 | Windows desktop host | Unsigned NSIS installer available through GitHub Actions |
-| macOS desktop host | DMG build foundation available; release packaging pending |
+| macOS desktop host | Build-from-source only for the beta |
 
 ## Build packages from source
 
@@ -102,21 +124,28 @@ JDK 17 or newer that includes `javac`. Set the local SDK path in the ignored
 sdk.dir=/home/you/Android/Sdk
 ```
 
-Build the current debug APK:
+Release builds require a permanent keystore. Set the keystore path and
+credentials in the environment without storing them in the repository:
 
 ```bash
 cd android-wrapper
-./gradlew :app:assembleDebug
+export ANDROID_KEYSTORE_PATH=/secure/path/drop-den-release.jks
+export ANDROID_KEYSTORE_PASSWORD='<keystore password>'
+export ANDROID_KEY_ALIAS='<key alias>'
+export ANDROID_KEY_PASSWORD='<key password>'
+./gradlew :app:assembleRelease
 ```
 
 The APK is written to:
 
 ```text
-android-wrapper/app/build/outputs/apk/debug/app-debug.apk
+android-wrapper/app/build/outputs/apk/release/app-release.apk
 ```
 
 See the [Android wrapper guide](android-wrapper/README.md) for the Flatpak
-Android Studio JDK setup and device test flow.
+Android Studio JDK setup, release-signing details, and device test flow. Never
+commit the keystore or its credentials, and keep the same certificate for every
+upgrade.
 
 ### Windows NSIS installer
 
@@ -143,6 +172,47 @@ src-tauri/target/release/bundle/nsis/*-setup.exe
 Review the [Windows release checklist](docs/WINDOWS_RELEASE_CHECKLIST.md) before
 distribution.
 
+### macOS DMG from source
+
+Drop Den builds a native package for the Mac doing the build: Apple Silicon
+produces an `aarch64-apple-darwin` application, while an Intel Mac produces an
+`x86_64-apple-darwin` application. The current script does not create a
+universal binary, so build and test on matching hardware.
+
+Install Xcode Command Line Tools, Node.js 22, Yarn 1.22.22, and stable Rust:
+
+```bash
+xcode-select --install
+npm install --global yarn@1.22.22
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+```
+
+Then clone and build:
+
+```bash
+git clone https://github.com/ElijahMwambazi/drop-den.git
+cd drop-den
+cd frontend
+yarn install --frozen-lockfile
+cd ..
+SKIP_DEPENDENCY_INSTALL=1 ./scripts/build-desktop-macos.sh
+```
+
+The DMG is created under:
+
+```text
+src-tauri/target/release/bundle/dmg/
+```
+
+The `.app` bundle used to create it is under
+`src-tauri/target/release/bundle/macos/`. Unless
+`APPLE_SIGNING_IDENTITY` is supplied by a controlled build environment, the
+script uses ad-hoc signing for local testing. Public macOS binaries are
+postponed until matching-hardware testing, Developer ID signing, and Apple
+notarization are available. See the
+[macOS release checklist](docs/MACOS_RELEASE_CHECKLIST.md).
+
 ## Privacy and safety
 
 - Files pass through the host computer, not a cloud service.
@@ -165,5 +235,6 @@ you need to retain.
 - [Project and technical overview](docs/dropden.md)
 - [Known issues and fixes](docs/ISSUES.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Beta release checklist](docs/BETA_RELEASE_CHECKLIST.md)
 - [Security model](docs/SECURITY.md)
 - [API reference](docs/API.md)
