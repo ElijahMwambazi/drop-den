@@ -127,7 +127,7 @@ jobs:
           yarn install --frozen-lockfile
           yarn build
       - name: Prepare desktop sidecar
-        run: ./scripts/prepare-tauri-sidecar-dev.sh
+        run: bash scripts/prepare-tauri-sidecar-dev.sh
       - name: Check desktop formatting
         working-directory: src-tauri
         run: cargo fmt --check
