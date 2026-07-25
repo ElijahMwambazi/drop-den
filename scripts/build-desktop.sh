@@ -14,7 +14,7 @@ yarn build
 
 echo "==> Preparing Tauri backend sidecar"
 cd "$ROOT_DIR"
-"$ROOT_DIR/scripts/prepare-tauri-sidecar.sh"
+bash "$ROOT_DIR/scripts/prepare-tauri-sidecar.sh"
 
 echo "==> Building Tauri desktop app"
 cd "$ROOT_DIR"

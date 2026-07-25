@@ -166,7 +166,7 @@ jobs:
       - name: Build RPM
         run: |
           test "$(uname -m)" = "x86_64"
-          ./scripts/build-desktop.sh
+          bash scripts/build-desktop.sh
       - name: Collect RPM
         shell: bash
         run: |
@@ -259,6 +259,7 @@ jobs:
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
       - name: Validate signing secrets and reconstruct keystore
+        id: android_signing
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -281,20 +282,62 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
           test -s "$keystore"
           chmod 600 "$keystore"
+          if ! keytool -list \
+            -keystore "$keystore" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" \
+            >/dev/null
+          then
+            echo "The decoded Android keystore, store password, or key alias is invalid." >&2
+            echo "Re-encode the original keystore and update its matching GitHub secrets." >&2
+            exit 1
+          fi
+          keystore_type="$(
+            keytool -list \
+              -keystore "$keystore" \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" |
+              sed -n 's/^Keystore type: //p'
+          )"
+          if [[ -z "$keystore_type" ]]; then
+            echo "Could not determine the Android keystore type." >&2
+            exit 1
+          fi
+          effective_key_password="$ANDROID_KEY_PASSWORD"
+          if [[ "$keystore_type" == "PKCS12" ]]; then
+            effective_key_password="$ANDROID_KEYSTORE_PASSWORD"
+          fi
+          validation_keystore="$RUNNER_TEMP/android-signing-validation.p12"
+          if ! keytool -importkeystore \
+            -srckeystore "$keystore" \
+            -srcstorepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -srcalias "$ANDROID_KEY_ALIAS" \
+            -srckeypass "$effective_key_password" \
+            -destkeystore "$validation_keystore" \
+            -deststoretype PKCS12 \
+            -deststorepass temporary-validation-password \
+            -destkeypass temporary-validation-password \
+            -noprompt
+          then
+            echo "ANDROID_KEY_PASSWORD does not unlock ANDROID_KEY_ALIAS in the release keystore." >&2
+            echo "Update ANDROID_KEY_PASSWORD with the key entry's password." >&2
+            exit 1
+          fi
+          rm -f "$validation_keystore"
+          echo "keystore_type=$keystore_type" >> "$GITHUB_OUTPUT"
       - name: Build signed release APK
         working-directory: android-wrapper
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/drop-den-release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ steps.android_signing.outputs.keystore_type == 'PKCS12' && secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleRelease --no-daemon
       - name: Remove temporary keystore
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/drop-den-release.jks"
+        run: rm -f "$RUNNER_TEMP/drop-den-release.jks" "$RUNNER_TEMP/android-signing-validation.p12"
       - name: Verify and collect signed APK
         shell: bash
         run: |
