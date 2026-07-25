@@ -343,7 +343,17 @@ jobs:
         run: |
           apk="android-wrapper/app/build/outputs/apk/release/app-release.apk"
           test -f "$apk"
-          apksigner verify --verbose "$apk"
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "$sdk_root" ]]; then
+            echo "::error::Neither ANDROID_SDK_ROOT nor ANDROID_HOME is set."
+            exit 1
+          fi
+          apksigner="$sdk_root/build-tools/36.1.0/apksigner"
+          if [[ ! -x "$apksigner" ]]; then
+            echo "::error::apksigner was not found or is not executable at $apksigner"
+            exit 1
+          fi
+          "$apksigner" verify --verbose --print-certs "$apk"
           mkdir -p release-assets
           cp "$apk" "release-assets/drop-den-${RELEASE_VERSION}-android.apk"
       - name: Upload Android release asset
