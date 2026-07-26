@@ -75,7 +75,9 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: 12266719
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
       - name: Make Gradle wrapper executable
@@ -85,7 +87,7 @@ jobs:
         run: ./gradlew testDebugUnitTest lintDebug --no-daemon
       - name: Retain Android test reports
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: beta-android-test-reports
           path: |
@@ -178,7 +180,7 @@ jobs:
           mkdir -p release-assets
           cp "${packages[0]}" "release-assets/drop-den-${RELEASE_VERSION}-linux-x86_64.rpm"
       - name: Upload Linux release asset
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: release-linux
           path: release-assets/*.rpm
@@ -186,7 +188,7 @@ jobs:
           retention-days: 14
       - name: Retain Linux bundle diagnostics
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: beta-linux-bundle-diagnostics
           path: src-tauri/target/release/bundle/
@@ -227,7 +229,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item $installers[0].FullName "release-assets/drop-den-$env:RELEASE_VERSION-windows-x64-setup.exe"
       - name: Upload Windows release asset
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: release-windows
           path: release-assets/*.exe
@@ -235,7 +237,7 @@ jobs:
           retention-days: 14
       - name: Retain Windows bundle diagnostics
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: beta-windows-bundle-diagnostics
           path: src-tauri/target/release/bundle/
@@ -255,7 +257,9 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: 12266719
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
       - name: Validate signing secrets and reconstruct keystore
@@ -357,7 +361,7 @@ jobs:
           mkdir -p release-assets
           cp "$apk" "release-assets/drop-den-${RELEASE_VERSION}-android.apk"
       - name: Upload Android release asset
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: release-android
           path: release-assets/*.apk
@@ -365,7 +369,7 @@ jobs:
           retention-days: 14
       - name: Retain Android build diagnostics
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: beta-android-build-diagnostics
           path: |
@@ -386,7 +390,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Download complete release asset set
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           pattern: release-*
           path: release-assets

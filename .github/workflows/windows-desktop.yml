@@ -38,7 +38,7 @@ jobs:
         run: ./scripts/build-desktop-windows.ps1 -SkipDependencyInstall
 
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: drop-den-windows-x64
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
