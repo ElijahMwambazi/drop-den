@@ -6,6 +6,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -79,6 +80,20 @@ export function clearSessionOnUnauthorized(status: number) {
   }
 }
 
+async function errorCode(response: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.json();
+    if (body && typeof body === "object" && "code" in body) {
+      const { code } = body as { code: unknown };
+      return typeof code === "string" ? code : undefined;
+    }
+  } catch {
+    // Error responses without a JSON body carry no code.
+  }
+
+  return undefined;
+}
+
 export async function postJson<TResponse, TBody>(
   path: string,
   body: TBody,
@@ -91,7 +106,11 @@ export async function postJson<TResponse, TBody>(
 
   if (!response.ok) {
     clearSessionOnUnauthorized(response.status);
-    throw new ApiError(`POST ${path} failed: ${response.status}`, response.status);
+    throw new ApiError(
+      `POST ${path} failed: ${response.status}`,
+      response.status,
+      await errorCode(response),
+    );
   }
 
   if (response.status === 204) {

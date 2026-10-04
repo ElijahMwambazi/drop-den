@@ -1,5 +1,6 @@
 mod auth;
 mod cleanup;
+mod client_addr;
 mod db;
 mod models;
 mod rate_limit;
@@ -43,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     if should_reset_host() {
         db::reset_host_device(&db).await?;
         tracing::warn!(
-        "DROP_DEN_RESET_HOST=1 was set. Persisted host device was cleared. The next registered browser device will become host."
+        "DROP_DEN_RESET_HOST=1 was set. Persisted host device was cleared. The host role can be claimed again only from this machine (loopback)."
     );
     }
 
@@ -52,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(AppStateInit {
         desktop_mode: std::env::var("DROP_DEN_MODE").ok().as_deref() == Some("desktop"),
+        trust_forwarded_for: is_development_mode(),
         limits: settings::ResourceLimits::from_environment(),
         storage_dir,
         db,
@@ -331,6 +333,15 @@ fn configured_database_path(data_dir: &std::path::Path) -> PathBuf {
         .unwrap_or_else(|_| data_dir.join("drop-den.sqlite"))
 }
 
+/// Development mode is the default when `DROP_DEN_MODE` is unset. Any other
+/// value, including typos, is treated as production for trust decisions.
+fn is_development_mode() -> bool {
+    matches!(
+        std::env::var("DROP_DEN_MODE").ok().as_deref(),
+        None | Some("development")
+    )
+}
+
 fn configured_port() -> u16 {
     let mode = std::env::var("DROP_DEN_MODE").unwrap_or_else(|_| "development".to_string());
 
@@ -376,6 +387,14 @@ mod tests {
     }
 
     async fn test_app_with_limits(desktop_mode: bool, limits: settings::ResourceLimits) -> TestApp {
+        test_app_with_options(desktop_mode, limits, false).await
+    }
+
+    async fn test_app_with_options(
+        desktop_mode: bool,
+        limits: settings::ResourceLimits,
+        trust_forwarded_for: bool,
+    ) -> TestApp {
         let root = std::env::temp_dir().join(format!("drop-den-test-{}", Uuid::new_v4()));
         let storage_dir = root.join("transfers");
         tokio::fs::create_dir_all(&storage_dir).await.unwrap();
@@ -386,6 +405,7 @@ mod tests {
         let persisted = db::load_persisted_runtime_state(&pool).await.unwrap();
         let state = AppState::new(AppStateInit {
             desktop_mode,
+            trust_forwarded_for,
             limits,
             storage_dir,
             db: pool,
@@ -461,20 +481,44 @@ mod tests {
         serde_json::from_slice(&bytes).unwrap()
     }
 
+    const LOOPBACK_PEER: &str = "127.0.0.1:40000";
+    const LAN_PEER: &str = "192.168.1.20:40000";
+
+    /// Registers from the host machine (loopback) by default.
     async fn register(
         app: &Router,
         name: &str,
         pin: Option<&str>,
     ) -> (StatusCode, Option<RegisteredDevice>) {
-        let response = app
-            .clone()
-            .oneshot(json_request(
-                "POST",
-                "/api/devices",
-                json!({ "name": name, "join_pin": pin }),
+        register_from(app, LOOPBACK_PEER, name, pin).await
+    }
+
+    async fn register_response(
+        app: &Router,
+        peer: &str,
+        name: &str,
+        pin: Option<&str>,
+    ) -> axum::response::Response {
+        app.clone()
+            .oneshot(with_peer(
+                json_request(
+                    "POST",
+                    "/api/devices",
+                    json!({ "name": name, "join_pin": pin }),
+                ),
+                peer,
             ))
             .await
-            .unwrap();
+            .unwrap()
+    }
+
+    async fn register_from(
+        app: &Router,
+        peer: &str,
+        name: &str,
+        pin: Option<&str>,
+    ) -> (StatusCode, Option<RegisteredDevice>) {
+        let response = register_response(app, peer, name, pin).await;
         let status = response.status();
         let device = if status.is_success() {
             Some(serde_json::from_value(response_json(response).await).unwrap())
@@ -584,6 +628,10 @@ mod tests {
         assert!(!test.state.devices.read().await.contains_key(&host.id));
         assert!(test.state.devices.read().await.contains_key(&joined.id));
 
+        let (status, _) = register_from(&test.app, LAN_PEER, "Remote claimant", None).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert!(test.state.host_device_id.read().await.is_none());
+
         let (status, replacement_host) = register(&test.app, "Replacement host", None).await;
         assert_eq!(status, StatusCode::OK);
         let replacement_host = replacement_host.unwrap();
@@ -591,6 +639,310 @@ mod tests {
             test.state.host_device_id.read().await.as_deref(),
             Some(replacement_host.id.as_str())
         );
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn remote_first_registration_is_rejected_with_a_distinguishable_error() {
+        let test = test_app().await;
+
+        let response = register_response(&test.app, LAN_PEER, "Remote phone", None).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert_eq!(response_json(response).await["code"], "host_not_started");
+        assert!(test.state.host_device_id.read().await.is_none());
+        assert!(test.state.devices.read().await.is_empty());
+
+        // A PIN does not help while no host exists.
+        let pin = test.state.join_pin.read().await.clone();
+        let (status, _) = register_from(&test.app, LAN_PEER, "Remote phone", Some(&pin)).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+
+        // A request without any peer address counts as non-loopback.
+        let response = test
+            .app
+            .clone()
+            .oneshot(json_request(
+                "POST",
+                "/api/devices",
+                json!({ "name": "Unknown peer" }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert!(test.state.host_device_id.read().await.is_none());
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn loopback_first_registration_becomes_host() {
+        for peer in ["127.0.0.1:40000", "[::1]:40000"] {
+            let test = test_app().await;
+            let (status, host) = register_from(&test.app, peer, "Host", None).await;
+            assert_eq!(status, StatusCode::OK);
+            let host = host.unwrap();
+            assert_eq!(
+                test.state.host_device_id.read().await.as_deref(),
+                Some(host.id.as_str())
+            );
+
+            test.state.db.close().await;
+            tokio::fs::remove_dir_all(test.root).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_registration_needs_the_pin_once_a_host_exists() {
+        let test = test_app().await;
+        register(&test.app, "Host", None).await;
+        let pin = test.state.join_pin.read().await.clone();
+
+        let (status, _) = register_from(&test.app, LAN_PEER, "Phone", None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let (status, _) = register_from(&test.app, LAN_PEER, "Phone", Some("000000")).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let (status, joined) = register_from(&test.app, LAN_PEER, "Phone", Some(&pin)).await;
+        assert_eq!(status, StatusCode::OK);
+        let joined = joined.unwrap();
+        assert_ne!(
+            test.state.host_device_id.read().await.as_deref(),
+            Some(joined.id.as_str())
+        );
+
+        // Loopback devices are not exempt from the PIN once a host exists.
+        let (status, _) = register(&test.app, "Second local browser", None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn host_reset_is_claimable_only_from_loopback_and_keeps_other_sessions() {
+        let test = test_app().await;
+        let (_, host) = register(&test.app, "Host", None).await;
+        let host = host.unwrap();
+        let pin = test.state.join_pin.read().await.clone();
+        let (_, phone) = register_from(&test.app, LAN_PEER, "Phone", Some(&pin)).await;
+        let phone = phone.unwrap();
+
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request(
+                "POST",
+                "/api/host/reset",
+                &host.session_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let response = register_response(&test.app, LAN_PEER, "Remote claimant", None).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert_eq!(response_json(response).await["code"], "host_not_started");
+        assert!(test.state.host_device_id.read().await.is_none());
+
+        // The paired phone keeps its session while there is no host.
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request(
+                "GET",
+                "/api/devices",
+                &phone.session_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let (status, new_host) = register(&test.app, "New host", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            test.state.host_device_id.read().await.as_deref(),
+            Some(new_host.unwrap().id.as_str())
+        );
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn forwarded_for_is_trusted_only_in_development_mode() {
+        fn proxied(peer: &str, forwarded: &str) -> Request<Body> {
+            let mut request = json_request("POST", "/api/devices", json!({ "name": "Proxied" }));
+            request
+                .headers_mut()
+                .insert("x-forwarded-for", forwarded.parse().unwrap());
+            with_peer(request, peer)
+        }
+
+        // Development: the Vite proxy peer is loopback, the forwarded client is a phone.
+        let dev = test_app_with_options(false, settings::ResourceLimits::default(), true).await;
+        let response = dev
+            .app
+            .clone()
+            .oneshot(proxied("127.0.0.1:50000", "192.168.1.20"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let response = dev
+            .app
+            .clone()
+            .oneshot(proxied("127.0.0.1:50000", "127.0.0.1"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Packaged/desktop: the header is never consulted, so a proxied LAN
+        // client is indistinguishable from loopback and a spoofed header is inert.
+        let packaged = test_app().await;
+        let response = packaged
+            .app
+            .clone()
+            .oneshot(proxied("192.168.1.20:50000", "127.0.0.1"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let response = packaged
+            .app
+            .clone()
+            .oneshot(proxied("127.0.0.1:50000", "192.168.1.20"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        for test in [dev, packaged] {
+            test.state.db.close().await;
+            tokio::fs::remove_dir_all(test.root).await.unwrap();
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn simultaneous_first_registrations_produce_exactly_one_host() {
+        for _ in 0..5 {
+            let test = test_app().await;
+            let attempts = (0..6)
+                .map(|index| {
+                    let app = test.app.clone();
+                    tokio::spawn(async move {
+                        register_from(&app, LOOPBACK_PEER, &format!("Claimant {index}"), None).await
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            let mut hosts = Vec::new();
+            for attempt in attempts {
+                let (status, device) = attempt.await.unwrap();
+                if status == StatusCode::OK {
+                    hosts.push(device.unwrap());
+                } else {
+                    assert!(
+                        status == StatusCode::CONFLICT || status == StatusCode::UNAUTHORIZED,
+                        "unexpected status {status}"
+                    );
+                }
+            }
+
+            assert_eq!(hosts.len(), 1);
+            assert_eq!(test.state.devices.read().await.len(), 1);
+            assert_eq!(
+                test.state.host_device_id.read().await.as_deref(),
+                Some(hosts[0].id.as_str())
+            );
+
+            test.state.db.close().await;
+            tokio::fs::remove_dir_all(test.root).await.unwrap();
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_pin_can_be_spent_only_once_under_concurrent_joins() {
+        let test = test_app().await;
+        register(&test.app, "Host", None).await;
+        let pin = test.state.join_pin.read().await.clone();
+
+        let attempts = (0..4)
+            .map(|index| {
+                let app = test.app.clone();
+                let pin = pin.clone();
+                tokio::spawn(async move {
+                    register_from(&app, LAN_PEER, &format!("Phone {index}"), Some(&pin)).await
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let mut successes = 0;
+        for attempt in attempts {
+            if attempt.await.unwrap().0 == StatusCode::OK {
+                successes += 1;
+            }
+        }
+        assert_eq!(successes, 1);
+        assert_eq!(test.state.devices.read().await.len(), 2);
+
+        test.state.db.close().await;
+        tokio::fs::remove_dir_all(test.root).await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn slow_pin_verification_does_not_block_authenticated_requests() {
+        let test = test_app().await;
+        let (_, host) = register(&test.app, "Host", None).await;
+        let host = host.unwrap();
+
+        // Argon2 reads its cost from the stored hash, so a deliberately costly
+        // hash makes verification slow without any test-only hook in the code.
+        let pin = "123456";
+        let params = argon2::Params::new(32 * 1024, 2, 1, None).unwrap();
+        let slow_hash = {
+            use argon2::password_hash::{PasswordHasher, SaltString};
+            let salt = SaltString::generate(&mut rand_core::OsRng);
+            argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
+                .hash_password(pin.as_bytes(), &salt)
+                .unwrap()
+                .to_string()
+        };
+        *test.state.join_pin_hash.write().await = slow_hash;
+
+        let app = test.app.clone();
+        let started = std::time::Instant::now();
+        let registration =
+            tokio::spawn(
+                async move { register_from(&app, LAN_PEER, "Slow phone", Some(pin)).await },
+            );
+        // Let the registration reach the verification step.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let request_started = std::time::Instant::now();
+        let response = test
+            .app
+            .clone()
+            .oneshot(authorized_request(
+                "GET",
+                "/api/devices",
+                &host.session_token,
+            ))
+            .await
+            .unwrap();
+        let elapsed = request_started.elapsed();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            !registration.is_finished(),
+            "verification finished too quickly to prove anything (took {:?})",
+            started.elapsed()
+        );
+        assert!(
+            elapsed < std::time::Duration::from_millis(150),
+            "GET /api/devices was blocked for {elapsed:?} during PIN verification"
+        );
+
+        let (status, joined) = registration.await.unwrap();
+        assert_eq!(status, StatusCode::OK);
+        assert!(joined.is_some());
 
         test.state.db.close().await;
         tokio::fs::remove_dir_all(test.root).await.unwrap();

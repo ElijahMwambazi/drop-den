@@ -23,7 +23,7 @@ or peer-to-peer WebRTC transfers.
 
 ### Devices and access
 
-- The first registered device becomes the host device.
+- The first device registered from the server machine itself (loopback) becomes the host device; other devices wait for it and then join with the PIN.
 - Later devices join with a rotating six-digit PIN.
 - Private API routes require a revocable device session token issued at pairing.
 - Host settings are available to the host on supported runtimes.

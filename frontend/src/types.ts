@@ -20,6 +20,7 @@ export type AppConfig = {
   local_origin: string;
   recommended_join_origin: string;
   has_host_device: boolean;
+  can_claim_host: boolean;
   is_host_device: boolean;
   join_pin?: string | null;
   max_upload_size_bytes: number;

@@ -62,6 +62,20 @@ http://<pc-lan-ip>:5173
 
 During development, Vite proxies `/api` and `/ws` to the Rust backend.
 
+### Claiming the host in development
+
+Only a loopback client can become host (see [Security model](./SECURITY.md)).
+Open `http://localhost:5173` on the machine running the backend first; phones and
+other computers see "Waiting for the host to start the den" until you do.
+
+The Vite proxy connects to the backend from 127.0.0.1, which would make every
+LAN device look like loopback. The proxy therefore sends `X-Forwarded-For`
+(`xfwd: true` in `frontend/vite.config.ts`), and the backend trusts it only in
+development mode (`DROP_DEN_MODE` unset or `development`) and only when the TCP
+peer is loopback. Packaged and desktop modes never trust forwarded headers.
+Reverse proxies are unsupported in every mode because they make every peer look
+like loopback.
+
 ## Packaged mode
 
 Packaged mode builds the React frontend and serves it from the Rust backend.
@@ -234,9 +248,9 @@ cargo check --locked
 
 ## Host recovery
 
-If the host browser identity is lost, clear the persisted host device and let the next registered browser become host.
+If the host browser identity is lost, clear the persisted host device. The host role can then be claimed again only from the server machine itself (loopback); other devices wait until it does.
 
-Development:
+Development (then open `http://localhost:5173` on this machine to claim host):
 
 ```bash
 DROP_DEN_RESET_HOST=1 cargo run

@@ -31,6 +31,8 @@ export function DeviceSetup() {
   const hasHostDevice = Boolean(config?.has_host_device);
   const isHostDevice = Boolean(config?.is_host_device);
   const requiresPin = hasHostDevice && !device;
+  // Only the machine running the server may claim host, so other devices wait.
+  const waitingForHost = Boolean(config) && !hasHostDevice && !config?.can_claim_host && !device;
 
   const mutation = useMutation({
     mutationFn: registerDevice,
@@ -39,6 +41,11 @@ export function DeviceSetup() {
       setJoinPin("");
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       queryClient.invalidateQueries({ queryKey: ["config"] });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        queryClient.invalidateQueries({ queryKey: ["config"] });
+      }
     },
   });
   const leaveMutation = useMutation({
@@ -84,7 +91,7 @@ export function DeviceSetup() {
     const trimmedName = name.trim();
     const trimmedJoinPin = joinPin.trim();
 
-    if (!trimmedName) {
+    if (!trimmedName || waitingForHost) {
       return;
     }
 
@@ -134,7 +141,9 @@ export function DeviceSetup() {
             <p className="mt-2 text-sm text-neutral-600">
               {hasHostDevice
                 ? "Choose a recognizable name, then enter the six-digit PIN shown on the host."
-                : "Set up this device as host. You can invite other devices after it connects."}
+                : waitingForHost
+                  ? "This den has no host yet. Joining opens once the host starts it."
+                  : "Set up this device as host. You can invite other devices after it connects."}
             </p>
           )}
         </div>
@@ -160,16 +169,29 @@ export function DeviceSetup() {
         <div className="mt-3 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-900">
           <Crown className="mt-0.5 shrink-0" size={16} />
           <div>
-            <p className="text-xs font-semibold">This den needs a host</p>
-            <p className="mt-1 text-xs leading-5 text-amber-800">
-              No host is assigned right now. This device can become host from
-              the browser or desktop app and create a fresh join PIN.
-            </p>
+            {waitingForHost ? (
+              <>
+                <p className="text-xs font-semibold">Waiting for the host to start the den</p>
+                <p className="mt-1 text-xs leading-5 text-amber-800">
+                  The host role can only be claimed on the computer running Drop
+                  Den. Ask the host to open it there, then return here to join
+                  with the PIN it shows.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs font-semibold">This den needs a host</p>
+                <p className="mt-1 text-xs leading-5 text-amber-800">
+                  No host is assigned right now. This device can become host and
+                  create a fresh join PIN.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {!device && (
+      {!device && !waitingForHost && (
         <form className="mt-4 space-y-4" onSubmit={onSubmit}>
           <div>
             <label className="text-xs font-medium text-neutral-700" htmlFor="device-name">
@@ -251,6 +273,12 @@ export function DeviceSetup() {
 
 function getJoinError(error: unknown, requiresPin: boolean) {
   if (error instanceof ApiError) {
+    if (error.code === "host_not_started") {
+      return "Waiting for the host to start the den. Ask the host to open Drop Den on their computer, then try again.";
+    }
+    if (error.code === "host_changed") {
+      return "The den changed while joining. Try again.";
+    }
     if (error.status === 401 && requiresPin) {
       return "That PIN didn’t match. Check the current PIN on the host and try again.";
     }

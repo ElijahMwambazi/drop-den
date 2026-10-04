@@ -32,9 +32,10 @@ pub async fn config(
         .unwrap_or(false);
 
     let mode = std::env::var("DROP_DEN_MODE").unwrap_or_else(|_| "development".to_string());
-    let is_loopback = peer
-        .map(|ConnectInfo(address)| address.ip().is_loopback())
-        .unwrap_or(false);
+    let peer_ip = peer.map(|ConnectInfo(address)| address.ip());
+    let is_loopback = peer_ip.map(|ip| ip.is_loopback()).unwrap_or(false);
+    let can_claim_host = host_device_id.is_none()
+        && crate::client_addr::is_loopback(peer_ip, &headers, state.trust_forwarded_for);
     let desktop_paths = if mode == "desktop" && is_host_device && is_loopback {
         Some(DesktopPaths {
             data_dir: std::env::var("DROP_DEN_DATA_DIR").ok(),
@@ -78,6 +79,7 @@ pub async fn config(
         local_origin,
         recommended_join_origin,
         has_host_device: host_device_id.is_some(),
+        can_claim_host,
         is_host_device,
         join_pin: if is_host_device {
             Some(state.join_pin.read().await.clone())

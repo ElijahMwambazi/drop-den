@@ -246,7 +246,9 @@ export function JoinCard() {
                 <p className="mt-1 text-sm text-neutral-600">
                   {hasHostDevice
                     ? "PIN is only visible on the host device."
-                    : "Register this first device to become the host and reveal the PIN."}
+                    : config?.can_claim_host
+                      ? "Register this device to become the host and reveal the PIN."
+                      : "Waiting for the host to start the den."}
                 </p>
               )}
             </div>

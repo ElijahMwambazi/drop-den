@@ -7,6 +7,7 @@ use crate::{
 use axum::{
     extract::{ConnectInfo, Path, State},
     http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use chrono::Utc;
@@ -23,44 +24,97 @@ pub async fn list_devices(
     Ok(Json(devices.values().cloned().collect()))
 }
 
+/// Why a registration was refused. `HostNotStarted` and `HostChanged` carry a
+/// machine-readable `code` so the frontend can tell them apart from a wrong PIN.
+pub enum RegisterError {
+    Status(StatusCode),
+    /// No host exists and this peer may not claim the role.
+    HostNotStarted,
+    /// The host state changed while the request was being processed.
+    HostChanged,
+}
+
+impl From<StatusCode> for RegisterError {
+    fn from(status: StatusCode) -> Self {
+        Self::Status(status)
+    }
+}
+
+impl IntoResponse for RegisterError {
+    fn into_response(self) -> Response {
+        let (code, error) = match self {
+            Self::Status(status) => return status.into_response(),
+            Self::HostNotStarted => (
+                "host_not_started",
+                "The den has not been started by its host yet.",
+            ),
+            Self::HostChanged => (
+                "host_changed",
+                "The den changed while joining. Please try again.",
+            ),
+        };
+        (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "code": code, "error": error })),
+        )
+            .into_response()
+    }
+}
+
+/// What the request observed before committing, re-checked under the lock.
+enum Registration {
+    /// No host existed and the peer is loopback: claim the host role.
+    ClaimHost,
+    /// A host existed: the PIN verified against exactly this hash.
+    JoinWithPin { verified_hash: String },
+}
+
 pub async fn register_device(
     State(state): State<AppState>,
     peer: Option<ConnectInfo<SocketAddr>>,
+    headers: HeaderMap,
     Json(input): Json<RegisterDeviceRequest>,
-) -> Result<Json<RegisteredDevice>, StatusCode> {
-    let peer_key = peer
-        .map(|ConnectInfo(address)| address.ip().to_string())
+) -> Result<Json<RegisteredDevice>, RegisterError> {
+    let peer_ip = peer.map(|ConnectInfo(address)| address.ip());
+    let client_ip =
+        crate::client_addr::effective_client_ip(peer_ip, &headers, state.trust_forwarded_for);
+    let peer_key = client_ip
+        .map(|ip| ip.to_string())
         .unwrap_or_else(|| "unknown".to_string());
     if !state
         .rate_limiter
         .check(format!("pair:{peer_key}"), 12, Duration::from_secs(5 * 60))
         .await
     {
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+        return Err(StatusCode::TOO_MANY_REQUESTS.into());
     }
     let trimmed_name = input.name.trim();
 
     if trimmed_name.is_empty() || trimmed_name.chars().count() > 64 {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(StatusCode::BAD_REQUEST.into());
     }
 
-    let mut host_device_id = state.host_device_id.write().await;
-    let is_first_device = host_device_id.is_none();
-
-    if !is_first_device {
+    // Phase 1: decide using short-lived reads only. The host lock is never held
+    // across the Argon2 verification, because every authenticated request reads it.
+    let host_exists = state.host_device_id.read().await.is_some();
+    let registration = if host_exists {
         let submitted_pin = input.join_pin.unwrap_or_default();
         let current_hash = state.join_pin_hash.read().await.clone();
-
-        let is_valid_pin =
-            db::verify_join_pin(submitted_pin.trim(), &current_hash).map_err(|error| {
-                tracing::error!(error = %error, "failed to verify join pin");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-        if !is_valid_pin {
-            return Err(StatusCode::UNAUTHORIZED);
+        verify_pin_off_runtime(submitted_pin.trim().to_string(), current_hash.clone()).await?;
+        Registration::JoinWithPin {
+            verified_hash: current_hash,
         }
-    }
+    } else if client_ip.map(|ip| ip.is_loopback()).unwrap_or(false) {
+        Registration::ClaimHost
+    } else {
+        return Err(RegisterError::HostNotStarted);
+    };
+
+    // The replacement PIN is also an Argon2 hash, so compute it before locking.
+    let rotated_pin = match registration {
+        Registration::JoinWithPin { .. } => Some(new_join_pin().await?),
+        Registration::ClaimHost => None,
+    };
 
     let device = Device {
         id: Uuid::new_v4().to_string(),
@@ -70,6 +124,30 @@ pub async fn register_device(
     let session_token = generate_session_token();
     let session_token_hash = hash_session_token(&session_token);
 
+    // Phase 2: commit under the lock and re-check what phase 1 observed, so two
+    // simultaneous first registrations cannot both become host and a join PIN
+    // cannot be spent twice.
+    let mut host_device_id = state.host_device_id.write().await;
+    match &registration {
+        Registration::ClaimHost => {
+            if host_device_id.is_some() {
+                return Err(RegisterError::HostChanged);
+            }
+        }
+        Registration::JoinWithPin { .. } => {
+            if host_device_id.is_none() {
+                return Err(RegisterError::HostNotStarted);
+            }
+        }
+    }
+    let mut join_pin_hash = state.join_pin_hash.write().await;
+    if let Registration::JoinWithPin { verified_hash } = &registration {
+        if *join_pin_hash != *verified_hash {
+            // Another device used (and rotated) the PIN since it was verified.
+            return Err(StatusCode::UNAUTHORIZED.into());
+        }
+    }
+
     db::insert_device(&state.db, &device, &session_token_hash)
         .await
         .map_err(|error| {
@@ -77,19 +155,31 @@ pub async fn register_device(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    if is_first_device {
-        db::set_setting(&state.db, "host_device_id", &device.id)
-            .await
-            .map_err(|error| {
-                tracing::error!(error = %error, "failed to persist host device id");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+    match rotated_pin {
+        None => {
+            db::set_setting(&state.db, "host_device_id", &device.id)
+                .await
+                .map_err(|error| {
+                    tracing::error!(error = %error, "failed to persist host device id");
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
 
-        *host_device_id = Some(device.id.clone());
-    } else {
-        rotate_join_pin(&state).await?;
+            *host_device_id = Some(device.id.clone());
+        }
+        Some((new_pin, new_hash)) => {
+            db::set_setting(&state.db, "join_pin_hash", &new_hash)
+                .await
+                .map_err(|error| {
+                    tracing::error!(error = %error, "failed to persist rotated join pin hash");
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            *state.join_pin.write().await = new_pin;
+            *join_pin_hash = new_hash;
+        }
     }
 
+    drop(join_pin_hash);
     drop(host_device_id);
 
     state
@@ -109,6 +199,41 @@ pub async fn register_device(
         device,
         session_token,
     }))
+}
+
+async fn verify_pin_off_runtime(pin: String, hash: String) -> Result<(), RegisterError> {
+    let is_valid = tokio::task::spawn_blocking(move || db::verify_join_pin(&pin, &hash))
+        .await
+        .map_err(|error| {
+            tracing::error!(error = %error, "join pin verification task failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .map_err(|error| {
+            tracing::error!(error = %error, "failed to verify join pin");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if is_valid {
+        Ok(())
+    } else {
+        Err(StatusCode::UNAUTHORIZED.into())
+    }
+}
+
+async fn new_join_pin() -> Result<(String, String), StatusCode> {
+    tokio::task::spawn_blocking(|| {
+        let pin = db::generate_join_pin();
+        db::hash_join_pin(&pin).map(|hash| (pin, hash))
+    })
+    .await
+    .map_err(|error| {
+        tracing::error!(error = %error, "join pin hashing task failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .map_err(|error| {
+        tracing::error!(error = %error, "failed to hash rotated join pin");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
 }
 
 pub async fn remove_device(
@@ -254,26 +379,6 @@ pub async fn reset_desktop_data(
     state.broadcast_and_disconnect("desktop_reset", &serde_json::json!({}), std::iter::empty());
 
     Ok(StatusCode::NO_CONTENT)
-}
-
-async fn rotate_join_pin(state: &AppState) -> Result<(), StatusCode> {
-    let new_pin = db::generate_join_pin();
-    let new_hash = db::hash_join_pin(&new_pin).map_err(|error| {
-        tracing::error!(error = %error, "failed to hash rotated join pin");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    db::set_setting(&state.db, "join_pin_hash", &new_hash)
-        .await
-        .map_err(|error| {
-            tracing::error!(error = %error, "failed to persist rotated join pin hash");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    *state.join_pin.write().await = new_pin;
-    *state.join_pin_hash.write().await = new_hash;
-
-    Ok(())
 }
 
 async fn remove_transfers_targeted_to(state: &AppState, device_id: &str) -> Result<(), StatusCode> {

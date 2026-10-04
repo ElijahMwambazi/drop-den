@@ -44,6 +44,8 @@ pub struct DownloadTicket {
 #[derive(Clone)]
 pub struct AppState {
     pub desktop_mode: bool,
+    /// Development only: trust `X-Forwarded-For` from a loopback peer (the Vite proxy).
+    pub trust_forwarded_for: bool,
     pub limits: ResourceLimits,
     pub storage_dir: PathBuf,
     pub db: SqlitePool,
@@ -63,6 +65,7 @@ pub struct AppState {
 
 pub struct AppStateInit {
     pub desktop_mode: bool,
+    pub trust_forwarded_for: bool,
     pub limits: ResourceLimits,
     pub storage_dir: PathBuf,
     pub db: SqlitePool,
@@ -80,6 +83,7 @@ impl AppState {
     pub fn new(init: AppStateInit) -> Self {
         let AppStateInit {
             desktop_mode,
+            trust_forwarded_for,
             limits,
             storage_dir,
             db,
@@ -96,6 +100,7 @@ impl AppState {
 
         Self {
             desktop_mode,
+            trust_forwarded_for,
             limits,
             storage_dir,
             db,

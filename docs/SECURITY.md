@@ -22,10 +22,47 @@ messages, and transfers because older device IDs were usable as credentials.
 After upgrade, every device must pair again. Orphaned legacy transfer files are
 removed during startup.
 
-The first device still becomes host without a PIN. Later devices need the
-current six-digit PIN; it is Argon2-hashed in SQLite, kept in plaintext only in
-runtime memory, rotated after each successful join, and rate-limited by source
-IP.
+## Claiming the host role
+
+The host is the machine running the server, so only that machine can claim the
+host role. While no host exists (fresh install, or after a host reset), a
+registration without a PIN is accepted only when the TCP peer address is
+loopback. A request with no peer address counts as non-loopback.
+
+Every other registration needs the current six-digit PIN. While no host exists,
+non-loopback registrations are refused with `409 Conflict` and a JSON body
+`{"code": "host_not_started", ...}`, even with a PIN; the web UI shows
+"Waiting for the host to start the den". `GET /api/config` reports
+`can_claim_host` so clients can show this before trying. A concurrent change of
+host state during registration returns `409` with `"code": "host_changed"`.
+
+On a packaged or headless install, the host claims the den by opening
+`http://localhost` (or `http://127.0.0.1`) on the server machine. The desktop app
+registers over loopback, so nothing changes for it. After a host reset, devices
+that are already paired keep their sessions; only the host role returns to the
+loopback-only claim.
+
+The join PIN is Argon2-hashed in SQLite, kept in plaintext only in runtime
+memory, rotated after each successful join, and rate-limited by source IP. PIN
+verification runs on a blocking thread without holding the host lock, and the
+host and PIN state are re-checked under the lock before committing, so a PIN
+cannot be spent twice and two simultaneous first registrations cannot both
+become host.
+
+### Reverse proxies are unsupported
+
+Behind a reverse proxy (nginx, Caddy, a tunnel, a container port-forward that
+rewrites the source address) every client appears to connect from loopback, so
+every device on the network could claim the host role. Drop Den ignores
+`X-Forwarded-For` and similar headers in packaged and desktop modes and must not
+be deployed behind a proxy.
+
+The one exception is development mode (`DROP_DEN_MODE` unset or `development`),
+where the Vite dev server proxies LAN requests from 127.0.0.1. There, and only
+when the TCP peer is loopback, the rightmost `X-Forwarded-For` entry (appended by
+the dev proxy, so it cannot be forged by the client) is used as the client
+address; a malformed value is treated as non-loopback. Do not expose a
+development-mode backend to untrusted networks.
 
 ## Authorization
 

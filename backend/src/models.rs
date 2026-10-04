@@ -80,6 +80,7 @@ pub struct AppConfig {
     pub local_origin: String,
     pub recommended_join_origin: String,
     pub has_host_device: bool,
+    pub can_claim_host: bool,
     pub is_host_device: bool,
     pub join_pin: Option<String>,
     pub max_upload_size_bytes: u64,

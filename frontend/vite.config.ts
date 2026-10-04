@@ -13,11 +13,15 @@ export default defineConfig({
       "/api": {
         target: apiTarget,
         changeOrigin: true,
+        // The backend (development mode only) needs the real client address to
+        // tell the host machine from LAN devices.
+        xfwd: true,
       },
       "/ws": {
         target: wsTarget,
         ws: true,
         changeOrigin: true,
+        xfwd: true,
       },
     },
   },

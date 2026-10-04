@@ -112,7 +112,7 @@ Use this checklist for every Drop Den Linux desktop RPM candidate. Complete it o
 - [ ] Confirm only one backend owns port `18080`.
 - [ ] Confirm the transparent rounded window, custom titlebar, footer, tray icon, and compact layout render correctly.
 - [ ] Confirm the app creates its managed data directory and SQLite database.
-- [ ] Register the first device and confirm it becomes host.
+- [ ] On the installed machine, open `http://localhost`, register the first device, and confirm it becomes host. Confirm a LAN device sees "Waiting for the host" before that.
 - [ ] Confirm the host can reveal the PIN and open the QR invite dialog.
 
 ## 6. Functional smoke test
