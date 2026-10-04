@@ -26,6 +26,15 @@ export function DeviceSetup() {
   const { data: config } = useQuery({
     queryKey: ["config", device?.id],
     queryFn: () => getConfig(device?.id),
+    // While waiting for the host to start the den, poll so the join form
+    // appears as soon as a host exists. Stops once a host exists or this
+    // device is registered.
+    refetchInterval: (query) => {
+      const current = query.state.data;
+      const waiting =
+        !device && current && !current.has_host_device && !current.can_claim_host;
+      return waiting ? 5000 : false;
+    },
   });
 
   const hasHostDevice = Boolean(config?.has_host_device);

@@ -31,6 +31,12 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter("drop_den_backend=debug,tower_http=info")
         .init();
 
+    if is_development_mode() {
+        tracing::warn!(
+            "Development mode trusts X-Forwarded-For from loopback peers and is not for production. Set DROP_DEN_MODE=packaged or desktop."
+        );
+    }
+
     let data_dir = configured_data_dir();
     tokio::fs::create_dir_all(&data_dir).await?;
 

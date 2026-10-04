@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Environment=DROP_DEN_MODE=packaged
 EnvironmentFile=/etc/drop-den/drop-den.env
 ExecStart=/usr/local/bin/drop-den
 WorkingDirectory=/var/lib/drop-den

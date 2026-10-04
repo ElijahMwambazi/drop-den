@@ -129,6 +129,11 @@ DROP_DEN_STORAGE_DIR=/var/lib/drop-den/transfers
 DROP_DEN_FRONTEND_DIST=/usr/local/share/drop-den/frontend/dist
 ```
 
+The unit file also sets `DROP_DEN_MODE=packaged` itself, before reading
+`/etc/drop-den/drop-den.env`, so the service never falls back to development mode
+(which trusts `X-Forwarded-For`) if that line is removed from the env file. Values
+in the env file still override it, so do not set `DROP_DEN_MODE=development` there.
+
 Manage service:
 
 ```bash
